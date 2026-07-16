@@ -43,6 +43,8 @@ import { formatReport } from "./swarm/report";
 import { registerCommands } from "./swarm/commands";
 import { goalManager } from "./goal";
 import { planManager } from "./plan";
+import { permissionManager } from "./permission";
+import { registerPermissionCommands } from "./permission/commands";
 import { backgroundManager, registerBackgroundTools } from "./task";
 import shared from "./state";
 
@@ -81,6 +83,12 @@ export default function (pi: ExtensionAPI) {
     } else {
       ctx.ui.setStatus("plan-mode", undefined);
     }
+    // Permission mode status bar
+    const mode = permissionManager.getMode();
+    ctx.ui.setStatus("permission-mode", ctx.ui.theme.fg(
+      mode === 'auto' ? 'success' : mode === 'yolo' ? 'warning' : 'accent',
+      mode
+    ));
     // Goal status bar (Kimi Code-style)
     const goalBadge = goalManager.buildFooterBadge();
     if (goalBadge) {
@@ -209,13 +217,26 @@ export default function (pi: ExtensionAPI) {
   planManager.registerTools(pi);
   planManager.registerCommands(pi);
 
-  // ── tool_call: enforce plan mode tool restrictions ──
-  pi.on("tool_call", (event, ctx) => {
+  // ── Register permission commands ──
+  registerPermissionCommands(pi, permissionManager);
+
+  // ── tool_call: 18-level policy chain + plan mode restrictions ──
+  pi.on("tool_call", async (event, ctx) => {
     const toolName = event.toolName || "";
-    const filePath = event.args?.file_path || event.args?.path || "";
+    const input = (event.input || event.args || {}) as Record<string, unknown>;
+    const filePath = (input.file_path as string) || (input.path as string) || "";
+    
+    // Plan mode restrictions (checked first, before policy chain)
     if (planManager.shouldBlockTool(toolName, filePath)) {
       ctx.ui.notify(`Tool "${toolName}" is blocked in Plan Mode. Use read-only tools only.`, "warning");
-      return { blocked: true, reason: "Plan Mode: tool not allowed" };
+      return { block: true, reason: "Plan Mode: tool not allowed" };
+    }
+    
+    // 18-level permission policy chain
+    const result = await permissionManager.evaluate(toolName, input, ctx.cwd || process.cwd(), ctx);
+    if (result?.block) {
+      ctx.ui.notify(`Blocked: ${result.reason}`, "warning");
+      return result;
     }
   });
 
