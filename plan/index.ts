@@ -145,6 +145,19 @@ export class PlanManager {
   }
 
   /**
+   * Clear plan content only (Kimi Code-style /plan clear).
+   * Keeps plan mode active, just empties the plan file/content.
+   */
+  clearPlanContent(): void {
+    const plan = currentPlanMode.currentPlan;
+    if (!plan) return;
+    plan.content = '';
+    plan.updatedAt = Date.now();
+    setCurrentPlan(plan);
+    this.persist();
+  }
+
+  /**
    * Toggle plan mode (Kimi Code-style /plan).
    */
   togglePlanMode(): boolean {

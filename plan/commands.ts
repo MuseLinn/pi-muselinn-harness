@@ -53,12 +53,19 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
     handler: async (args: string, ctx: any) => {
       const arg = (args || "").trim().toLowerCase();
 
-      // Handle clear — Kimi Code style: clear plan file content, keep plan mode OFF
+      // Handle clear — Kimi Code style: clear plan content, keep plan mode state
       if (arg === "clear") {
-        planManager.clearPlan();
-        savePlanStateToSession(ctx, false, null);
-        ctx.ui.setStatus("plan-mode", undefined);
-        ctx.ui.notify("Plan cleared.", "info");
+        // Only clear plan content, don't exit plan mode
+        const wasActive = isPlanActiveFromSession(ctx);
+        planManager.clearPlanContent();
+        if (wasActive) {
+          // Re-enter plan mode if it was active (clearPlan reset state)
+          const plan = planManager.enterPlanMode("Plan cleared");
+          savePlanStateToSession(ctx, true, plan);
+          ctx.ui.notify("Plan content cleared. Plan mode still active.", "info");
+        } else {
+          ctx.ui.notify("Plan cleared. No active plan mode.", "info");
+        }
         return;
       }
 
