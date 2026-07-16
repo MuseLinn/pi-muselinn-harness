@@ -30,6 +30,7 @@ export interface SubAgentTask {
   turns: number;
   usage: { input: number; output: number; cost: number };
   currentAction?: string;
+  outputLines: string[];       // 完整输出文本行（实时累积 + 完成后补充）
   progressPercent: number;
   /** Tick counter for braille bar animation — incremented each frame */
   ticks: number;

@@ -226,7 +226,9 @@ async function runWithModel(
         task.progressPercent = Math.min(90, task.turns * 15 + 10);
         const texts = (msg.content || []).filter((p: any) => p.type === "text");
         if (texts.length > 0) {
-          task.currentAction = texts[texts.length - 1].text?.slice(0, 60) || "";
+          const fullText = texts.map((p: any) => p.text || "").join("\n");
+          task.outputLines.push(fullText);
+          task.currentAction = fullText.slice(0, 60) || "";
         }
         onProgress();
       }
@@ -285,6 +287,15 @@ async function runWithModel(
     task.completedAtMs = Date.now();
     task.progressPercent = 100;
     const msgs = session.state.messages;
+
+    // Extract full output from session messages (supplements subscribe-captured text)
+    const allText = msgs
+      .filter((m: any) => m.role === "assistant")
+      .flatMap((m: any) => (m.content || []).filter((p: any) => p.type === "text").map((p: any) => p.text))
+      .filter(Boolean);
+    if (allText.length > 0) {
+      task.outputLines = allText;
+    }
 
     let hasNonToolTurn = false;
     for (let i = msgs.length - 1; i >= 0; i--) {

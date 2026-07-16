@@ -114,9 +114,9 @@ export function registerCommands(pi: ExtensionAPI): void {
   });
 
   // ============================================================
-  // /resume - Resume interrupted swarm
+  // /swarm-resume - Resume interrupted swarm
   // ============================================================
-  pi.registerCommand("resume", {
+  pi.registerCommand("swarm-resume", {
     description: "Resume interrupted swarm from where it left off (supports resume_agent_ids)",
     handler: async (_args, ctx) => {
       const ss = savedSwarmState;
@@ -195,8 +195,8 @@ export function registerCommands(pi: ExtensionAPI): void {
             if (!s) return;
             const task = s.tasks.find(t => t.id === taskId);
             if (!task) return;
-            // Show a snapshot of the task as preview output
-            outputPreview = `Task: ${task.id}\nStatus: ${task.status}\nModel: ${task.model}\nTurns: ${task.turns}\nTokens: ↑${task.usage.input} ↓${task.usage.output}\n\nAction:\n${task.currentAction || "(none)"}\n\nItem: ${task.item || ""}`;
+            // Use real output from task.outputLines
+            outputPreview = task.outputLines?.join("\n") || `[no output captured]\nTask: ${task.id}\nStatus: ${task.status}\nModel: ${task.model}`;
           },
         };
       }
@@ -208,13 +208,13 @@ export function registerCommands(pi: ExtensionAPI): void {
             component = new TasksBrowserComponent(buildProps(done), theme);
           }
 
-          // Auto-refresh every 150ms — push latest state + tasks
+          // Auto-refresh every 1s — push latest state + tasks
           refreshTimer = setInterval(() => {
             if (component) {
               component.setProps(buildProps(done));
             }
             _tui?.invalidate?.();
-          }, 150);
+          }, 1000);
 
           return {
             render: (width: number) => component!.render(width),
@@ -222,6 +222,7 @@ export function registerCommands(pi: ExtensionAPI): void {
             handleInput: (data: string) => {
               if (data === "\x1b" || data.toLowerCase() === "q") {
                 if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+                component = null;  // Prevent last refresh from triggering setProps
                 done(undefined);
                 return;
               }

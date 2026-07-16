@@ -127,6 +127,13 @@ export class TasksBrowserComponent extends Container {
   private pendingStopTaskId: string | undefined = undefined;
   private pendingStopTimer: NodeJS.Timeout | undefined = undefined;
 
+  // ── Output Viewer state ──
+  private viewerOpen = false;
+  private viewerScrollTop = 0;
+  private viewerFollowTail = true;
+  private viewerOutputLines: string[] = [];
+  private viewerTaskId = "";
+
   constructor(props: TasksBrowserProps, theme: any) {
     super();
     this.props = props;
@@ -188,6 +195,12 @@ export class TasksBrowserComponent extends Container {
   // ── Keyboard handling ──────────────────────────────────────────
 
   handleInput(data: string): void {
+    // Viewer mode — separate keyboard handling
+    if (this.viewerOpen) {
+      this.handleViewerInput(data);
+      return;
+    }
+
     const k = data.length === 1 ? data : "";
 
     if (this.pendingStopTaskId !== undefined) {
@@ -243,7 +256,15 @@ export class TasksBrowserComponent extends Container {
     }
     if (k === "o" || k === "O" || data === "\r") {
       const task = this.sortedVisible[this.selectedIndex];
-      if (task) this.props.onOpenOutput(task.id);
+      if (task) {
+        // Open full-screen output viewer with real output
+        this.viewerOpen = true;
+        this.viewerScrollTop = 0;
+        this.viewerFollowTail = true;
+        this.viewerTaskId = task.id;
+        this.viewerOutputLines = task.outputLines || [];
+        this.invalidate();
+      }
       return;
     }
   }
@@ -251,6 +272,9 @@ export class TasksBrowserComponent extends Container {
   // ── Main render ────────────────────────────────────────────────
 
   override render(width: number): string[] {
+    // Viewer mode — full-screen output
+    if (this.viewerOpen) return this.renderViewer(width);
+
     if (width < MIN_WIDTH) {
       return this.renderTooSmall(width, 24);
     }
@@ -532,10 +556,16 @@ export class TasksBrowserComponent extends Container {
       return this.renderFrame("Preview Output", lines, width, height);
     }
 
+    // Use real output from task.outputLines, fallback to outputPreview
     let body: string;
-    if (this.props.outputPreview === undefined || this.props.outputPreview.length === 0)
+    const outputLines = task.outputLines;
+    if (outputLines && outputLines.length > 0) {
+      body = outputLines.join("\n");
+    } else if (this.props.outputPreview && this.props.outputPreview.length > 0) {
+      body = this.props.outputPreview;
+    } else {
       body = "[no output captured]";
-    else body = this.props.outputPreview;
+    }
 
     const rawLines = body.split("\n");
     const tailLines = rawLines.slice(-innerHeight);
@@ -556,5 +586,110 @@ export class TasksBrowserComponent extends Container {
     lines.push(fitExactly(msg, width));
     for (let i = 1; i < rows; i++) lines.push(" ".repeat(width));
     return lines;
+  }
+
+  // ── Output Viewer ──────────────────────────────────────────────
+
+  private handleViewerInput(data: string): void {
+    const k = data.length === 1 ? data : "";
+    const totalLines = this.viewerOutputLines.length;
+
+    // Close viewer
+    if (data === "\x1b" || k === "q" || k === "Q") {
+      this.viewerOpen = false;
+      this.invalidate();
+      return;
+    }
+    // Scroll up
+    if (data === "\x1b[A" || k === "k") {
+      this.viewerScrollTop = Math.max(0, this.viewerScrollTop - 1);
+      this.viewerFollowTail = false;
+      this.invalidate();
+      return;
+    }
+    // Scroll down
+    if (data === "\x1b[B" || k === "j") {
+      this.viewerScrollTop = Math.min(Math.max(0, totalLines - 1), this.viewerScrollTop + 1);
+      this.viewerFollowTail = false;
+      this.invalidate();
+      return;
+    }
+    // Page up
+    if (k === "u" || data === "\x1b[5~") {
+      this.viewerScrollTop = Math.max(0, this.viewerScrollTop - 20);
+      this.viewerFollowTail = false;
+      this.invalidate();
+      return;
+    }
+    // Page down
+    if (k === "d" || data === "\x1b[6~") {
+      this.viewerScrollTop = Math.min(Math.max(0, totalLines - 1), this.viewerScrollTop + 20);
+      this.viewerFollowTail = false;
+      this.invalidate();
+      return;
+    }
+    // Home
+    if (k === "g" || data === "\x1b[H") {
+      this.viewerScrollTop = 0;
+      this.viewerFollowTail = false;
+      this.invalidate();
+      return;
+    }
+    // End
+    if (k === "G" || data === "\x1b[F") {
+      this.viewerScrollTop = Math.max(0, totalLines - 1);
+      this.viewerFollowTail = true;
+      this.invalidate();
+      return;
+    }
+  }
+
+  private renderViewer(width: number): string[] {
+    const t = this.theme;
+    const rows = 24;
+    const innerW = width - 2;
+
+    // Header
+    const task = this.sortedVisible.find((t) => t.id === this.viewerTaskId);
+    const titleText = styledBoldFg(t, "accent", ` OUTPUT: ${this.viewerTaskId} `);
+    const statusText = task ? styledFg(t, statusColor(task.status), ` ${statusLabel(task.status)} `) : "";
+    const header = fitExactly(titleText + statusText, width);
+
+    // Footer
+    const totalLines = this.viewerOutputLines.length;
+    const key = (s: string) => styledBoldFg(t, "accent", s);
+    const dim = (s: string) => styledFg(t, "muted", s);
+    const position = `${this.viewerScrollTop + 1}-${Math.min(this.viewerScrollTop + rows - 4, totalLines)} / ${totalLines}`;
+    const footer = fitExactly(
+      ` ${key("↑↓")} ${dim("scroll")}  ${key("g/G")} ${dim("top/bottom")}  ${key("Q/Esc")} ${dim("close")}   ${styledFg(t, "muted", position)}`,
+      width,
+    );
+
+    // Body
+    const bodyHeight = Math.max(4, rows - 4);
+    if (totalLines === 0) {
+      const lines: string[] = [styledFg(t, "muted", "[no output captured]")];
+      while (lines.length < bodyHeight) lines.push("");
+      return [
+        fitExactly(header, width),
+        ...this.renderFrame("Output", lines, width, bodyHeight),
+        fitExactly(footer, width),
+      ];
+    }
+
+    // Follow tail if enabled
+    if (this.viewerFollowTail) {
+      this.viewerScrollTop = Math.max(0, totalLines - bodyHeight);
+    }
+
+    const visibleLines = this.viewerOutputLines.slice(this.viewerScrollTop, this.viewerScrollTop + bodyHeight);
+    const styledLines = visibleLines.map((line) => styledFg(t, "text", line));
+    while (styledLines.length < bodyHeight) styledLines.push("");
+
+    return [
+      fitExactly(header, width),
+      ...this.renderFrame("Output", styledLines, width, bodyHeight),
+      fitExactly(footer, width),
+    ];
   }
 }

@@ -43,6 +43,7 @@ import { formatReport } from "./swarm/report";
 import { registerCommands } from "./swarm/commands";
 import { goalManager } from "./goal";
 import { planManager } from "./plan";
+import { backgroundManager, registerBackgroundTools } from "./task";
 import shared from "./state";
 
 // Interactive question tools (copied from Pi SDK examples)
@@ -63,8 +64,17 @@ export default function (pi: ExtensionAPI) {
     // Plan state persistence (optional)
   });
 
+  // ── Background task manager binding ──
+  backgroundManager.bind(
+    (type, data) => pi.appendEntry(type, data),
+    (msg, type) => { /* notifications handled via appendEntry */ },
+  );
+
   // ── session_start: restore goal from persisted entries + set status bar ──
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
+    // Refresh model catalog once at startup (Pi 0.80.8 async refresh)
+    try { await ctx.modelRegistry?.refresh?.(); } catch { /* non-critical */ }
+
     if (shared.swarmEnabled) {
       ctx.ui.setStatus("swarm-mode", ctx.ui.theme.fg("accent", "swarm"));
     }
@@ -84,6 +94,18 @@ export default function (pi: ExtensionAPI) {
         const e = entries[i] as any;
         if (e.type === "custom" && e.customType === GOAL_ENTRY_TYPE && e.data) {
           goalManager.restoreFromData(e.data);
+          break;
+        }
+      }
+    } catch { /* not critical */ }
+
+    // Restore background tasks from persisted entries
+    try {
+      const entries = ctx.sessionManager.getEntries();
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i] as any;
+        if (e.type === "custom" && e.customType === "muselinn_background_tasks" && Array.isArray(e.data)) {
+          backgroundManager.restore(e.data);
           break;
         }
       }
@@ -184,6 +206,9 @@ export default function (pi: ExtensionAPI) {
       return { blocked: true, reason: "Plan Mode: tool not allowed" };
     }
   });
+
+  // ── Background Task Tools ──
+  registerBackgroundTools(pi);
 
   // ============================================================
   // Shared: Task-aware model resolution
@@ -421,6 +446,7 @@ export default function (pi: ExtensionAPI) {
             status: "pending" as const,
             turns: 0,
             usage: { input: 0, output: 0, cost: 0 },
+            outputLines: [],
             progressPercent: 0,
             ticks: 0,
           };
@@ -672,6 +698,7 @@ export default function (pi: ExtensionAPI) {
         status: "pending" as const,
         turns: 0,
         usage: { input: 0, output: 0, cost: 0 },
+        outputLines: [],
         progressPercent: 0,
         ticks: 0,
       };
