@@ -157,6 +157,16 @@ export default function (pi: ExtensionAPI) {
   planManager.registerTools(pi);
   planManager.registerCommands(pi);
 
+  // ── tool_call: enforce plan mode tool restrictions ──
+  pi.on("tool_call", (event, ctx) => {
+    const toolName = event.toolName || "";
+    const filePath = event.args?.file_path || event.args?.path || "";
+    if (planManager.shouldBlockTool(toolName, filePath)) {
+      ctx.ui.notify(`Tool "${toolName}" is blocked in Plan Mode. Use read-only tools only.`, "warning");
+      return { blocked: true, reason: "Plan Mode: tool not allowed" };
+    }
+  });
+
   // ============================================================
   // Shared: Task-aware model resolution
   // ============================================================
@@ -221,7 +231,6 @@ export default function (pi: ExtensionAPI) {
         if (partial) return partial.id;
         // Return input as-is (user typed a specific model)
         return input.trim();
-      }
       }
       return scored[0].model.id;
     } else if (scored.length > 0) {

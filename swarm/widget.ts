@@ -49,7 +49,7 @@ export function buildWidgetLines(
   lines.push(header);
 
   // ---- Grid ----
-  const termWidth = 100;
+  const termWidth = process?.stdout?.columns || 100;
   const gridHeight = 10;
   const layout = calculateGridLayout(total, termWidth - 4, gridHeight);
 

@@ -85,34 +85,14 @@ export const COMPLETE_FILL_MS = 360;
 export const FRAME_INTERVAL_MS = 80;
 
 // ============================================================
-// Goal Types (Kimi Code-style lifecycle)
+// Goal Types — re-export from goal/types.ts (single source of truth)
 // ============================================================
 
-export type GoalStatus = 'active' | 'paused' | 'blocked' | 'complete';
-export type GoalActor = 'user' | 'model' | 'runtime' | 'system';
+import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "../goal/types";
+import { currentGoal, setCurrentGoal } from "../goal/types";
 
-export interface GoalBudgetLimits {
-  tokenBudget?: number;
-  turnBudget?: number;
-  wallClockBudgetMs?: number;
-}
-
-export interface GoalSnapshot {
-  goalId: string;
-  objective: string;
-  completionCriterion?: string;
-  status: GoalStatus;
-  lastActor: GoalActor;
-  lastActedAt: string; // ISO timestamp for audit
-  turnsUsed: number;
-  tokensUsed: number;
-  wallClockMs: number;
-  budgetLimits?: GoalBudgetLimits;
-  terminalReason?: string;
-}
-
-export let currentGoal: GoalSnapshot | null = null;
-export function setCurrentGoal(g: GoalSnapshot | null): void { currentGoal = g; }
+export type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits };
+export { currentGoal, setCurrentGoal };
 
 // ============================================================
 // Global State
