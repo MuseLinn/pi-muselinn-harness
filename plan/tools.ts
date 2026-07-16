@@ -21,12 +21,8 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
     ],
     parameters: {
       type: "object",
-      properties: {
-        reason: {
-          type: "string",
-          description: "Reason for entering plan mode (optional)",
-        },
-      },
+      properties: {},
+      required: [],
     },
     async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
       if (planManager.isPlanModeActive()) {
