@@ -214,8 +214,8 @@ export class PlanManager {
     if (!currentPlanMode.isActive) return false;
 
     // Pi built-in tools: bash, edit, find, grep, ls, read, write
-    // Read-only tools are always allowed
-    const readOnlyTools = ['read', 'grep', 'find', 'ls'];
+    // Read-only tools are always allowed (Pi built-in + our extensions)
+    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'get_goal'];
     if (readOnlyTools.includes(toolName)) return false;
 
     // Bash is allowed (for read-only commands)
