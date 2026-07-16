@@ -42,21 +42,35 @@ export const PLAN_MODE_BLOCKED_TOOLS = [
 // Plan file path pattern
 export const PLAN_FILE_PATTERN = 'plans/{id}.md';
 
-// Global state
-export let currentPlanMode: PlanModeState = {
-  isActive: false,
-  currentPlan: null,
-  history: [],
-};
+// Global state — stored in globalThis to survive Pi hot-reload
+const PLAN_STATE_KEY = '__muselinn_plan_state__';
+
+function getInitialPlanState(): PlanModeState {
+  if (typeof globalThis !== 'undefined' && (globalThis as any)[PLAN_STATE_KEY]) {
+    return (globalThis as any)[PLAN_STATE_KEY] as PlanModeState;
+  }
+  return { isActive: false, currentPlan: null, history: [] };
+}
+
+export let currentPlanMode: PlanModeState = getInitialPlanState();
 
 export function setCurrentPlanMode(state: PlanModeState): void {
   currentPlanMode = state;
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as any)[PLAN_STATE_KEY] = state;
+  }
 }
 
 export function setCurrentPlan(plan: PlanData | null): void {
   currentPlanMode.currentPlan = plan;
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as any)[PLAN_STATE_KEY] = currentPlanMode;
+  }
 }
 
 export function setPlanActive(active: boolean): void {
   currentPlanMode.isActive = active;
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as any)[PLAN_STATE_KEY] = currentPlanMode;
+  }
 }

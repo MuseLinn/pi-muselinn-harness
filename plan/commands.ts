@@ -9,10 +9,9 @@ import { currentPlanMode, setCurrentPlanMode } from "./types";
  * Restore plan state from persisted entries (survives Pi hot-reload).
  */
 function restorePlanState(ctx: any, planManager: PlanManager): void {
-  if (planManager.isPlanModeActive()) return; // already restored
   try {
     const entries = ctx.sessionManager?.getEntries?.();
-    if (!entries) return;
+    if (!entries || entries.length === 0) return;
     for (let i = entries.length - 1; i >= 0; i--) {
       const e = entries[i] as any;
       if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
