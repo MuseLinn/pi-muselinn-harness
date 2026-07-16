@@ -35,6 +35,7 @@ export function registerCommands(pi: ExtensionAPI): void {
   // ============================================================
   pi.registerCommand("swarm", {
     description: "Swarm mode control or quick task",
+    usage: "/swarm [on|off|status|<task>]",
     getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {
       const items: AutocompleteItem[] = [
         { value: "on", label: "on", description: "Turn swarm mode ON" },

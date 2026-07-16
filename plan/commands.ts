@@ -11,7 +11,19 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
   // ── /plan command ──
   pi.registerCommand("plan", {
     description: "Manage plan mode (toggle/on/off/clear/status)",
-    usage: "/plan [on|off|clear|status]",
+    usage: "/plan [on|off|clear|status|approve|reject]",
+    getArgumentCompletions: (prefix: string) => {
+      const items = [
+        { value: "on", label: "on", description: "Enter plan mode" },
+        { value: "off", label: "off", description: "Exit plan mode" },
+        { value: "clear", label: "clear", description: "Clear plan mode" },
+        { value: "status", label: "status", description: "Show plan status" },
+        { value: "approve", label: "approve", description: "Approve current plan" },
+        { value: "reject", label: "reject", description: "Reject current plan" },
+      ];
+      if (!prefix) return items;
+      return items.filter(i => i.value.startsWith(prefix.toLowerCase())) || null;
+    },
     handler: async (args: string, ctx: any) => {
       const subcommand = args.trim().split(/\s+/)[0]?.toLowerCase() || "";
 
