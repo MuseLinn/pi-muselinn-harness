@@ -95,6 +95,18 @@ export default function (pi: ExtensionAPI) {
       const color = goalManager.getFooterBadgeColor();
       ctx.ui.setStatus("goal", ctx.ui.theme.fg(color, goalBadge));
     }
+    // Running agents count (Kimi Code-style: [3 agents running])
+    const agentCount = activeSessions?.size ?? 0;
+    ctx.ui.setStatus("agent-count", agentCount > 0
+      ? ctx.ui.theme.fg("accent", `[${agentCount} agents running]`)
+      : undefined
+    );
+    // Running background tasks count (Kimi Code-style: [2 tasks running])
+    const runningTasks = backgroundManager.list().filter(t => t.status === "running").length;
+    ctx.ui.setStatus("task-count", runningTasks > 0
+      ? ctx.ui.theme.fg("accent", `[${runningTasks} tasks running]`)
+      : undefined
+    );
     // Restore goal from session custom entries (latest wins)
     try {
       const entries = ctx.sessionManager.getEntries();
@@ -172,6 +184,20 @@ export default function (pi: ExtensionAPI) {
     } else {
       ctx.ui.setStatus("goal", undefined);
     }
+
+    // Running agents count (Kimi Code-style)
+    const agentCount = activeSessions?.size ?? 0;
+    ctx.ui.setStatus("agent-count", agentCount > 0
+      ? ctx.ui.theme.fg("accent", `[${agentCount} agents running]`)
+      : undefined
+    );
+    
+    // Running background tasks count (Kimi Code-style)
+    const runningTasks = backgroundManager.list().filter(t => t.status === "running").length;
+    ctx.ui.setStatus("task-count", runningTasks > 0
+      ? ctx.ui.theme.fg("accent", `[${runningTasks} tasks running]`)
+      : undefined
+    );
   }
 
   // ── turn_end: record token usage + budget check (pi-codex-goal style) ──
