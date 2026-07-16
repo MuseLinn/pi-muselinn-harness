@@ -7,13 +7,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 /**
- * Get per-session state file path (inside session directory, not extension folder).
+ * Get per-session state file path (inside session directory, keyed by sessionId).
  */
 function getPlanStateFile(ctx: any): string {
   const sessionDir = ctx.sessionManager?.getSessionDir?.();
-  if (sessionDir) return path.join(sessionDir, '.plan-state.json');
+  const sessionId = ctx.sessionManager?.getSessionId?.() ?? 'default';
+  if (sessionDir) return path.join(sessionDir, `.plan-state-${sessionId}.json`);
   // Fallback: temp dir
-  return path.join(require('node:os').tmpdir(), `pi-plan-state-${Date.now()}.json`);
+  return path.join(require('node:os').tmpdir(), `pi-plan-state-${sessionId}.json`);
 }
 
 /**
