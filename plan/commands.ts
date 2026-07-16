@@ -3,30 +3,42 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 /**
- * Read plan isActive directly from session entries.
- * Per-session, survives hot-reload, stored with session records.
+ * Get per-session state file path (inside session directory, not extension folder).
+ */
+function getPlanStateFile(ctx: any): string {
+  const sessionDir = ctx.sessionManager?.getSessionDir?.();
+  if (sessionDir) return path.join(sessionDir, '.plan-state.json');
+  // Fallback: temp dir
+  return path.join(require('node:os').tmpdir(), `pi-plan-state-${Date.now()}.json`);
+}
+
+/**
+ * Read plan isActive from per-session state file.
+ * Stored in session directory — follows session, no accumulation.
  */
 function isPlanActiveFromSession(ctx: any): boolean {
   try {
-    const entries = ctx.sessionManager?.getEntries?.() ?? [];
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const e = entries[i] as any;
-      if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
-        return e.data.isActive === true;
-      }
+    const file = getPlanStateFile(ctx);
+    if (fs.existsSync(file)) {
+      const raw = fs.readFileSync(file, 'utf-8');
+      const state = JSON.parse(raw);
+      return state.isActive === true;
     }
   } catch { /* not critical */ }
   return false;
 }
 
 /**
- * Write plan state to session entries (stored with session records).
+ * Write plan state to per-session file (overwrite, no accumulation).
  */
-function savePlanStateToSession(pi: any, isActive: boolean, plan: any): void {
+function savePlanStateToSession(ctx: any, isActive: boolean, plan: any): void {
   try {
-    pi.appendEntry("muselinn_plan", { isActive, currentPlan: plan, timestamp: Date.now() });
+    const file = getPlanStateFile(ctx);
+    fs.writeFileSync(file, JSON.stringify({ isActive, currentPlan: plan, timestamp: Date.now() }));
   } catch { /* not critical */ }
 }
 
@@ -43,7 +55,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
       // Handle clear — Kimi Code style: clear plan file content, keep plan mode OFF
       if (arg === "clear") {
         planManager.clearPlan();
-        savePlanStateToSession(pi, false, null);
+        savePlanStateToSession(ctx, false, null);
         ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan cleared.", "info");
         return;
@@ -68,7 +80,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         const plan = planManager.enterPlanMode("User activated plan mode");
-        savePlanStateToSession(pi, true, plan);
+        savePlanStateToSession(ctx, true, plan);
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
@@ -78,7 +90,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         planManager.exitPlanMode();
-        savePlanStateToSession(pi, false, null);
+        savePlanStateToSession(ctx, false, null);
         ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan mode: OFF", "info");
       }

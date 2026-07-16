@@ -60,9 +60,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   // ── Plan mode: inject plan context + tool restrictions ──
-  planManager.setPersistence((data) => {
-    pi.appendEntry("muselinn_plan", data);
-  });
+  // Plan state is managed per-session via file in session directory (see plan/commands.ts)
 
   // ── Background task manager binding ──
   backgroundManager.bind(
