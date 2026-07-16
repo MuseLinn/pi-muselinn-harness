@@ -467,6 +467,45 @@ export class GoalManager {
     return `${b}: ${g.objective.slice(0, 80)}${reason}${actor}  [turns:${g.turnsUsed} tokens:${g.tokensUsed}]`;
   }
 
+  /**
+   * Build Goal Badge for footer (Kimi Code-style).
+   * Format: [goal ● active · 4m · 7/20 turns]
+   */
+  buildFooterBadge(): string | undefined {
+    const g = currentGoal;
+    if (!g || g.status === "complete") return undefined;
+
+    // Status dot color: active=primary, blocked=warning, paused=muted
+    const dot = g.status === "active" ? "●" : g.status === "blocked" ? "●" : "○";
+    
+    // Duration
+    const durationMs = liveWallClockMs(g);
+    const durationMin = Math.floor(durationMs / 60000);
+    const durationSec = Math.floor((durationMs % 60000) / 1000);
+    const duration = durationMin > 0 ? `${durationMin}m` : `${durationSec}s`;
+    
+    // Turns (with budget if set)
+    const turnBudget = g.budgetLimits?.turnBudget;
+    const turns = turnBudget ? `${g.turnsUsed}/${turnBudget}` : `${g.turnsUsed}`;
+    
+    return `[goal ${dot} ${g.status} · ${duration} · ${turns} turns]`;
+  }
+
+  /**
+   * Get status color for Goal Badge (for theme integration).
+   */
+  getFooterBadgeColor(): string {
+    const g = currentGoal;
+    if (!g) return "muted";
+    switch (g.status) {
+      case "active": return "accent";
+      case "blocked": return "warning";
+      case "usage_limited":
+      case "budget_limited": return "error";
+      default: return "muted";
+    }
+  }
+
   /** Build model-facing injection text for <untrusted_objective> block */
   buildInjection(): string | undefined {
     const g = currentGoal;

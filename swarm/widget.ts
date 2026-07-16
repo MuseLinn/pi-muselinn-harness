@@ -48,6 +48,18 @@ export function buildWidgetLines(
   const header = `─ ${title}${desc}`;
   lines.push(header);
 
+  // ---- Goal Badge (Kimi Code-style) ----
+  if (currentGoal && currentGoal.status !== "complete") {
+    const dot = currentGoal.status === "active" ? "●" : currentGoal.status === "blocked" ? "●" : "○";
+    const dotColor = currentGoal.status === "active" ? "accent" : currentGoal.status === "blocked" ? "warning" : "muted";
+    const durationMs = currentGoal.wallClockMs;
+    const durationMin = Math.floor(durationMs / 60000);
+    const duration = durationMin > 0 ? `${durationMin}m` : `${Math.floor(durationMs / 1000)}s`;
+    const turnBudget = currentGoal.budgetLimits?.turnBudget;
+    const turns = turnBudget ? `${currentGoal.turnsUsed}/${turnBudget}` : `${currentGoal.turnsUsed}`;
+    lines.push(`  ${theme.fg(dotColor, dot)} ${theme.fg("text", currentGoal.status)} · ${duration} · ${turns} turns`);
+  }
+
   // ---- Grid ----
   const termWidth = process?.stdout?.columns || 100;
   const gridHeight = 10;

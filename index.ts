@@ -71,6 +71,12 @@ export default function (pi: ExtensionAPI) {
     if (planManager.isPlanModeActive()) {
       ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
     }
+    // Goal status bar (Kimi Code-style)
+    const goalBadge = goalManager.buildFooterBadge();
+    if (goalBadge) {
+      const color = goalManager.getFooterBadgeColor();
+      ctx.ui.setStatus("goal", ctx.ui.theme.fg(color, goalBadge));
+    }
     // Restore goal from session custom entries (latest wins)
     try {
       const entries = ctx.sessionManager.getEntries();
@@ -115,6 +121,17 @@ export default function (pi: ExtensionAPI) {
     planManager.injectIntoMessages(event.messages);
   });
 
+  // ── Helper: update goal status bar ──
+  function updateGoalStatusBar(ctx: any) {
+    const badge = goalManager.buildFooterBadge();
+    if (badge) {
+      const color = goalManager.getFooterBadgeColor();
+      ctx.ui.setStatus("goal", ctx.ui.theme.fg(color, badge));
+    } else {
+      ctx.ui.setStatus("goal", undefined);
+    }
+  }
+
   // ── turn_end: record token usage + budget check (pi-codex-goal style) ──
   pi.on("turn_end", (event, _ctx) => {
     const msg = event.message as any;
@@ -125,6 +142,7 @@ export default function (pi: ExtensionAPI) {
         if (crossedBudget) {
           _ctx.ui.notify("Goal budget exceeded — goal blocked.", "warning");
         }
+        updateGoalStatusBar(_ctx);
       }
     }
 
