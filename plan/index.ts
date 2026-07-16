@@ -213,8 +213,9 @@ export class PlanManager {
   shouldBlockTool(toolName: string, filePath?: string): boolean {
     if (!currentPlanMode.isActive) return false;
 
-    // Read-only tools are always allowed (Kimi Code-style)
-    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'get_goal', 'websearch', 'fetchurl'];
+    // Pi built-in tools: bash, edit, find, grep, ls, read, write
+    // Read-only tools are always allowed
+    const readOnlyTools = ['read', 'grep', 'find', 'ls'];
     if (readOnlyTools.includes(toolName)) return false;
 
     // Bash is allowed (for read-only commands)
@@ -223,13 +224,9 @@ export class PlanManager {
     // Write/Edit to plan file is allowed
     if ((toolName === 'write' || toolName === 'edit') && filePath) {
       if (filePath.includes('/plans/') || filePath.endsWith('.plan.md')) {
-        return false; // Allow writing to plan file
+        return false;
       }
     }
-
-    // Blocked tools (Kimi Code-style)
-    const blockedTools = ['taskstop', 'croncreate', 'crondelete'];
-    if (blockedTools.includes(toolName)) return true;
 
     // All other write/edit operations are blocked
     if (toolName === 'write' || toolName === 'edit') {
