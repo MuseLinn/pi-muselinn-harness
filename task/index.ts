@@ -17,6 +17,7 @@ export interface BackgroundTaskEntry {
   status: "running" | "completed" | "failed" | "aborted";
   outputLines: string[];
   error?: string;
+  stopReason?: string;          // Kimi Code: reason report to model
   startTime: number;
   endTime?: number;
   turns: number;
@@ -121,10 +122,13 @@ class BackgroundTaskManager {
     this.notifyFn?.(`Background task ${taskId} failed: ${error}`, "error");
   }
 
-  /** Stop a running task */
-  async stop(taskId: string): Promise<boolean> {
+  /** Stop a running task. Kimi Code-style: records stopReason. */
+  async stop(taskId: string, reason?: string): Promise<boolean> {
     const task = this.tasks.get(taskId);
     if (!task || task.status !== "running") return false;
+
+    const normalized = (reason || "User initiated stop").trim();
+    task.stopReason = normalized;
 
     const handle = this.sessions.get(taskId);
     if (handle) {
@@ -138,8 +142,13 @@ class BackgroundTaskManager {
     task.status = "aborted";
     task.endTime = Date.now();
     this.persist();
-    this.notifyFn?.(`Background task ${taskId} stopped`, "warning");
+    this.notifyFn?.(`Background task ${taskId} stopped: ${normalized}`, "warning");
     return true;
+  }
+
+  /** Kimi Code-style: stop initiated by user (preserves cancellation identity). */
+  async stopByUser(taskId: string): Promise<boolean> {
+    return this.stop(taskId, "User cancelled");
   }
 
   /** Clear all completed/failed tasks */
@@ -162,6 +171,7 @@ class BackgroundTaskManager {
       subagentType: t.subagentType,
       status: t.status,
       error: t.error,
+      stopReason: t.stopReason,
       startTime: t.startTime,
       endTime: t.endTime,
       turns: t.turns,

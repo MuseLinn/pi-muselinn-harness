@@ -132,7 +132,7 @@ export function isRateLimitError(err: any): boolean {
 
 export async function retryOnRateLimit<T>(
   fn: () => Promise<T>,
-  maxRetries = 3,
+  maxRetries = 10,
 ): Promise<T> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {

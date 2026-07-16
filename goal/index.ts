@@ -152,12 +152,11 @@ export class GoalManager {
     return updated;
   }
 
-  /** Mark complete */
-  complete(actor: GoalActor = "user"): GoalSnapshot | null {
+  /** Mark complete. Kimi Code: preserves completionSummary. */
+  complete(actor: GoalActor = "user", summary?: string): GoalSnapshot | null {
     const g = currentGoal;
     if (!g) return null;
 
-    // Fold live wall clock interval
     const now = Date.now();
     let wallClockMs = g.wallClockMs;
     if (g.status === "active" && g.wallClockResumedAt !== undefined) {
@@ -168,19 +167,14 @@ export class GoalManager {
       status: "complete" as GoalStatus,
       wallClockMs,
       wallClockResumedAt: undefined,
+      completionSummary: summary || g.completionSummary,
     }, actor));
     setCurrentGoal(updated);
     this.persist();
 
-    // Auto-switch to next goal in queue (@narumitw/pi-goal style)
     const nextItem = autoSwitchToNext();
     if (nextItem) {
-      this.createGoal(
-        nextItem.objective,
-        nextItem.completionCriterion,
-        nextItem.budgetLimits,
-        "runtime"
-      );
+      this.createGoal(nextItem.objective, nextItem.completionCriterion, nextItem.budgetLimits, "runtime");
     }
 
     return updated;

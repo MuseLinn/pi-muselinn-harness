@@ -61,7 +61,9 @@ export default function (pi: ExtensionAPI) {
 
   // ── Plan mode: inject plan context + tool restrictions ──
   planManager.setPersistence((data) => {
-    // Plan state persistence (optional)
+    if (data.isActive || data.currentPlan) {
+      pi.appendEntry("muselinn_plan", data);
+    }
   });
 
   // ── Background task manager binding ──
@@ -70,7 +72,7 @@ export default function (pi: ExtensionAPI) {
     (msg, type) => { /* notifications handled via appendEntry */ },
   );
 
-  // ── session_start: restore goal from persisted entries + set status bar ──
+  // ── session_start: restore goal + plan from persisted entries + set status bar ──
   pi.on("session_start", async (_event, ctx) => {
     // Refresh model catalog once at startup (Pi 0.80.8 async refresh)
     try { await ctx.modelRegistry?.refresh?.(); } catch { /* non-critical */ }
@@ -80,6 +82,8 @@ export default function (pi: ExtensionAPI) {
     }
     if (planManager.isPlanModeActive()) {
       ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
+    } else {
+      ctx.ui.setStatus("plan-mode", "");
     }
     // Goal status bar (Kimi Code-style)
     const goalBadge = goalManager.buildFooterBadge();
@@ -94,6 +98,18 @@ export default function (pi: ExtensionAPI) {
         const e = entries[i] as any;
         if (e.type === "custom" && e.customType === GOAL_ENTRY_TYPE && e.data) {
           goalManager.restoreFromData(e.data);
+          break;
+        }
+      }
+    } catch { /* not critical */ }
+
+    // Restore plan state from persisted entries
+    try {
+      const entries = ctx.sessionManager.getEntries();
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i] as any;
+        if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
+          planManager.restoreFromData(e.data);
           break;
         }
       }
