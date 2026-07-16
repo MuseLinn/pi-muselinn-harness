@@ -1,0 +1,7 @@
+node_modules/
+*.js.map
+*.d.ts
+!*.d.ts
+dist/
+.DS_Store
+Thumbs.db
