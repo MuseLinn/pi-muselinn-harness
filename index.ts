@@ -202,16 +202,26 @@ export default function (pi: ExtensionAPI) {
     }).sort((a: any, b: any) => b.score - a.score);
 
     if (scored.length >= 2 && Math.abs(scored[0].score - scored[1].score) < 20) {
-      const options = scored.slice(0, 3).map((s: any) => {
+      // Show top candidates as hint, let user type or select
+      const top3 = scored.slice(0, 3).map((s: any) => {
         const m = s.model;
         const free = m.id.endsWith("-free") ? " (free)" : "";
         const vision = m.input?.includes("image") ? " [multimodal]" : "";
         return `${m.id}${free}${vision} [${m.provider}]`;
       });
-      const choice = await ctx.ui.select("Which model?", options, { timeout: 30000 });
-      if (choice) {
-        const idx = options.indexOf(choice);
-        if (idx >= 0) return scored[idx].model.id;
+      const hint = `Top: ${top3.join(" | ")}`;
+      const defaultModel = scored[0].model.id;
+      const input = await ctx.ui.input(`Model? (${hint})`, defaultModel, { timeout: 30000 });
+      if (input && input.trim()) {
+        // Check if input matches a candidate
+        const match = scored.find((s: any) => s.model.id === input.trim());
+        if (match) return match.model.id;
+        // Otherwise, try to find by partial match
+        const partial = available.find((m: any) => m.id.includes(input.trim()));
+        if (partial) return partial.id;
+        // Return input as-is (user typed a specific model)
+        return input.trim();
+      }
       }
       return scored[0].model.id;
     } else if (scored.length > 0) {
