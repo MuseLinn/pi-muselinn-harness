@@ -3,23 +3,24 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
-import { currentPlanMode, setCurrentPlanMode } from "./types";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-/**
- * Restore plan state from persisted entries (survives Pi hot-reload).
- */
-function restorePlanState(ctx: any, planManager: PlanManager): void {
+const STATE_FILE = path.join(
+  process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
+  '.pi', 'agent', 'extensions', 'pi-muselinn-harness', '.plan-state.json'
+);
+
+/** Read isActive directly from file (bypasses all module state) */
+function isPlanActiveFromFile(): boolean {
   try {
-    const entries = ctx.sessionManager?.getEntries?.();
-    if (!entries || entries.length === 0) return;
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const e = entries[i] as any;
-      if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
-        planManager.restoreFromData(e.data);
-        return;
-      }
+    if (fs.existsSync(STATE_FILE)) {
+      const raw = fs.readFileSync(STATE_FILE, 'utf-8');
+      const state = JSON.parse(raw);
+      return state.isActive === true;
     }
-  } catch { /* not critical */ }
+  } catch { /* ignore */ }
+  return false;
 }
 
 /**
@@ -30,9 +31,6 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
   pi.registerCommand("plan", {
     description: "Toggle plan mode on/off",
     handler: async (args: string, ctx: any) => {
-      // Restore from persistence FIRST (survives Pi hot-reload)
-      restorePlanState(ctx, planManager);
-      
       const arg = (args || "").trim().toLowerCase();
 
       // Handle clear
@@ -43,21 +41,22 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         return;
       }
 
-      // Kimi Code-style: /plan (no args) = toggle, /plan on, /plan off
+      // Determine action: toggle / on / off
+      // For toggle, read directly from file to bypass module hot-reload issues
       let turnOn: boolean;
       if (arg === "on") {
         turnOn = true;
       } else if (arg === "off") {
         turnOn = false;
       } else if (arg === "" || arg === "toggle") {
-        turnOn = !planManager.isPlanModeActive();
+        turnOn = !isPlanActiveFromFile();
       } else {
         ctx.ui.notify(`Unknown plan subcommand: ${arg}`, "error");
         return;
       }
 
       if (turnOn) {
-        if (planManager.isPlanModeActive()) {
+        if (isPlanActiveFromFile()) {
           ctx.ui.notify("Plan mode is already ON.", "info");
           return;
         }
@@ -65,8 +64,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
-        if (!planManager.isPlanModeActive()) {
-          // State says OFF but status bar might still show "plan" — clean it up
+        if (!isPlanActiveFromFile()) {
           ctx.ui.setStatus("plan-mode", undefined);
           ctx.ui.notify("Plan mode is already OFF.", "info");
           return;
