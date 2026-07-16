@@ -80,14 +80,36 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         };
       }
 
-      ctx.ui.notify("Plan submitted for review.", "info");
+      // Kimi Code-style: show Approval Panel
+      const planPreview = plan.content
+        ? plan.content.slice(0, 500) + (plan.content.length > 500 ? "..." : "")
+        : "(empty plan)";
 
-      return {
-        content: [{
-          type: "text",
-          text: `Plan submitted for review.\nPlan ID: ${plan.id}\n\nThe user will review your plan before execution.`,
-        }],
-      };
+      const approved = await ctx.ui.confirm(
+        "Plan Review",
+        `Review your plan:\n\n${planPreview}\n\nApprove this plan?`,
+        { timeout: 60000 }
+      );
+
+      if (approved) {
+        planManager.approvePlan();
+        ctx.ui.notify("Plan approved! Execution can begin.", "success");
+        return {
+          content: [{
+            type: "text",
+            text: `Plan approved.\nPlan ID: ${plan.id}\n\nYou can now execute the plan.`,
+          }],
+        };
+      } else {
+        planManager.rejectPlan("User rejected");
+        ctx.ui.notify("Plan rejected.", "info");
+        return {
+          content: [{
+            type: "text",
+            text: `Plan rejected.\nPlan ID: ${plan.id}\n\nModify your plan and try again.`,
+          }],
+        };
+      }
     },
   });
 }
