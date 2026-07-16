@@ -89,6 +89,7 @@ export class PlanManager {
 
     plan.status = 'reviewing';
     setCurrentPlan(plan);
+    setPlanActive(false);
     this.persist();
 
     return plan;
