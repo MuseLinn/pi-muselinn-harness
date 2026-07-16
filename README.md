@@ -94,11 +94,33 @@ pi-muselinn-harness/
 - `@earendil-works/pi-tui`
 - `typebox`
 
-## 参考
+## 致谢
 
-- [Kimi Code](https://github.com/MoonshotAI/Kimi-code) — Agent Swarm + Goal + Plan 设计
-- [@narumitw/pi-goal](https://www.npmjs.com/package/@narumitw/pi-goal) — Goal Queue + Recovery
-- [pi-codex-goal](https://www.npmjs.com/package/pi-codex-goal) — Goal Persistence + Recovery Machine
+本扩展的设计和实现参考了以下开源项目，在此表示感谢：
+
+### [Kimi Code](https://github.com/MoonshotAI/Kimi-code) (Moonshot AI)
+- Agent Swarm 并发执行架构
+- Goal 系统设计（GoalActor 追踪、Budget Report、Context 注入）
+- Plan Mode 生命周期（enter/exit/approve/reject）
+- TUI 组件设计（盲文进度条、三栏任务浏览器）
+- 取消/恢复机制（AbortSignal 链、UserCancellationError）
+
+### [@narumitw/pi-goal](https://www.npmjs.com/package/@narumitw/pi-goal) (narumitw)
+- Goal Queue FIFO + Auto-switch 机制
+- usage_limited / budget_limited 状态设计
+- Wrap-up 指令注入（预算耗尽后的行为）
+- Stale Tool Blocking 设计
+- Compaction 保留策略
+
+### [pi-codex-goal](https://www.npmjs.com/package/pi-codex-goal) (fitchmultz)
+- Goal 持久化方案（appendEntry + session_start 恢复）
+- Goal 状态转换逻辑
+- Budget 检查机制
+- Recovery Machine 概念（简化版）
+
+---
+
+**注意**：本扩展是独立实现，未直接引用上述项目的代码。设计灵感来源于这些项目，但所有代码均为原创。
 
 ## License
 
