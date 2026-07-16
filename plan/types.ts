@@ -42,35 +42,45 @@ export const PLAN_MODE_BLOCKED_TOOLS = [
 // Plan file path pattern
 export const PLAN_FILE_PATTERN = 'plans/{id}.md';
 
-// Global state — stored in globalThis to survive Pi hot-reload
-const PLAN_STATE_KEY = '__muselinn_plan_state__';
+// File-based state persistence (survives Pi module hot-reload)
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-function getInitialPlanState(): PlanModeState {
-  if (typeof globalThis !== 'undefined' && (globalThis as any)[PLAN_STATE_KEY]) {
-    return (globalThis as any)[PLAN_STATE_KEY] as PlanModeState;
-  }
+const STATE_FILE = path.join(
+  process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
+  '.pi', 'agent', 'extensions', 'pi-muselinn-harness', '.plan-state.json'
+);
+
+function loadState(): PlanModeState {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const raw = fs.readFileSync(STATE_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch { /* ignore */ }
   return { isActive: false, currentPlan: null, history: [] };
 }
 
-export let currentPlanMode: PlanModeState = getInitialPlanState();
+function saveState(state: PlanModeState): void {
+  try {
+    fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state));
+  } catch { /* ignore */ }
+}
+
+export let currentPlanMode: PlanModeState = loadState();
 
 export function setCurrentPlanMode(state: PlanModeState): void {
   currentPlanMode = state;
-  if (typeof globalThis !== 'undefined') {
-    (globalThis as any)[PLAN_STATE_KEY] = state;
-  }
+  saveState(state);
 }
 
 export function setCurrentPlan(plan: PlanData | null): void {
   currentPlanMode.currentPlan = plan;
-  if (typeof globalThis !== 'undefined') {
-    (globalThis as any)[PLAN_STATE_KEY] = currentPlanMode;
-  }
+  saveState(currentPlanMode);
 }
 
 export function setPlanActive(active: boolean): void {
   currentPlanMode.isActive = active;
-  if (typeof globalThis !== 'undefined') {
-    (globalThis as any)[PLAN_STATE_KEY] = currentPlanMode;
-  }
+  saveState(currentPlanMode);
 }
