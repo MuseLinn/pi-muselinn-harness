@@ -3,44 +3,31 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 /**
- * Read plan isActive directly from session entries (per-session, survives hot-reload).
- * This bypasses module state which resets on Pi hot-reload.
+ * Read plan isActive directly from session entries.
+ * Per-session, survives hot-reload, stored with session records.
  */
 function isPlanActiveFromSession(ctx: any): boolean {
   try {
-    const sessionId = ctx.sessionManager?.getSessionId?.() ?? 'default';
-    const stateFile = path.join(
-      process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
-      '.pi', 'agent', 'extensions', 'pi-muselinn-harness', `.plan-state-${sessionId}.json`
-    );
-    if (fs.existsSync(stateFile)) {
-      const raw = fs.readFileSync(stateFile, 'utf-8');
-      const state = JSON.parse(raw);
-      return state.isActive === true;
+    const entries = ctx.sessionManager?.getEntries?.() ?? [];
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i] as any;
+      if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
+        return e.data.isActive === true;
+      }
     }
-  } catch (err) {
-    console.error('[plan] isPlanActiveFromSession error:', err);
-  }
+  } catch { /* not critical */ }
   return false;
 }
 
-function savePlanStateForSession(ctx: any, isActive: boolean, plan: any): void {
+/**
+ * Write plan state to session entries (stored with session records).
+ */
+function savePlanStateToSession(pi: any, isActive: boolean, plan: any): void {
   try {
-    const sessionId = ctx.sessionManager?.getSessionId?.() ?? 'default';
-    const stateFile = path.join(
-      process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
-      '.pi', 'agent', 'extensions', 'pi-muselinn-harness', `.plan-state-${sessionId}.json`
-    );
-    const dir = path.dirname(stateFile);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(stateFile, JSON.stringify({ isActive, currentPlan: plan }));
-  } catch (err) {
-    console.error('[plan] savePlanStateForSession error:', err);
-  }
+    pi.appendEntry("muselinn_plan", { isActive, currentPlan: plan, timestamp: Date.now() });
+  } catch { /* not critical */ }
 }
 
 /**
@@ -53,17 +40,16 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
     handler: async (args: string, ctx: any) => {
       const arg = (args || "").trim().toLowerCase();
 
-      // Handle clear — Kimi Code style: clear plan content, exit plan mode
+      // Handle clear — Kimi Code style: clear plan file content, keep plan mode OFF
       if (arg === "clear") {
         planManager.clearPlan();
-        savePlanStateForSession(ctx, false, null);
+        savePlanStateToSession(pi, false, null);
         ctx.ui.setStatus("plan-mode", undefined);
-        ctx.ui.notify("Plan mode cleared.", "info");
+        ctx.ui.notify("Plan cleared.", "info");
         return;
       }
 
       // Determine action: toggle / on / off
-      // For toggle, read directly from session entries (per-session, survives hot-reload)
       let turnOn: boolean;
       if (arg === "on") {
         turnOn = true;
@@ -82,7 +68,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         const plan = planManager.enterPlanMode("User activated plan mode");
-        savePlanStateForSession(ctx, true, plan);
+        savePlanStateToSession(pi, true, plan);
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
@@ -92,7 +78,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         planManager.exitPlanMode();
-        savePlanStateForSession(ctx, false, null);
+        savePlanStateToSession(pi, false, null);
         ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan mode: OFF", "info");
       }
