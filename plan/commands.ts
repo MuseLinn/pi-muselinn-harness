@@ -17,7 +17,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
       // Handle clear
       if (arg === "clear") {
         planManager.clearPlan();
-        ctx.ui.setStatus("plan-mode", "");
+        ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan mode cleared.", "info");
         return;
       }
@@ -49,7 +49,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         planManager.exitPlanMode();
-        ctx.ui.setStatus("plan-mode", "");
+        ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan mode: OFF", "info");
       }
     },

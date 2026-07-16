@@ -83,7 +83,7 @@ export default function (pi: ExtensionAPI) {
     if (planManager.isPlanModeActive()) {
       ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
     } else {
-      ctx.ui.setStatus("plan-mode", "");
+      ctx.ui.setStatus("plan-mode", undefined);
     }
     // Goal status bar (Kimi Code-style)
     const goalBadge = goalManager.buildFooterBadge();
