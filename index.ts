@@ -61,9 +61,7 @@ export default function (pi: ExtensionAPI) {
 
   // ── Plan mode: inject plan context + tool restrictions ──
   planManager.setPersistence((data) => {
-    if (data.isActive || data.currentPlan) {
-      pi.appendEntry("muselinn_plan", data);
-    }
+    pi.appendEntry("muselinn_plan", data);
   });
 
   // ── Background task manager binding ──
