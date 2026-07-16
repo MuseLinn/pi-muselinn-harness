@@ -3,6 +3,25 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
+import { currentPlanMode, setCurrentPlanMode } from "./types";
+
+/**
+ * Restore plan state from persisted entries (survives Pi hot-reload).
+ */
+function restorePlanState(ctx: any, planManager: PlanManager): void {
+  if (planManager.isPlanModeActive()) return; // already restored
+  try {
+    const entries = ctx.sessionManager?.getEntries?.();
+    if (!entries) return;
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i] as any;
+      if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
+        planManager.restoreFromData(e.data);
+        return;
+      }
+    }
+  } catch { /* not critical */ }
+}
 
 /**
  * Register plan commands with Pi.
@@ -12,6 +31,9 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
   pi.registerCommand("plan", {
     description: "Toggle plan mode on/off",
     handler: async (args: string, ctx: any) => {
+      // Restore from persistence FIRST (survives Pi hot-reload)
+      restorePlanState(ctx, planManager);
+      
       const arg = (args || "").trim().toLowerCase();
 
       // Handle clear
@@ -45,6 +67,8 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
         if (!planManager.isPlanModeActive()) {
+          // State says OFF but status bar might still show "plan" — clean it up
+          ctx.ui.setStatus("plan-mode", undefined);
           ctx.ui.notify("Plan mode is already OFF.", "info");
           return;
         }
