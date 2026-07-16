@@ -34,22 +34,15 @@ export function registerCommands(pi: ExtensionAPI): void {
   // /swarm - Main swarm control
   // ============================================================
   pi.registerCommand("swarm", {
-    description: "Swarm mode control or quick task",
-    usage: "/swarm [on|off|status|<task>]",
+    description: "Toggle swarm mode or run one task in swarm mode",
+    usage: "/swarm [on|off] | <task>",
     getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {
       const items: AutocompleteItem[] = [
         { value: "on", label: "on", description: "Turn swarm mode ON" },
         { value: "off", label: "off", description: "Turn swarm mode OFF" },
-        { value: "status", label: "status", description: "Show swarm mode status" },
       ];
-      const templates = [
-        { value: "review", label: "review <files>", description: "Parallel code review" },
-        { value: "scan", label: "scan <area>", description: "Quick codebase scan" },
-        { value: "fix", label: "fix <issues>", description: "Parallel bug fixes" },
-      ];
-      const all = [...items, ...templates];
-      if (!prefix) return all;
-      return all.filter(i => i.value.startsWith(prefix.toLowerCase())) || null;
+      if (!prefix) return items;
+      return items.filter(i => i.value.startsWith(prefix.toLowerCase())) || null;
     },
     handler: async (args, ctx) => {
       const arg = (args || "").trim().toLowerCase();

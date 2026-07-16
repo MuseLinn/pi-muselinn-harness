@@ -40,14 +40,28 @@ export class PlanManager {
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   /**
+   * Generate Kimi Code-style hero slug (e.g., "psylocke-kamala-khan-falcon").
+   */
+  private generateHeroSlug(): string {
+    const adjectives = ['psylocke', 'wolverine', 'cyclops', 'storm', 'jean', 'beast', 'colossus', 'nightcrawler'];
+    const nouns = ['kamala-khan', 'peter-parker', 'tony-stark', 'steve-rogers', 'natasha', 'bruce-banner', 'thor', 'loki'];
+    const verbs = ['falcon', 'hawk', 'eagle', 'raven', 'wolf', 'fox', 'bear', 'lion'];
+    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const verb = verbs[Math.floor(Math.random() * verbs.length)];
+    return `${adj}-${noun}-${verb}`;
+  }
+
+  /**
    * Enter Plan Mode (Kimi Code-style).
    * Called by EnterPlanMode tool or /plan command.
    */
   enterPlanMode(reason?: string): PlanData {
+    const heroSlug = this.generateHeroSlug();
     const plan: PlanData = {
       id: generatePlanId(),
       content: '',
-      path: '',
+      path: `plans/${heroSlug}.md`,
       status: 'exploring',
       createdAt: Date.now(),
     };

@@ -18,9 +18,9 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         ctx.ui.setStatus("plan-mode", "");
         ctx.ui.notify("Plan mode: OFF", "info");
       } else {
-        planManager.enterPlanMode("User activated plan mode");
+        const plan = planManager.enterPlanMode("User activated plan mode");
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
-        ctx.ui.notify(`Plan mode: ON`, "info");
+        ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       }
     },
   });
