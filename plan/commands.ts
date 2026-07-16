@@ -3,23 +3,23 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
-const STATE_FILE = path.join(
-  process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
-  '.pi', 'agent', 'extensions', 'pi-muselinn-harness', '.plan-state.json'
-);
-
-/** Read isActive directly from file (bypasses all module state) */
-function isPlanActiveFromFile(): boolean {
+/**
+ * Read plan isActive directly from session entries (per-session, survives hot-reload).
+ * This bypasses module state which resets on Pi hot-reload.
+ */
+function isPlanActiveFromSession(ctx: any): boolean {
   try {
-    if (fs.existsSync(STATE_FILE)) {
-      const raw = fs.readFileSync(STATE_FILE, 'utf-8');
-      const state = JSON.parse(raw);
-      return state.isActive === true;
+    const entries = ctx.sessionManager?.getEntries?.();
+    if (!entries) return false;
+    // Scan from latest to oldest — find the last muselinn_plan entry
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i] as any;
+      if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
+        return e.data.isActive === true;
+      }
     }
-  } catch { /* ignore */ }
+  } catch { /* not critical */ }
   return false;
 }
 
@@ -42,21 +42,21 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
       }
 
       // Determine action: toggle / on / off
-      // For toggle, read directly from file to bypass module hot-reload issues
+      // For toggle, read directly from session entries (per-session, survives hot-reload)
       let turnOn: boolean;
       if (arg === "on") {
         turnOn = true;
       } else if (arg === "off") {
         turnOn = false;
       } else if (arg === "" || arg === "toggle") {
-        turnOn = !isPlanActiveFromFile();
+        turnOn = !isPlanActiveFromSession(ctx);
       } else {
         ctx.ui.notify(`Unknown plan subcommand: ${arg}`, "error");
         return;
       }
 
       if (turnOn) {
-        if (isPlanActiveFromFile()) {
+        if (isPlanActiveFromSession(ctx)) {
           ctx.ui.notify("Plan mode is already ON.", "info");
           return;
         }
@@ -64,7 +64,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
-        if (!isPlanActiveFromFile()) {
+        if (!isPlanActiveFromSession(ctx)) {
           ctx.ui.setStatus("plan-mode", undefined);
           ctx.ui.notify("Plan mode is already OFF.", "info");
           return;
