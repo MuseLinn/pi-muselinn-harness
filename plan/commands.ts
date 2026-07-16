@@ -3,6 +3,8 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 /**
  * Read plan isActive directly from session entries (per-session, survives hot-reload).
@@ -10,23 +12,35 @@ import type { PlanManager } from "./index";
  */
 function isPlanActiveFromSession(ctx: any): boolean {
   try {
-    const entries = ctx.sessionManager?.getEntries?.() ?? ctx.session?.getEntries?.() ?? ctx.sessionManager?.entries ?? [];
-    if (!entries || entries.length === 0) {
-      console.error('[plan] No entries found. ctx keys:', Object.keys(ctx).join(','));
-      return false;
+    const sessionId = ctx.sessionManager?.getSessionId?.() ?? 'default';
+    const stateFile = path.join(
+      process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
+      '.pi', 'agent', 'extensions', 'pi-muselinn-harness', `.plan-state-${sessionId}.json`
+    );
+    if (fs.existsSync(stateFile)) {
+      const raw = fs.readFileSync(stateFile, 'utf-8');
+      const state = JSON.parse(raw);
+      return state.isActive === true;
     }
-    // Scan from latest to oldest — find the last muselinn_plan entry
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const e = entries[i] as any;
-      if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
-        return e.data.isActive === true;
-      }
-    }
-    console.error('[plan] No muselinn_plan entry in', entries.length, 'entries');
   } catch (err) {
     console.error('[plan] isPlanActiveFromSession error:', err);
   }
   return false;
+}
+
+function savePlanStateForSession(ctx: any, isActive: boolean, plan: any): void {
+  try {
+    const sessionId = ctx.sessionManager?.getSessionId?.() ?? 'default';
+    const stateFile = path.join(
+      process.env.HOME || process.env.USERPROFILE || process.env.HOMEPATH || '.',
+      '.pi', 'agent', 'extensions', 'pi-muselinn-harness', `.plan-state-${sessionId}.json`
+    );
+    const dir = path.dirname(stateFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(stateFile, JSON.stringify({ isActive, currentPlan: plan }));
+  } catch (err) {
+    console.error('[plan] savePlanStateForSession error:', err);
+  }
 }
 
 /**
@@ -42,6 +56,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
       // Handle clear
       if (arg === "clear") {
         planManager.clearPlan();
+        savePlanStateForSession(ctx, false, null);
         ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan mode cleared.", "info");
         return;
@@ -67,6 +82,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         const plan = planManager.enterPlanMode("User activated plan mode");
+        savePlanStateForSession(ctx, true, plan);
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
@@ -76,6 +92,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           return;
         }
         planManager.exitPlanMode();
+        savePlanStateForSession(ctx, false, null);
         ctx.ui.setStatus("plan-mode", undefined);
         ctx.ui.notify("Plan mode: OFF", "info");
       }
