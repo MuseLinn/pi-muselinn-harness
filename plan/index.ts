@@ -6,6 +6,8 @@ import type { PlanData, PlanStatus, PlanModeState } from "./types";
 import { currentPlanMode, setCurrentPlanMode, setCurrentPlan, setPlanActive } from "./types";
 import { registerPlanTools } from "./tools";
 import { registerPlanCommands } from "./commands";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 /**
  * Generate a unique plan ID.
@@ -52,9 +54,20 @@ export class PlanManager {
     return `${adj}-${noun}-${verb}`;
   }
 
+  /** Ensure plan directory exists (Kimi Code-style) */
+  private ensurePlanDirectory(planPath: string): void {
+    try {
+      const dir = path.dirname(planPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    } catch { /* not critical */ }
+  }
+
   /**
    * Enter Plan Mode (Kimi Code-style).
    * Called by EnterPlanMode tool or /plan command.
+   * Creates the plan directory immediately (Kimi Code-style: ensurePlanDirectory).
    */
   enterPlanMode(reason?: string): PlanData {
     const heroSlug = this.generateHeroSlug();
@@ -68,6 +81,8 @@ export class PlanManager {
       status: 'exploring',
       createdAt: Date.now(),
     };
+
+    this.ensurePlanDirectory(planPath);
 
     setCurrentPlanMode({
       isActive: true,
