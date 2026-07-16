@@ -10,8 +10,11 @@ import type { PlanManager } from "./index";
  */
 function isPlanActiveFromSession(ctx: any): boolean {
   try {
-    const entries = ctx.sessionManager?.getEntries?.();
-    if (!entries) return false;
+    const entries = ctx.sessionManager?.getEntries?.() ?? ctx.session?.getEntries?.() ?? ctx.sessionManager?.entries ?? [];
+    if (!entries || entries.length === 0) {
+      console.error('[plan] No entries found. ctx keys:', Object.keys(ctx).join(','));
+      return false;
+    }
     // Scan from latest to oldest — find the last muselinn_plan entry
     for (let i = entries.length - 1; i >= 0; i--) {
       const e = entries[i] as any;
@@ -19,7 +22,10 @@ function isPlanActiveFromSession(ctx: any): boolean {
         return e.data.isActive === true;
       }
     }
-  } catch { /* not critical */ }
+    console.error('[plan] No muselinn_plan entry in', entries.length, 'entries');
+  } catch (err) {
+    console.error('[plan] isPlanActiveFromSession error:', err);
+  }
   return false;
 }
 
