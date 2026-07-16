@@ -22,6 +22,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
             ctx.ui.notify("Plan mode is already active.", "info");
           } else {
             planManager.enterPlanMode("User activated plan mode");
+            ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
             ctx.ui.notify("Plan mode activated. Explore and write a plan.", "info");
           }
           break;
@@ -32,6 +33,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
             ctx.ui.notify("Plan mode is not active.", "info");
           } else {
             const plan = planManager.exitPlanMode();
+            ctx.ui.setStatus("plan-mode", "");
             if (plan) {
               ctx.ui.notify("Plan mode exited. Plan submitted for review.", "info");
             }
@@ -41,6 +43,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         case "clear":
         case "reset":
           planManager.clearPlan();
+          ctx.ui.setStatus("plan-mode", "");
           ctx.ui.notify("Plan mode cleared.", "info");
           break;
 
@@ -71,9 +74,11 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
           // Toggle plan mode
           if (planManager.isPlanModeActive()) {
             planManager.exitPlanMode();
+            ctx.ui.setStatus("plan-mode", "");
             ctx.ui.notify("Plan mode exited.", "info");
           } else {
             planManager.enterPlanMode(args.trim() || undefined);
+            ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
             ctx.ui.notify("Plan mode activated.", "info");
           }
           break;

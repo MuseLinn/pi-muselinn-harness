@@ -98,7 +98,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
           if (prioritizeQueueItem(index)) {
             ctx.ui.notify(`Item ${index} prioritized.`, "info");
           } else {
-            ctx.ui.notify(`Cannot prioritize item ${index}.", "error");
+            ctx.ui.notify(`Cannot prioritize item ${index}.`, "error");
           }
           break;
         }
@@ -112,7 +112,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
           if (removeFromQueue(index)) {
             ctx.ui.notify(`Item ${index} dropped.`, "info");
           } else {
-            ctx.ui.notify(`Cannot drop item ${index}.", "error");
+            ctx.ui.notify(`Cannot drop item ${index}.`, "error");
           }
           break;
         }
@@ -121,7 +121,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
           const next = skipCurrentQueueItem();
           if (next) {
             goalManager.createGoal(next.objective, next.completionCriterion, next.budgetLimits, "user");
-            ctx.ui.notify(`Skipped to: ${next.objective.slice(0, 60)}", "info");
+            ctx.ui.notify(`Skipped to: ${next.objective.slice(0, 60)}`, "info");
           } else {
             ctx.ui.notify("No more items in queue.", "info");
           }

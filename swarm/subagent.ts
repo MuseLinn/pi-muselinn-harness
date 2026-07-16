@@ -15,7 +15,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { SubAgentType, SubAgentTask } from "./types";
 import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult } from "./types";
-import { goalManager } from "../goal";
 
 // ============================================================
 // UserCancellationError — distinguishes user cancel from system errors
@@ -144,11 +143,13 @@ export async function retryOnRateLimit<T>(
         goalManager.detectProviderLimitError(err?.message || String(err));
         if (attempt < maxRetries) {
           const delay =
-          Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 500, 10_000);
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
+            Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 500, 10_000);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        throw err; // rate limit, last attempt
       }
-      throw err;
+      throw err; // non-rate-limit error
     }
   }
   throw new Error("Max retries exhausted");

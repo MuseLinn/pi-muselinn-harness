@@ -68,6 +68,9 @@ export default function (pi: ExtensionAPI) {
     if (shared.swarmEnabled) {
       ctx.ui.setStatus("swarm-mode", ctx.ui.theme.fg("accent", "swarm"));
     }
+    if (planManager.isPlanModeActive()) {
+      ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
+    }
     // Restore goal from session custom entries (latest wins)
     try {
       const entries = ctx.sessionManager.getEntries();
@@ -205,7 +208,7 @@ export default function (pi: ExtensionAPI) {
         const vision = m.input?.includes("image") ? " [multimodal]" : "";
         return `${m.id}${free}${vision} [${m.provider}]`;
       });
-      const choice = await ctx.ui.select("Which model?", options, { timeout: 15000 });
+      const choice = await ctx.ui.select("Which model?", options, { timeout: 30000 });
       if (choice) {
         const idx = options.indexOf(choice);
         if (idx >= 0) return scored[idx].model.id;
