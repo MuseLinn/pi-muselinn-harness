@@ -53,7 +53,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
     handler: async (args: string, ctx: any) => {
       const arg = (args || "").trim().toLowerCase();
 
-      // Handle clear
+      // Handle clear — Kimi Code style: clear plan content, exit plan mode
       if (arg === "clear") {
         planManager.clearPlan();
         savePlanStateForSession(ctx, false, null);
