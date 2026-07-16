@@ -37,7 +37,7 @@ import {
   setGlobalAbortController,
   globalAbortController,
 } from "./swarm/types";
-import { getDefaultModel, getDefaultProvider, runSubAgent, runParallel, linkAbortSignal } from "./swarm/subagent";
+import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkAbortSignal } from "./swarm/subagent";
 import { buildWidgetLines } from "./swarm/widget";
 import { formatReport } from "./swarm/report";
 import { registerCommands } from "./swarm/commands";
@@ -329,15 +329,21 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       description: Type.String({ description: "Swarm name for display" }),
       subagent_type: StringEnum(["explore", "plan", "coder"] as const, {
-        default: "explore",
+        default: "coder",
       }),
-      prompt_template: Type.String({
-        description: "Template with {{item}} placeholder",
-      }),
-      items: Type.Array(Type.String(), {
-        minLength: 2,
-        description: "Items to process",
-      }),
+      prompt_template: Type.Optional(Type.String({
+        description: "Template with {{item}} placeholder. Required when items is provided.",
+      })),
+      items: Type.Optional(Type.Array(Type.String(), {
+        description: "Items to process. Each item launches one new sub-agent. Max 128.",
+      })),
+      resume_agent_ids: Type.Optional(
+        Type.Record(
+          Type.String({ description: "Existing subagent agent_id" }),
+          Type.String({ description: "Prompt to resume that subagent" }),
+        ),
+        { description: "Map of existing subagent agent_id to prompt for resuming. Resumed before new item-based spawns." },
+      ),
       model_tier: Type.Optional(
         StringEnum(["cheap", "balanced", "premium", "auto"] as const, {
           default: "auto",
@@ -463,28 +469,53 @@ export default function (pi: ExtensionAPI) {
         return (fromDefault || fromAny)?.id || mId;
       }
 
-      // ── Build tasks ──────────────────────────────────────────────────────
-      const tasks: import("./types").SubAgentTask[] = params.items.map(
-        (item: string, i: number) => {
-          const rawModel = resolvedMap[String(i)] || resolvedMap[String(i + 1)] || modelId;
-          const resolvedModel = resolveModelSpec(rawModel);
-          return {
-            id: String(i + 1).padStart(3, "0"),
-            agent: params.subagent_type,
-            type: params.subagent_type as SubAgentType,
-            task: params.prompt_template.replace(/\{\{item\}\}/g, item),
-            promptTemplate: params.prompt_template,
-            item,
-            model: resolvedModel,
-            status: "pending" as const,
-            turns: 0,
-            usage: { input: 0, output: 0, cost: 0 },
-            outputLines: [],
-            progressPercent: 0,
-            ticks: 0,
-          };
-        },
-      );
+            // ── Build tasks ──────────────────────────────────────────────────────
+      const tasks: import("./types").SubAgentTask[] = [];
+
+      // Kimi Code-style: resumed subagents first, then item-based spawns
+      const resumeIds = (params.resume_agent_ids || {}) as Record<string, string>;
+      let taskId = 0;
+
+      for (const [agentId, prompt] of Object.entries(resumeIds)) {
+        taskId++;
+        const rawModel = resolvedMap[String(taskId)] || modelId;
+        const resolvedModel = resolveModelSpec(rawModel);
+        tasks.push({
+          id: agentId,
+          agent: params.subagent_type || 'coder',
+          type: params.subagent_type as SubAgentType,
+          task: prompt,
+          model: resolvedModel,
+          status: "pending" as const,
+          turns: 0,
+          usage: { input: 0, output: 0, cost: 0 },
+          outputLines: [],
+          progressPercent: 0,
+          ticks: 0,
+        });
+      }
+
+      for (const [i, item] of (params.items || []).entries()) {
+        taskId++;
+        const rawModel = resolvedMap[String(i)] || resolvedMap[String(i + 1)] || modelId;
+        const resolvedModel = resolveModelSpec(rawModel);
+        const promptTemplate = params.prompt_template || '';
+        tasks.push({
+          id: String(taskId).padStart(3, "0"),
+          agent: params.subagent_type || 'coder',
+          type: params.subagent_type as SubAgentType,
+          task: promptTemplate.replace(/\{\{item\}\}/g, item),
+          promptTemplate,
+          item,
+          model: resolvedModel,
+          status: "pending" as const,
+          turns: 0,
+          usage: { input: 0, output: 0, cost: 0 },
+          outputLines: [],
+          progressPercent: 0,
+          ticks: 0,
+        });
+      }
 
       // Init swarm state ------------------------------------------------------
       const state: import("./types").SwarmState = {
@@ -565,9 +596,9 @@ export default function (pi: ExtensionAPI) {
         });
       };
 
-      // Run parallel ---------------------------------------------------------
+      // Kimi Code-style: progressive launch (initial 5 + 700ms/item)
       try {
-        await runParallel(tasks, maxC, async (task) => {
+        await runProgressive(tasks, 5, 700, async (task) => {
           if (signal.aborted || currentSwarm === null) {
             task.status = "aborted";
             return;

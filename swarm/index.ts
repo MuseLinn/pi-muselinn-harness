@@ -2,7 +2,7 @@
 // Swarm Module — Kimi Code-style Agent Swarm
 // ============================================================
 
-export { UserCancellationError, userCancellationReason, isUserCancellation, runSubAgent, runParallel, linkAbortSignal, getDefaultModel, getDefaultProvider } from "./subagent";
+export { UserCancellationError, userCancellationReason, isUserCancellation, runSubAgent, runProgressive, linkAbortSignal, getDefaultModel, getDefaultProvider } from "./subagent";
 export { buildWidgetLines } from "./widget";
 export { formatReport } from "./report";
 export { TasksBrowserComponent } from "./task-browser";

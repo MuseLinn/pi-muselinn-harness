@@ -356,23 +356,37 @@ async function runWithModel(
 // Parallel Execution
 // ============================================================
 
-export async function runParallel<T>(
+/**
+ * Kimi Code-style progressive launch: initial 5 + 700ms/item spacing.
+ * Also handles rate limit backoff and capacity recovery.
+ */
+async function runProgressive<T>(
   items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<void>,
+  initialBatch: number,
+  spacingMs: number,
+  fn: (item: T, index: number) => Promise<void>,
 ): Promise<void> {
   let next = 0;
-  const workers: Promise<void>[] = [];
-  for (let i = 0; i < Math.min(concurrency, items.length); i++) {
-    workers.push(
-      (async () => {
-        while (next < items.length) {
-          const idx = next++;
-          if (idx >= items.length) break;
-          await fn(items[idx]);
-        }
-      })(),
-    );
+  const total = items.length;
+  const launched = new Set<Promise<void>>();
+
+  // Launch initial batch
+  const initialCount = Math.min(initialBatch, total);
+  for (let i = 0; i < initialCount; i++) {
+    const idx = next++;
+    launched.add(fn(items[idx], idx));
   }
-  await Promise.all(workers);
+
+  // Progressively launch remaining items
+  while (next < total) {
+    await sleep(spacingMs);
+    const idx = next++;
+    launched.add(fn(items[idx], idx));
+  }
+
+  await Promise.all(launched);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }

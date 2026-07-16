@@ -57,6 +57,7 @@ export interface SavedSwarm {
   promptTemplate: string;
   maxConcurrency: number;
   completedItems: string[];
+  resumeIds?: Record<string, string>;  // Kimi Code-style resumed subagents
 }
 
 export interface GridLayout {
