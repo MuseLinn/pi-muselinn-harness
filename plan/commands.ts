@@ -14,6 +14,14 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
     handler: async (args: string, ctx: any) => {
       const arg = (args || "").trim().toLowerCase();
 
+      // Handle clear
+      if (arg === "clear") {
+        planManager.clearPlan();
+        ctx.ui.setStatus("plan-mode", "");
+        ctx.ui.notify("Plan mode cleared.", "info");
+        return;
+      }
+
       // Determine action: toggle / on / off
       let turnOn: boolean;
       if (arg === "on") {
