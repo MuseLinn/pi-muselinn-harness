@@ -49,17 +49,17 @@ export function registerCommands(pi: ExtensionAPI): void {
 
       if (arg === "on") {
         // Load on-demand from state
-        const { default: state } = await import("./state");
+        const { default: state } = await import("../state");
         state.swarmEnabled = true;
         ctx.ui.setStatus("swarm-mode", ctx.ui.theme.fg("accent", "swarm"));
         ctx.ui.notify("🐝 Swarm mode: ON", "success");
       } else if (arg === "off") {
-        const { default: state } = await import("./state");
+        const { default: state } = await import("../state");
         state.swarmEnabled = false;
         ctx.ui.setStatus("swarm-mode", undefined);
         ctx.ui.notify(" Swarm mode: OFF", "info");
       } else if (arg === "status") {
-        const { default: state } = await import("./state");
+        const { default: state } = await import("../state");
         let msg = `Swarm mode: ${state.swarmEnabled ? "ON ✓" : "OFF ✗"}`;
         if (savedSwarmState) {
           const completed = savedSwarmState.completedItems.length;
