@@ -85,29 +85,29 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         ? plan.content.slice(0, 500) + (plan.content.length > 500 ? "..." : "")
         : "(empty plan)";
 
-      const approved = await ctx.ui.confirm(
-        "Plan Review",
-        `Review your plan:\n\n${planPreview}\n\nApprove this plan?`,
+      const options = ["Approve", "Reject", "Revise"];
+      const choice = await ctx.ui.select(
+        `Plan Review:\n\n${planPreview}`,
+        options,
         { timeout: 60000 }
       );
 
-      if (approved) {
+      if (choice === "Approve") {
         planManager.approvePlan();
         ctx.ui.notify("Plan approved! Execution can begin.", "success");
         return {
-          content: [{
-            type: "text",
-            text: `Plan approved.\nPlan ID: ${plan.id}\n\nYou can now execute the plan.`,
-          }],
+          content: [{ type: "text", text: `Plan approved. You can now execute the plan.` }],
         };
-      } else {
+      } else if (choice === "Reject") {
         planManager.rejectPlan("User rejected");
         ctx.ui.notify("Plan rejected.", "info");
         return {
-          content: [{
-            type: "text",
-            text: `Plan rejected.\nPlan ID: ${plan.id}\n\nModify your plan and try again.`,
-          }],
+          content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }],
+        };
+      } else {
+        ctx.ui.notify("Plan revision requested. Continue editing.", "info");
+        return {
+          content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }],
         };
       }
     },

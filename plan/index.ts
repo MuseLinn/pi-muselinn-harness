@@ -58,10 +58,13 @@ export class PlanManager {
    */
   enterPlanMode(reason?: string): PlanData {
     const heroSlug = this.generateHeroSlug();
+    const planPath = this.sessionDir
+      ? `${this.sessionDir}/plans/${heroSlug}.md`
+      : `plans/${heroSlug}.md`;
     const plan: PlanData = {
       id: generatePlanId(),
       content: '',
-      path: `plans/${heroSlug}.md`,
+      path: planPath,
       status: 'exploring',
       createdAt: Date.now(),
     };
@@ -210,8 +213,8 @@ export class PlanManager {
   shouldBlockTool(toolName: string, filePath?: string): boolean {
     if (!currentPlanMode.isActive) return false;
 
-    // Read-only tools are always allowed
-    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'get_goal'];
+    // Read-only tools are always allowed (Kimi Code-style)
+    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'get_goal', 'websearch', 'fetchurl'];
     if (readOnlyTools.includes(toolName)) return false;
 
     // Bash is allowed (for read-only commands)
@@ -223,6 +226,10 @@ export class PlanManager {
         return false; // Allow writing to plan file
       }
     }
+
+    // Blocked tools (Kimi Code-style)
+    const blockedTools = ['taskstop', 'croncreate', 'crondelete'];
+    if (blockedTools.includes(toolName)) return true;
 
     // All other write/edit operations are blocked
     if (toolName === 'write' || toolName === 'edit') {
