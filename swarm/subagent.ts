@@ -360,7 +360,7 @@ async function runWithModel(
  * Kimi Code-style progressive launch: initial 5 + 700ms/item spacing.
  * Also handles rate limit backoff and capacity recovery.
  */
-async function runProgressive<T>(
+export async function runProgressive<T>(
   items: T[],
   initialBatch: number,
   spacingMs: number,
