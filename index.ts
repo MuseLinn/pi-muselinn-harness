@@ -304,6 +304,10 @@ export default function (pi: ExtensionAPI) {
     const isSimple = /\b(find|list|scan|grep|read|cat|ls|count|check|show|display)\b/.test(prompt);
     const isComplex = /\b(implement|refactor|design|optimize|create|build|write|debug|test|fix|architect|migrate|integrate)\b/.test(prompt);
 
+    // Get the current session's active model (prefer it, as the user is already using it)
+    const currentModelId = ctx.model?.id ?? "";
+    const currentProvider = ctx.model?.provider ?? defaultProvider;
+
     // Score each available model
     const scored = available.map((m: any) => {
       let score = 0;
@@ -313,6 +317,12 @@ export default function (pi: ExtensionAPI) {
       const isLargeContext = (m.contextWindow || 0) >= 100000;
 
       if (m.provider === defaultProvider) score += 100;
+
+      // Prefer the same provider as the current session
+      if (currentProvider && m.provider === currentProvider) score += 80;
+
+      // Prefer the current session's active model (user is already using it)
+      if (currentModelId && m.id === currentModelId) score += 200;
 
       if (hasImages) {
         if (isMultimodal) score += 200;
