@@ -343,53 +343,35 @@ export default function (pi: ExtensionAPI) {
     }).sort((a: any, b: any) => b.score - a.score);
 
     if (scored.length >= 2 && Math.abs(scored[0].score - scored[1].score) < 20) {
-      // Show top candidates as hint, let user type or select
-      const top3 = scored.slice(0, 3).map((s: any) => {
+      // Show top candidates as structured selection list
+      const modelOptions = scored.slice(0, 5).map((s: any) => {
         const m = s.model;
         const free = m.id.endsWith("-free") ? " (free)" : "";
         const vision = m.input?.includes("image") ? " [multimodal]" : "";
-        return `${m.id}${free}${vision} [${m.provider}]`;
+        const context = m.contextWindow ? ` ${Math.round(m.contextWindow/1000)}k ctx` : "";
+        return `${m.id}${free}${vision}${context} [${m.provider}]`;
       });
-      const hint = `Top: ${top3.join(" | ")}`;
-      const defaultModel = scored[0].model.id;
-      const input = await ctx.ui.input(`Model? (${hint})`, defaultModel, { timeout: 30000 });
-      if (input && input.trim()) {
-        let raw = input.trim();
+      modelOptions.push("Other (type a model name)");
 
-        // Parse [provider] suffix (e.g., "deepseek-v4-flash [opencode-go]")
-        let providerHint: string | null = null;
-        const bracketMatch = raw.match(/^(.+?)\s*\[(.+?)\]\s*$/);
-        if (bracketMatch) {
-          raw = bracketMatch[1]!.trim();
-          providerHint = bracketMatch[2]!.trim();
+      const choice = await ctx.ui.select(
+        `Which model? (default: ${scored[0].model.id})`,
+        modelOptions,
+        { timeout: 30000 }
+      );
+
+      if (choice === "Other (type a model name)") {
+        const custom = await ctx.ui.input("Enter model name:", scored[0].model.id, { timeout: 30000 });
+        if (custom?.trim()) {
+          const exact = scored.find((s: any) => s.model.id === custom.trim());
+          if (exact) return exact.model.id;
+          const partial = available.find((m: any) => m.id.includes(custom.trim()));
+          if (partial) return partial.id;
+          return custom.trim();
         }
-
-        // Parse provider:model syntax
-        const colonMatch = raw.match(/^([a-zA-Z][a-zA-Z0-9_-]*):(.+)$/);
-        if (colonMatch) {
-          providerHint = colonMatch[1]!;
-          raw = colonMatch[2]!.trim();
-        }
-
-        // Try to find exact match in scored candidates
-        const exact = scored.find((s: any) => s.model.id === raw);
-        if (exact) return exact.model.id;
-
-        // Try partial match with optional provider hint
-        const candidates = providerHint
-          ? available.filter((m: any) =>
-              (m.id.includes(raw) || (m.name || "").toLowerCase().includes(raw)) &&
-              (m.provider || "").toLowerCase().includes(providerHint!)
-            )
-          : available.filter((m: any) => m.id.includes(raw) || (m.name || "").toLowerCase().includes(raw));
-
-        if (candidates.length > 0) {
-          // Pick the best match among candidates
-          return candidates.sort((a: any, b: any) => a.id.length - b.id.length)[0].id;
-        }
-
-        // Last resort: return the raw input (model registry will validate)
-        return raw;
+      } else if (choice) {
+        const idx = modelOptions.indexOf(choice);
+        if (idx >= 0 && idx < scored.length) return scored[idx].model.id;
+      }
       return scored[0].model.id;
     } else if (scored.length > 0) {
       return scored[0].model.id;
