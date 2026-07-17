@@ -77,6 +77,9 @@ export default function (pi: ExtensionAPI) {
 
   // ── session_start: restore goal + plan from persisted entries + set status bar ──
   pi.on("session_start", async (_event, ctx) => {
+    // Set plan session directory (for plan file storage)
+    try { planManager.setSessionDir(ctx.sessionManager.getSessionDir()); } catch { /* ok */ }
+
     // Refresh model catalog once at startup (Pi 0.80.8 async refresh)
     try { await ctx.modelRegistry?.refresh?.(); } catch { /* non-critical */ }
 

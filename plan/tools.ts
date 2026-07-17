@@ -135,6 +135,11 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
           ctx.ui.notify("Plan rejected.", "info");
           return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
         } else {
+          // Revise: re-enter plan mode so LLM can keep editing
+          planManager.enterPlanMode("Plan revision requested");
+          if (ctx.ui?.theme) {
+            ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
+          }
           ctx.ui.notify("Plan revision requested. Continue editing.", "info");
           return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
         }
@@ -157,6 +162,11 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         ctx.ui.notify("Plan rejected.", "info");
         return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
       } else {
+        // Revise: re-enter plan mode so LLM can keep editing
+        planManager.enterPlanMode("Plan revision requested");
+        if (ctx.ui?.theme) {
+          ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
+        }
         ctx.ui.notify("Plan revision requested. Continue editing.", "info");
         return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
       }
