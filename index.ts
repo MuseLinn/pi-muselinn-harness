@@ -354,15 +354,42 @@ export default function (pi: ExtensionAPI) {
       const defaultModel = scored[0].model.id;
       const input = await ctx.ui.input(`Model? (${hint})`, defaultModel, { timeout: 30000 });
       if (input && input.trim()) {
-        // Check if input matches a candidate
-        const match = scored.find((s: any) => s.model.id === input.trim());
-        if (match) return match.model.id;
-        // Otherwise, try to find by partial match
-        const partial = available.find((m: any) => m.id.includes(input.trim()));
-        if (partial) return partial.id;
-        // Return input as-is (user typed a specific model)
-        return input.trim();
-      }
+        let raw = input.trim();
+
+        // Parse [provider] suffix (e.g., "deepseek-v4-flash [opencode-go]")
+        let providerHint: string | null = null;
+        const bracketMatch = raw.match(/^(.+?)\s*\[(.+?)\]\s*$/);
+        if (bracketMatch) {
+          raw = bracketMatch[1]!.trim();
+          providerHint = bracketMatch[2]!.trim();
+        }
+
+        // Parse provider:model syntax
+        const colonMatch = raw.match(/^([a-zA-Z][a-zA-Z0-9_-]*):(.+)$/);
+        if (colonMatch) {
+          providerHint = colonMatch[1]!;
+          raw = colonMatch[2]!.trim();
+        }
+
+        // Try to find exact match in scored candidates
+        const exact = scored.find((s: any) => s.model.id === raw);
+        if (exact) return exact.model.id;
+
+        // Try partial match with optional provider hint
+        const candidates = providerHint
+          ? available.filter((m: any) =>
+              (m.id.includes(raw) || (m.name || "").toLowerCase().includes(raw)) &&
+              (m.provider || "").toLowerCase().includes(providerHint!)
+            )
+          : available.filter((m: any) => m.id.includes(raw) || (m.name || "").toLowerCase().includes(raw));
+
+        if (candidates.length > 0) {
+          // Pick the best match among candidates
+          return candidates.sort((a: any, b: any) => a.id.length - b.id.length)[0].id;
+        }
+
+        // Last resort: return the raw input (model registry will validate)
+        return raw;
       return scored[0].model.id;
     } else if (scored.length > 0) {
       return scored[0].model.id;
