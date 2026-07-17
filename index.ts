@@ -304,6 +304,7 @@ export default function (pi: ExtensionAPI) {
   ): Promise<string> {
     // Detect task type
     const hasImages = items.some((i: string) => /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff)$/i.test(i));
+    const needsVision = hasImages || /\b(vi(?:sual|deo|sion)|image|screen(?:shot|cap)|photo|multimod|[多视]模态|视觉|图像|截图|图片|照[片面]|视频|GIF|pixel|render|asset|sprite|texture|特效|光影|色彩|动画|UI.*check|界面.*检|[检审]查.*(?:视觉|画面|效果))\b/i.test(prompt);
     const isSimple = /\b(find|list|scan|grep|read|cat|ls|count|check|show|display)\b/.test(prompt);
     const isComplex = /\b(implement|refactor|design|optimize|create|build|write|debug|test|fix|architect|migrate|integrate)\b/.test(prompt);
 
@@ -318,6 +319,7 @@ export default function (pi: ExtensionAPI) {
       const isMultimodal = m.input?.includes("image");
       const isFree = id.endsWith("-free");
       const isLargeContext = (m.contextWindow || 0) >= 100000;
+      const costPerMee = (m.cost?.input || 0) + (m.cost?.output || 0);
 
       if (m.provider === defaultProvider) score += 100;
 
@@ -327,7 +329,18 @@ export default function (pi: ExtensionAPI) {
       // Prefer the current session's active model (user is already using it)
       if (currentModelId && m.id === currentModelId) score += 200;
 
-      if (hasImages) {
+      // Cost-aware: penalize expensive models unless task really needs them
+      // Free models get a big boost; expensive ones need strong justification
+      if (isFree) score += 50;
+      else if (costPerMee > 10) score -= 60;  // >$10/M tokens
+      else if (costPerMee > 5) score -= 30;   // >$5/M tokens
+      else if (costPerMee > 2) score -= 10;   // >$2/M tokens
+
+      // Multimodal routing: only prefer multimodal when task needs vision
+      if (needsVision) {
+        if (isMultimodal) score += 200;  // Strong preference for multimodal
+        else score -= 150;               // Penalize text-only for vision tasks
+      } else if (hasImages) {
         if (isMultimodal) score += 200;
         else score -= 100;
       } else if (isSimple) {
