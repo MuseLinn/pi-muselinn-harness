@@ -393,6 +393,14 @@ export default function (pi: ExtensionAPI) {
     label: "Agent Swarm",
     description:
       "Batch parallel: same template applied to multiple items. Each item gets isolated sub-agent.",
+    promptSnippet: "agent_swarm — auto-routes models based on task type unless specified",
+    promptGuidelines: [
+      "Model routing is automatic: if you don't specify 'model', the system picks the best model based on task type, current session model, and available capabilities.",
+      "If the user mentions specific models (e.g., 'use deepseek' or '用mimo'), pass them through the 'model' or 'model_map' parameter.",
+      "For multi-model swarms, use model_map to assign different models per item (e.g., \"0\": \"opencode-go:deepseek-v4-flash\", \"1\": \"xiaomi:mimo-v2.5\").",
+      "When uncertain which model is best, call ask_user_question to let the user choose — then pass their response as model/model_map.",
+      "For image/multimodal tasks, the system automatically prefers multimodal-capable models.",
+    ],
     parameters: Type.Object({
       description: Type.String({ description: "Swarm name for display" }),
       subagent_type: StringEnum(["explore", "plan", "coder"] as const, {
@@ -751,6 +759,12 @@ export default function (pi: ExtensionAPI) {
     label: "Agent",
     description:
       "Single agent dispatch: isolated sub-agent for a specific task.",
+    promptSnippet: "agent — single sub-agent with auto model routing",
+    promptGuidelines: [
+      "Model routing is automatic: if you don't specify 'model', the system picks the best model based on task type, current session model, and available capabilities.",
+      "If the user mentions a specific model name, pass it via the 'model' parameter.",
+      "When uncertain which model to use, call ask_user_question to let the user choose.",
+    ],
     parameters: Type.Object({
       prompt: Type.String({ description: "Task prompt" }),
       description: Type.String({ description: "Short description" }),

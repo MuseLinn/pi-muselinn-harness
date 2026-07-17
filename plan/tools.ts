@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { PlanManager } from "./index";
+import { permissionManager } from "../permission";
 
 /**
  * Register plan tools with Pi.
@@ -90,6 +91,15 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
       if (!plan) {
         return {
           content: [{ type: "text", text: "No plan to exit." }],
+        };
+      }
+
+      // Kimi Code-style: auto mode skips approval entirely
+      if (permissionManager.getMode() === "auto") {
+        planManager.approvePlan();
+        ctx.ui.notify("Plan auto-approved (auto mode).", "success");
+        return {
+          content: [{ type: "text", text: `Plan auto-approved. You can now execute the plan.` }],
         };
       }
 
