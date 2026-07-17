@@ -4,7 +4,7 @@
 
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
 import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal } from "./types";
-import { accumulatedBrailleBar, computeDisplayTicks, incrementTicks, calculateGridLayout, visibleWidth } from "./helpers";
+import { accumulatedBrailleBar, computeDisplayTicks, incrementTicks, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
 
 /**
  * Build goal status line for widget display.
@@ -43,7 +43,12 @@ export function buildWidgetLines(
   const lines: string[] = [];
 
   // ---- Header ----
-  const title = theme.bold(theme.fg("accent", "Agent Swarm"));
+  const title = theme.bold(gradientText(
+    "Agent Swarm",
+    "#4FA8FF", // Kimi primary (blue)
+    "#5BC0BE", // Kimi accent (teal)
+    AGENT_SWARM_TITLE_ACCENT_BIAS,
+  ));
   const desc = state.name ? theme.fg("muted", ` ─ ${state.name}`) : "";
   const header = `─ ${title}${desc}`;
   lines.push(header);

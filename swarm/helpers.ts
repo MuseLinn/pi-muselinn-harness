@@ -192,3 +192,38 @@ export function fmtCost(c: number): string {
   if (c < 0.01) return `$${c.toFixed(4)}`;
   return `$${c.toFixed(2)}`;
 }
+
+export const AGENT_SWARM_TITLE_ACCENT_BIAS = 1.3;
+
+/**
+ * Kimi Code-style gradient text: interpolates between two hex colors per character.
+ * Uses raw ANSI 24-bit color codes since Pi's theme doesn't support hex colors.
+ */
+export function gradientText(
+  text: string,
+  fromHex: string,
+  toHex: string,
+  accentBias = 1,
+): string {
+  const chars = Array.from(text);
+  if (chars.length <= 1) return text;
+
+  function parseHex(hex: string): { r: number; g: number; b: number } | null {
+    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
+    return m ? { r: parseInt(m[1]!, 16), g: parseInt(m[2]!, 16), b: parseInt(m[3]!, 16) } : null;
+  }
+
+  const from = parseHex(fromHex);
+  const to = parseHex(toHex);
+  if (!from || !to) return text;
+
+  const bias = isFinite(accentBias) ? Math.max(0, accentBias) : 1;
+
+  return chars.map((char, i) => {
+    const ratio = Math.min(1, (i / (chars.length - 1)) * bias);
+    const r = Math.round(from.r + (to.r - from.r) * ratio);
+    const g = Math.round(from.g + (to.g - from.g) * ratio);
+    const blue = Math.round(from.b + (to.b - from.b) * ratio);
+    return `\x1b[38;2;${r};${g};${blue}m${char}\x1b[0m`;
+  }).join('');
+}
