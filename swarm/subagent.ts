@@ -164,7 +164,7 @@ export async function runSubAgent(
   ctx: {
     cwd: string;
     getSystemPrompt?: () => string | undefined;
-    modelRegistry: { getAvailable(): Array<{ id: string }> };
+    modelRegistry: { getAvailable(): Array<{ id: string }>; runtime?: any };
   },
   signal: AbortSignal,
   onProgress: () => void,
@@ -204,7 +204,7 @@ async function runWithModel(
     const result = await createAgentSession({
       sessionManager: SessionManager.inMemory(),
       model,
-      modelRegistry: ctx.modelRegistry as any,
+      modelRuntime: (ctx.modelRegistry as any)?.runtime ?? ctx.modelRegistry,
       tools,
       resourceLoader,
     });
