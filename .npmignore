@@ -1,0 +1,18 @@
+# Dev/test files (not published)
+AUDIT.md
+plans/
+
+# Build artifacts
+node_modules/
+*.js.map
+*.d.ts
+!*.d.ts
+dist/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Session state files (never publish!)
+.plan-state-*.json
+*.log
