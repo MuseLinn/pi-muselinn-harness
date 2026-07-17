@@ -8,6 +8,12 @@ import { policyChain } from './policies';
 
 export class PermissionManager {
   private mode: PermissionMode = 'manual';
+  private persistFn: ((mode: PermissionMode) => void) | null = null;
+
+  /** Bind a persistence callback */
+  setPersistence(fn: (mode: PermissionMode) => void): void {
+    this.persistFn = fn;
+  }
 
   /** Get current permission mode */
   getMode(): PermissionMode {
@@ -18,6 +24,7 @@ export class PermissionManager {
   setMode(mode: PermissionMode): void {
     this.mode = mode;
     setMode(mode);
+    if (this.persistFn) this.persistFn(mode);
   }
 
   /**

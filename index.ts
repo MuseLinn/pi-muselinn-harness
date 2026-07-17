@@ -64,6 +64,11 @@ export default function (pi: ExtensionAPI) {
   // ── Plan mode: inject plan context + tool restrictions ──
   // Plan state is managed per-session via file in session directory (see plan/commands.ts)
 
+  // ── Permission mode persistence ──
+  permissionManager.setPersistence((mode) => {
+    pi.appendEntry("muselinn_permission", { mode });
+  });
+
   // ── Background task manager binding ──
   backgroundManager.bind(
     (type, data) => pi.appendEntry(type, data),
@@ -138,6 +143,20 @@ export default function (pi: ExtensionAPI) {
         const e = entries[i] as any;
         if (e.type === "custom" && e.customType === "muselinn_background_tasks" && Array.isArray(e.data)) {
           backgroundManager.restore(e.data);
+          break;
+        }
+      }
+    } catch { /* not critical */ }
+
+    // Restore permission mode from persisted entries
+    try {
+      const entries = ctx.sessionManager.getEntries();
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i] as any;
+        if (e.type === "custom" && e.customType === "muselinn_permission" && e.data?.mode) {
+          if (["auto", "yolo", "manual"].includes(e.data.mode)) {
+            permissionManager.setMode(e.data.mode);
+          }
           break;
         }
       }
