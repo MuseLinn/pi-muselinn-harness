@@ -1,30 +1,53 @@
 # pi-muselinn-harness
 
-Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan 三模块架构。
+Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 五模块架构，全面对齐 Kimi Code 的子系统行为。
 
 ## 功能
 
 ### Swarm 模块
 - **子代理执行** — `createAgentSession()` in-process 执行
-- **并发控制** — `runParallel()` + 指数退避重试
+- **并发控制** — `runProgressive()` worker 池，真实 `max_concurrency` 上限 + 指数退避重试
+- **30 分钟超时** — 每个子代理独立 `AbortSignal.timeout`(30min，对齐 Kimi Code)
+- **run_in_background** — swarm 整体转后台任务，早返回 task ID，报告可落 `output_path`
 - **智能模型路由** — 从 `ctx.modelRegistry` 自动发现，任务感知选择
-- **盲文进度条** — 真实工具调用进度驱动，250ms 指纹门控刷新
+- **盲文进度条** — 真实工具调用进度驱动，250ms 帧 + 状态指纹门控(未变帧零成本跳过)
+- **自适应布局** — pi-tui Component 协议渲染，状态栏宽度随终端自适应(10–60)，窄终端不错位
 - **三栏任务浏览器** — 键盘导航 + 分页
-- **取消/恢复** — UserCancellationError + AbortSignal 链
+- **取消/恢复** — UserCancellationError + AbortSignal 链，`/cancel` 两步确认
 
 ### Goal 模块
 - **Goal 生命周期** — active / paused / blocked / complete / usage_limited / budget_limited
-- **Budget 三重检测** — tokenBudget + turnBudget + wallClockBudgetMs
-- **Goal Queue** — FIFO + Auto-switch + prioritize/drop/skip
+- **Active Guard** — 已有 active 目标时 `create_goal` 拒绝静默覆盖，需 `replace=true` 或 `/goal replace`
+- **Blocked 3 轮阈值** — 同一原因连续 3 次 block 才真正进入 blocked
+- **完成判据门禁** — 声明了 `completionCriterion` 时，未验证通过不允许 complete
+- **Budget 三重检测** — tokenBudget + turnBudget + wallClockBudgetMs,`set_goal_budget` 支持 turns/tokens/ms/s/min/hours
+- **Goal Queue** — FIFO + high/normal 优先级 + Auto-switch + prioritize/drop/skip
 - **持久化** — appendEntry + session_start 恢复
 - **Context 注入** — `<untrusted_objective>` 标签注入 system prompt
 - **Recovery** — Compaction 保留 + Context Overflow 检测 + 429 检测
-- **Tool 阻止** — 预算耗尽后阻止 tool 执行
 
 ### Plan 模块
 - **Plan Mode** — LLM 先探索代码库、写计划、审批后再执行
-- **工具限制** — 只允许只读工具 + plan 文件
+- **工具限制** — 只读工具白名单 + plan 文件写权限，bash 按命令白名单放行
+- **ExitPlanMode 读盘** — 呈现时读取 plan 文件真实内容，与 LLM 写盘保持一致
+- **路径守卫** — `path.resolve` + `startsWith(planDir)` 防绕过
 - **Context 注入** — 注入 plan 到 system prompt
+
+### Permission 模块
+- **18 级策略链** — auto / yolo / manual 三模式，安全策略(destructive、敏感文件)优先于模式短路
+- **Destructive 检测** — `rm -rf` / `git push --force` / `drop table` / `git reset --hard` 等正则识别，每次必问，不被会话批准短路
+- **敏感文件守卫** — `.env` / `id_rsa` / `*.key` 等读写拦截，auto 模式下也不放行
+- **会话批准指纹** — 按 sessionId + 输入指纹记忆批准，不蜕变为"永久许可"
+- **AGENTS.md 指令** — 解析最近 AGENTS.md,`destructive-ask-always` 可将 ask 升级为 deny
+- **配置缓存** — 权限配置按文件 mtime 缓存，变更即时生效
+
+### Task 模块(后台任务 + 定时任务)
+- **run_background** — 子代理后台执行，立即返回 task ID;`output_path` 把完整输出落盘供 Read 分页
+- **30 分钟超时** — 后台任务超时自动失败(`stopReason=timeout_30min`)
+- **task_list / task_output / task_stop** — `active_only` 过滤、`block+timeout` 等待完成、`offset/limit` 分页
+- **50 任务上限** + **7 天 stale 清理** + 重启孤儿任务降级 `process_restart`
+- **增量持久化** — 单任务变更只 append 单条 entry,restore 兼容旧快照
+- **Cron 定时任务** — 5 字段 cron(本地时区)+ 确定性 jitter(实测周期 10%,上限 15min)+ recurring/one-shot + 50 上限 + 7 天 stale 自动删
 
 ## 安装
 
@@ -37,53 +60,70 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | 命令 | 说明 |
 |------|------|
 | `/swarm on\|off` | 开关 Swarm 模式 |
-| `/cancel` | 取消当前任务 |
-| `/resume` | 恢复任务 |
+| `/cancel` | 取消当前任务(两步确认) |
+| `/resume` | 恢复中断的 swarm |
 | `/tasks` | 打开任务浏览器 |
 | `/goal <objective>` | 设置目标 |
-| `/goal pause\|resume\|cancel` | 管理目标 |
-| `/goal queue` | 查看队列 |
-| `/goal add\|prioritize\|drop\|skip` | 队列操作 |
-| `/plan` | 切换 Plan Mode |
-| `/plan on\|off\|clear` | Plan Mode 控制 |
+| `/goal pause\|resume\|cancel\|replace` | 管理目标 |
+| `/goal budget <n> <unit>` | 设置预算(turns/tokens/ms/s/min/hours) |
+| `/goal queue` / `/goal add\|prioritize\|drop\|skip` | 队列操作 |
+| `/plan` / `/plan on\|off\|clear` | Plan Mode 控制 |
+| `/mode` | 切换权限模式(auto/yolo/manual) |
 | `/swarm-status` | 查看状态 |
 
 ## 工具
 
 | 工具 | 说明 |
 |------|------|
-| `agent_swarm` | 批量并行子代理 |
+| `agent_swarm` | 批量并行子代理(`max_concurrency` / `run_in_background` / `output_path` / `model_map`) |
 | `agent` | 单个子代理 |
-| `create_goal` | 创建目标 |
-| `get_goal` | 查询目标 |
-| `update_goal` | 更新目标状态 |
-| `enter_plan_mode` | 进入 Plan Mode |
-| `exit_plan_mode` | 退出 Plan Mode |
+| `create_goal` / `get_goal` / `update_goal` / `set_goal_budget` | 目标管理 |
+| `enter_plan_mode` / `exit_plan_mode` | Plan Mode |
+| `run_background` / `task_list` / `task_output` / `task_stop` | 后台任务 |
+| `cron_create` / `cron_list` / `cron_delete` | 定时任务 |
 
 ## 架构
 
 ```
 pi-muselinn-harness/
-├── index.ts          入口
+├── index.ts          入口(agent_swarm / agent 工具、后台 swarm runner、各模块接线)
 ├── state.ts          共享状态
 ├── swarm/            Swarm 模块
-│   ├── subagent.ts   子代理执行
-│   ├── commands.ts   /swarm /cancel /resume
-│   ├── widget.ts     TUI 组件
+│   ├── subagent.ts   子代理执行(worker 池、30min 超时、配置缓存)
+│   ├── commands.ts   /swarm /cancel /resume /tasks
+│   ├── widget.ts     TUI 组件(pi-tui Component + 指纹门控)
 │   ├── task-browser.ts 三栏浏览器
-│   └── helpers.ts    盲文进度条
+│   ├── estimator.ts  进度估算(几何平均)
+│   └── helpers.ts    盲文进度条/布局(memo 缓存)
 ├── goal/             Goal 模块
-│   ├── index.ts      GoalManager
+│   ├── index.ts      GoalManager(状态机 + 3 轮阈值 + 判据门禁)
 │   ├── commands.ts   /goal 命令
-│   ├── tools.ts      create/get/update_goal
+│   ├── tools.ts      create/get/update_goal + set_goal_budget
 │   ├── budget.ts     Budget Report
 │   ├── persistence.ts 持久化
 │   └── queue.ts      Goal Queue
-└── plan/             Plan 模块
-    ├── index.ts      PlanManager
-    ├── commands.ts   /plan 命令
-    ├── tools.ts      enter/exit_plan_mode
-    └── injection.ts  Context 注入
+├── plan/             Plan 模块
+│   ├── index.ts      PlanManager(工具白名单 + 路径守卫)
+│   ├── commands.ts   /plan 命令
+│   ├── tools.ts      enter/exit_plan_mode(读盘呈现)
+│   └── injection.ts  Context 注入
+├── permission/       Permission 模块
+│   ├── index.ts      evaluate 入口(18 级策略链)
+│   ├── policies.ts   各策略(destructive/敏感文件/会话批准...)
+│   ├── config.ts     配置加载(mtime 缓存)+ AGENTS.md 解析
+│   └── commands.ts   /mode 命令
+├── task/             Task 模块
+│   ├── index.ts      后台任务管理(50 上限/7天 stale/增量持久化)
+│   └── cron.ts       Cron 定时任务(5 字段 + jitter + one-shot)
+└── tests/            node 级单元测试(见下)
+```
+
+## 测试
+
+无需模型额度的 node 级单元测试：
+
+```bash
+node --experimental-strip-types tests/cron.test.mjs   # Cron 子系统 16 项断言
 ```
 
 ## 依赖
@@ -99,24 +139,26 @@ pi-muselinn-harness/
 本扩展的设计和实现参考了以下开源项目，在此表示感谢：
 
 ### [Kimi Code](https://github.com/MoonshotAI/Kimi-code) (Moonshot AI)
-- Agent Swarm 并发执行架构
-- Goal 系统设计（GoalActor 追踪、Budget Report、Context 注入）
-- Plan Mode 生命周期（enter/exit/approve/reject）
-- TUI 组件设计（盲文进度条、三栏任务浏览器）
-- 取消/恢复机制（AbortSignal 链、UserCancellationError）
+- Agent Swarm 并发执行架构(max_concurrency worker 池、30min 超时、run_in_background)
+- Goal 系统设计(GoalActor 追踪、Budget Report、blocked 3 轮阈值、Context 注入)
+- Plan Mode 生命周期(enter/exit/approve/reject、ExitPlanMode 读盘)
+- Permission 策略链(auto/yolo/manual、destructive 必问、AGENTS.md 优先级)
+- Cron 定时任务(5 字段 + jitter + 7 天 stale + 50 上限)
+- TUI 组件设计(盲文进度条、三栏任务浏览器)
+- 取消/恢复机制(AbortSignal 链、UserCancellationError)
 
 ### [@narumitw/pi-goal](https://www.npmjs.com/package/@narumitw/pi-goal) (narumitw)
 - Goal Queue FIFO + Auto-switch 机制
 - usage_limited / budget_limited 状态设计
-- Wrap-up 指令注入（预算耗尽后的行为）
+- Wrap-up 指令注入(预算耗尽后的行为)
 - Stale Tool Blocking 设计
 - Compaction 保留策略
 
 ### [pi-codex-goal](https://www.npmjs.com/package/pi-codex-goal) (fitchmultz)
-- Goal 持久化方案（appendEntry + session_start 恢复）
+- Goal 持久化方案(appendEntry + session_start 恢复)
 - Goal 状态转换逻辑
 - Budget 检查机制
-- Recovery Machine 概念（简化版）
+- Recovery Machine 概念(简化版)
 
 ---
 
