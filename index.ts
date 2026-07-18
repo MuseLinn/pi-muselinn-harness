@@ -207,6 +207,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("context", (event, _ctx) => {
     goalManager.injectIntoMessages(event.messages);
     planManager.injectIntoMessages(event.messages);
+    permissionManager.injectIntoMessages(event.messages);
   });
 
   // ── Helper: update goal status bar ──

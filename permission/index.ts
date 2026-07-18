@@ -8,6 +8,7 @@ import { policyChain } from './policies';
 
 export class PermissionManager {
   private mode: PermissionMode = 'manual';
+  private lastMode: PermissionMode | undefined;
   private persistFn: ((mode: PermissionMode) => void) | null = null;
 
   /** Bind a persistence callback */
@@ -22,6 +23,7 @@ export class PermissionManager {
 
   /** Set permission mode */
   setMode(mode: PermissionMode): void {
+    this.lastMode = this.mode !== mode ? this.mode : undefined;
     this.mode = mode;
     setMode(mode);
     if (this.persistFn) this.persistFn(mode);
@@ -104,6 +106,69 @@ export class PermissionManager {
   /** Format mode for status bar */
   formatMode(): string {
     return this.mode;
+  }
+
+  /** Build model-facing injection text for permission mode context */
+  buildInjection(): string | undefined {
+    const currentMode = this.mode;
+    const previousMode = this.lastMode;
+
+    if (currentMode === previousMode) {
+      // No mode change: only inject if auto mode (keep reminding)
+      if (currentMode !== 'auto') return undefined;
+      return `## Permission Mode: Auto
+
+Auto permission mode is active. Tool approvals will be handled automatically while this mode remains enabled.
+  - Continue normally without pausing for approval prompts.
+  - Do NOT call AskUserQuestion while auto mode is active. Make a reasonable decision and continue without asking the user.
+  - ExitPlanMode is also approved automatically, without the user reviewing the plan. An auto-approved plan is NOT a signal from the user to start executing — follow the user's original instructions on whether to proceed.`;
+    }
+
+    this.lastMode = currentMode;
+
+    if (currentMode === 'auto') {
+      return `## Permission Mode: Auto
+
+Auto permission mode is now active. Tool approvals will be handled automatically.
+  - Do NOT call AskUserQuestion while auto mode is active. Make a reasonable decision and continue without asking the user.
+  - ExitPlanMode is also approved automatically, without the user reviewing the plan. An auto-approved plan is NOT a signal from the user to start executing — follow the user's original instructions on whether to proceed.`;
+    }
+
+    if (previousMode === 'auto') {
+      return `## Permission Mode: ${currentMode.toUpperCase()}
+
+Auto permission mode is no longer active. Tool approvals and permission checks are back to the current mode.
+  - Continue normally, but expect approval prompts or denials when a tool requires them.`;
+    }
+
+    switch (currentMode) {
+      case 'yolo':
+        return `## Permission Mode: YOLO
+
+YOLO permission mode is active. All actions are unconditionally allowed. You have full control over tool execution.`;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Inject permission mode reminder into messages (called from context event).
+   */
+  injectIntoMessages(messages: Array<{ role: string; content?: any }>): void {
+    const injection = this.buildInjection();
+    if (!injection) return;
+    // Find the last system message and append the injection
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "system") {
+        if (Array.isArray(msg.content)) {
+          msg.content.push({ type: "text", text: `\n\n---\n${injection}` });
+        } else if (typeof msg.content === "string") {
+          msg.content += `\n\n---\n${injection}`;
+        }
+        return;
+      }
+    }
   }
 }
 
