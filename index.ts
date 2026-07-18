@@ -640,7 +640,7 @@ export default function (pi: ExtensionAPI) {
             const tw = _t?.width ?? 80;
             return tuiRef.lines.map((l: string) => truncateToWidth(l, tw));
           },
-          invalidate: () => {},
+          invalidate: () => tuiRef.tui?.invalidate?.(),
         };
       });
 
@@ -648,6 +648,7 @@ export default function (pi: ExtensionAPI) {
         const result = buildWidgetLines(state, theme, cancelPending);
         if (result && result.lines.length > 0) {
           tuiRef.lines = result.lines;
+          tuiRef.tui?.invalidate?.();
         }
       };
       updateWidget();
@@ -660,6 +661,7 @@ export default function (pi: ExtensionAPI) {
           const result = buildWidgetLines(currentSwarm, theme, cancelPending);
           if (result && result.lines.length > 0) {
             tuiRef.lines = result.lines;
+            tuiRef.tui?.invalidate?.();
             // Stop when animation finishes
             if (result.refreshInterval <= 0 && refreshTimer) {
               clearInterval(refreshTimer);
@@ -712,6 +714,7 @@ export default function (pi: ExtensionAPI) {
         const finalResult = buildWidgetLines(state, theme, false);
         if (finalResult && finalResult.lines.length > 0) {
           tuiRef.lines = finalResult.lines;
+          tuiRef.tui?.invalidate?.();
         }
 
         if (refreshTimer) {
@@ -903,7 +906,7 @@ export default function (pi: ExtensionAPI) {
             const tw = _t?.width ?? 80;
             return tuiRef.lines.map((l: string) => truncateToWidth(l, tw));
           },
-          invalidate: () => {},
+          invalidate: () => tuiRef.tui?.invalidate?.(),
         };
       });
 
@@ -911,21 +914,49 @@ export default function (pi: ExtensionAPI) {
         const result = buildWidgetLines(state, theme, false);
         if (result && result.lines.length > 0) {
           tuiRef.lines = result.lines;
+          tuiRef.tui?.invalidate?.();
         }
       };
       updateWidget();
+
+      // Periodic refresh (braille animation, 80ms tick-driven)
+      let refreshTimer: ReturnType<typeof setInterval> | null = null;
+      const startRefresh = () => {
+        if (refreshTimer) return;
+        refreshTimer = setInterval(() => {
+          const result = buildWidgetLines(state, theme, false);
+          if (result && result.lines.length > 0) {
+            tuiRef.lines = result.lines;
+            tuiRef.tui?.invalidate?.();
+            if (result.refreshInterval <= 0 && refreshTimer) {
+              clearInterval(refreshTimer);
+              refreshTimer = null;
+            }
+          } else if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+          }
+        }, FRAME_INTERVAL_MS);
+      };
+      startRefresh();
 
       const update = () => updateWidget();
 
       try {
         await runSubAgent(task, ctx, signal, update);
       } finally {
+        // Clean up refresh timer
+        if (refreshTimer) {
+          clearInterval(refreshTimer);
+          refreshTimer = null;
+        }
         state.endTime = Date.now();
         state.status = task.status === "done" ? "completed" : "failed";
 
         const finalResult = buildWidgetLines(state, theme, false);
         if (finalResult && finalResult.lines.length > 0) {
           tuiRef.lines = finalResult.lines;
+          tuiRef.tui?.invalidate?.();
         }
 
         setActiveSessions(null);
