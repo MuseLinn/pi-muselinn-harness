@@ -4,6 +4,7 @@
 
 import type { PlanManager } from "./index";
 import { permissionManager } from "../permission";
+import * as fs from "node:fs";
 
 /**
  * Register plan tools with Pi.
@@ -103,10 +104,35 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         };
       }
 
-      // Kimi Code-style: show Approval Panel with optional alternatives
-      const planPreview = plan.content
-        ? plan.content.slice(0, 500) + (plan.content.length > 500 ? "..." : "")
-        : "(empty plan)";
+      // Kimi Code-style: show Approval Panel with optional alternatives.
+      // Primary path: read the actual plan file from disk so the user reviews
+      // what was really written (plan.content may be stale / not synced with file).
+      // Fallback to in-memory slice if the file is missing (ENOENT) or unreadable.
+      let planPreview = "(empty plan)";
+      if (plan.path) {
+        try {
+          const fileContent = fs.readFileSync(plan.path, "utf-8");
+          planPreview = fileContent.slice(0, 500) + (fileContent.length > 500 ? "..." : "");
+        } catch (err: any) {
+          if (err?.code === "ENOENT") {
+            // Plan file not yet written; fall back to in-memory content if present.
+            if (plan.content) {
+              planPreview = plan.content.slice(0, 500) + (plan.content.length > 500 ? "..." : "");
+            } else {
+              planPreview = "(plan file not found, no in-memory content)";
+            }
+          } else {
+            // Other read errors: fall back to in-memory content if present, else surface error.
+            if (plan.content) {
+              planPreview = plan.content.slice(0, 500) + (plan.content.length > 500 ? "..." : "");
+            } else {
+              planPreview = `(could not read plan file: ${err?.message ?? String(err)})`;
+            }
+          }
+        }
+      } else if (plan.content) {
+        planPreview = plan.content.slice(0, 500) + (plan.content.length > 500 ? "..." : "");
+      }
 
       // Build options: Approve / Reject / Revise + LLM-provided alternatives
       const RESERVED = ["Approve", "Reject", "Reject and Exit", "Revise"];

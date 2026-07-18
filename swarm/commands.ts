@@ -184,10 +184,13 @@ export function registerCommands(pi: ExtensionAPI): void {
           onRefresh: () => { /* timer handles refresh */ },
           onCancel: () => { done(undefined); },
           onStopConfirmed: (taskId: string) => {
-            // Abort the session for this task
+            // Abort the session for this task — surface failures instead of swallowing
             if (activeSessions) {
               const entry = activeSessions.get(taskId);
-              if (entry) entry.session.abort().catch(() => {});
+              if (entry) entry.session.abort().catch((e: unknown) => {
+                const msg = e instanceof Error ? e.message : String(e);
+                try { ctx.ui.notify(`Failed to abort task ${taskId}: ${msg}`, "error"); } catch { console.error(`[swarm] abort failed for ${taskId}:`, msg); }
+              });
             }
           },
           onOpenOutput: (taskId: string) => {

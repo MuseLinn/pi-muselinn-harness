@@ -4,7 +4,8 @@
 
 import type { PermissionMode, PolicyContext, PolicyResult } from './types';
 import { currentMode, setMode, sessionApprovals } from './types';
-import { policyChain } from './policies';
+import { policyChain, isDestructive, inputFingerprint } from './policies';
+import { loadAgentsMd } from './config';
 
 export class PermissionManager {
   private mode: PermissionMode = 'manual';
@@ -39,6 +40,10 @@ export class PermissionManager {
     cwd: string,
     ctx: any
   ): Promise<{ block: true; reason: string } | undefined> {
+    const sessionId: string =
+      (ctx?.sessionManager?.getSessionId?.() as string) ||
+      (ctx?.sessionId as string) ||
+      'default';
     const policyCtx: PolicyContext = {
       toolName,
       input,
@@ -46,6 +51,8 @@ export class PermissionManager {
       mode: this.mode,
       hasUI: ctx?.hasUI ?? true,
       signal: ctx?.signal,
+      sessionId,
+      agentsMd: loadAgentsMd(cwd),
     };
 
     for (const policy of policyChain) {
@@ -58,8 +65,9 @@ export class PermissionManager {
         }
 
         if (result.kind === 'approve') {
-          // Record approval in session history
-          this.recordApproval(toolName);
+          // Record approval in session history (by input fingerprint).
+          // Destructive actions never short-circuit history, so don't record them.
+          this.recordApproval(policyCtx);
           return undefined;  // Allow
         }
 
@@ -76,7 +84,7 @@ export class PermissionManager {
             return { block: true, reason: `User denied: ${policy.name}` };
           }
           // Record approval and continue to next policy
-          this.recordApproval(toolName);
+          this.recordApproval(policyCtx);
         }
       } catch {
         // Policy error: fail-safe by continuing to next policy
@@ -85,17 +93,22 @@ export class PermissionManager {
     }
 
     // All policies passed (no deny, all asks approved)
-    this.recordApproval(toolName);
+    this.recordApproval(policyCtx);
     return undefined;
   }
 
-  /** Record tool approval in session history */
-  private recordApproval(toolName: string): void {
-    const sessionId = 'current';
+  /** Record tool approval in session history (keyed by input fingerprint, not toolName alone) */
+  private recordApproval(policyCtx: PolicyContext): void {
+    // Destructive commands are one-shot — never cached for replay.
+    if (isDestructive(policyCtx)) return;
+
+    const sessionId = policyCtx.sessionId || 'default';
     if (!sessionApprovals.has(sessionId)) {
       sessionApprovals.set(sessionId, new Set());
     }
-    sessionApprovals.get(sessionId)!.add(toolName);
+    sessionApprovals
+      .get(sessionId)!
+      .add(inputFingerprint(policyCtx.toolName, policyCtx.input));
   }
 
   /** Reset session approval history */

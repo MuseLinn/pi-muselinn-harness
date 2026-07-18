@@ -7,6 +7,46 @@ import { READ_ONLY_TOOLS, SENSITIVE_PATTERNS, GIT_CONTROL_PATTERNS, sessionAppro
 import { loadUserConfig, matchesPattern } from './config';
 import * as path from 'node:path';
 
+// Destructive bash command patterns — these always require an explicit ask
+// and are never short-circuited by session approval history.
+const DESTRUCTIVE_BASH_RE =
+  /(rm\s+-rf|--force|--no-verify|git\s+push\b[^\n]*--force|drop\s+(table|database)|truncate\b|git\s+reset\s+--hard|git\s+clean\s+-fd)/i;
+
+/**
+ * Detect destructive operations:
+ *  - bash commands containing rm -rf / --force / git push --force / drop table / truncate / git reset --hard / git clean -fd etc.
+ *  - edit/write targeting sensitive files (.env, id_rsa, *.key, ...)
+ */
+export function isDestructive(ctx: PolicyContext): boolean {
+  const tool = ctx.toolName;
+  if (tool === 'bash') {
+    const command = typeof ctx.input.command === 'string' ? ctx.input.command : '';
+    if (command && DESTRUCTIVE_BASH_RE.test(command)) return true;
+    return false;
+  }
+  if (tool === 'edit' || tool === 'write') {
+    const filePath = (ctx.input.path as string) || (ctx.input.file_path as string) || '';
+    if (!filePath) return false;
+    const resolved = path.resolve(ctx.cwd, filePath);
+    for (const pattern of SENSITIVE_PATTERNS) {
+      if (pattern.test(resolved) || pattern.test(filePath)) return true;
+    }
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Compute a per-input fingerprint used for session-approval short-circuit.
+ * Format: `${toolName}:${command[0..200] || JSON(input).slice(0,200)}`.
+ * Same fingerprint => same logical action may be auto-approved within a session.
+ */
+export function inputFingerprint(toolName: string, input: Record<string, unknown>): string {
+  const command = typeof input.command === 'string' ? input.command.slice(0, 200) : '';
+  if (command) return `${toolName}:${command}`;
+  return `${toolName}:${JSON.stringify(input).slice(0, 200)}`;
+}
+
 // ── 01: agent-swarm-exclusive-deny ──────────────────────────────────────
 // Swarm 约束：swarm 模式下只允许 swarm 相关工具
 export const policy01SwarmDeny: Policy = {
@@ -61,8 +101,32 @@ export const policy04UserDeny: Policy = {
   },
 };
 
+// ── 04b: destructive-command-ask ────────────────────────────────────────
+// 破坏性命令（rm -rf / --force / git push --force / drop table / truncate /
+// git reset --hard / git clean -fd，以及写敏感文件）始终 ask，且每次都要
+// 重新裁定，不被 sessionApprovals 短路。必须排在 auto-approve / yolo-approve /
+// session-history 之前，保证破坏性命令永远无法被静默批准。
+export const policy04bDestructiveAsk: Policy = {
+  id: 41,
+  name: 'destructive-command-ask',
+  evaluate(ctx: PolicyContext): PolicyResult | null {
+    if (!isDestructive(ctx)) return null;
+    // AGENTS.md override: if 'destructive-ask-always' is present, upgrade ask -> deny.
+    if (ctx.agentsMd?.includes('destructive-ask-always')) {
+      return {
+        kind: 'deny',
+        reason: 'AGENTS.md directive "destructive-ask-always" forbids destructive actions',
+      };
+    }
+    return {
+      kind: 'ask',
+      message: `Destructive action detected (${ctx.toolName}).\n\nThis operation is irreversible or touches sensitive data and requires explicit approval every time. Allow?`,
+    };
+  },
+};
+
 // ── 05: auto-mode-approve ───────────────────────────────────────────────
-// auto 模式：批准一切（短路）
+// auto 模式：批准一切（短路，但在敏感文件/破坏性守卫之后）
 export const policy05AutoApprove: Policy = {
   id: 5,
   name: 'auto-mode-approve',
@@ -75,15 +139,18 @@ export const policy05AutoApprove: Policy = {
 };
 
 // ── 06: session-approval-history ────────────────────────────────────────
-// 会话中已批准过的操作
+// 会话中已批准过的操作（按输入指纹记录，避免一次性永久许可）
 export const policy06SessionHistory: Policy = {
   id: 6,
   name: 'session-approval-history',
   evaluate(ctx: PolicyContext): PolicyResult | null {
-    // Check if this tool was previously approved in this session
-    const sessionId = 'current'; // Simplified — could use ctx.sessionManager
+    // Destructive commands are never short-circuited by session history.
+    if (isDestructive(ctx)) return null;
+    const sessionId = ctx.sessionId || 'default';
     const approvals = sessionApprovals.get(sessionId);
-    if (approvals && approvals.has(ctx.toolName)) {
+    if (!approvals) return null;
+    const fp = inputFingerprint(ctx.toolName, ctx.input);
+    if (approvals.has(fp)) {
       return { kind: 'approve', reason: 'Previously approved in this session' };
     }
     return null;
@@ -170,7 +237,7 @@ export const policy12SensitiveFile: Policy = {
   id: 12,
   name: 'sensitive-file-access-ask',
   evaluate(ctx: PolicyContext): PolicyResult | null {
-    if (ctx.toolName !== 'write' && ctx.toolName !== 'edit' && ctx.toolName !== 'bash') return null;
+    if (ctx.toolName !== 'write' && ctx.toolName !== 'edit' && ctx.toolName !== 'bash' && ctx.toolName !== 'read') return null;
     
     const filePath = (ctx.input.path as string) || (ctx.input.file_path as string) || '';
     if (!filePath) return null;
@@ -280,11 +347,17 @@ export const policy18FallbackAsk: Policy = {
 };
 
 // ── Policy Chain ─────────────────────────────────────────────────────────
+// Array order == evaluation order. Safety guards (destructive, sensitive file,
+// .git control) MUST run before auto/yolo/session-history short-circuits so
+// that dangerous or secret-bearing operations always require an explicit ask.
 export const policyChain: Policy[] = [
   policy01SwarmDeny,
   policy02AutoAskDeny,
   policy03PlanGuard,
   policy04UserDeny,
+  policy04bDestructiveAsk,
+  policy12SensitiveFile,
+  policy13GitControl,
   policy05AutoApprove,
   policy06SessionHistory,
   policy07UserAsk,
@@ -292,8 +365,6 @@ export const policyChain: Policy[] = [
   policy09ExitPlanReview,
   policy10GoalStartReview,
   policy11PlanToolApprove,
-  policy12SensitiveFile,
-  policy13GitControl,
   policy14YoloApprove,
   policy15SwarmApprove,
   policy16DefaultApprove,

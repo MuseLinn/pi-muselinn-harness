@@ -18,23 +18,14 @@ function getPlanStateFile(ctx: any): string {
 }
 
 /**
- * Read plan isActive from per-session state file.
- * Stored in session directory — follows session, no accumulation.
- */
-function isPlanActiveFromSession(ctx: any): boolean {
-  try {
-    const file = getPlanStateFile(ctx);
-    if (fs.existsSync(file)) {
-      const raw = fs.readFileSync(file, 'utf-8');
-      const state = JSON.parse(raw);
-      return state.isActive === true;
-    }
-  } catch { /* not critical */ }
-  return false;
-}
-
-/**
  * Write plan state to per-session file (overwrite, no accumulation).
+ *
+ * NOTE: This file is a best-effort session mirror / debugging aid. It is
+ * intentionally NOT read back as the source of truth. The authoritative
+ * in-process state lives in PlanManager (currentPlanMode.isActive), which
+ * is also used by plan-mode tool gating in the extension entry point.
+ * Keeping writes here allows external observers to inspect the last known
+ * state without creating a second truth source.
  */
 function savePlanStateToSession(ctx: any, isActive: boolean, plan: any): void {
   try {
@@ -56,7 +47,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
       // Handle clear — Kimi Code style: clear plan content, keep plan mode state
       if (arg === "clear") {
         // Only clear plan content, don't exit plan mode
-        const wasActive = isPlanActiveFromSession(ctx);
+        const wasActive = planManager.isPlanModeActive();
         planManager.clearPlanContent();
         if (wasActive) {
           // Re-enter plan mode if it was active (clearPlan reset state)
@@ -76,14 +67,14 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
       } else if (arg === "off") {
         turnOn = false;
       } else if (arg === "" || arg === "toggle") {
-        turnOn = !isPlanActiveFromSession(ctx);
+        turnOn = !planManager.isPlanModeActive();
       } else {
         ctx.ui.notify(`Unknown plan subcommand: ${arg}`, "error");
         return;
       }
 
       if (turnOn) {
-        if (isPlanActiveFromSession(ctx)) {
+        if (planManager.isPlanModeActive()) {
           ctx.ui.notify("Plan mode is already ON.", "info");
           return;
         }
@@ -92,7 +83,7 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
         ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
         ctx.ui.notify(`Plan mode: ON\nPlan will be created here:\n${plan.path}`, "info");
       } else {
-        if (!isPlanActiveFromSession(ctx)) {
+        if (!planManager.isPlanModeActive()) {
           ctx.ui.setStatus("plan-mode", undefined);
           ctx.ui.notify("Plan mode is already OFF.", "info");
           return;

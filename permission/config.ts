@@ -52,6 +52,72 @@ export function loadUserConfig(cwd: string): UserPermissionConfig {
   return config;
 }
 
+/**
+ * Walk up from `cwd` looking for the nearest AGENTS.md.
+ * Returns the file path, or null if none found.
+ */
+export function findAgentsMd(cwd: string): string | null {
+  let dir = path.resolve(cwd);
+  const root = path.parse(dir).root;
+  while (true) {
+    const candidate = path.join(dir, 'AGENTS.md');
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch { /* ignore */ }
+    if (dir === root) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Minimal AGENTS.md directive parser.
+ * Supports:
+ *   - `# @keyword value` lines
+ *   - `## Section` headers (key = section slug, value = empty)
+ * Returns a key-value record; values are lower-cased and trimmed.
+ */
+export function parseAgentsMd(content: string): Record<string, string> {
+  const directives: Record<string, string> = {};
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    // '# @keyword value'
+    const atMatch = line.match(/^#\s*@(\S+)\s*(.*)$/);
+    if (atMatch) {
+      directives[atMatch[1].toLowerCase()] = atMatch[2].trim().toLowerCase();
+      continue;
+    }
+    // '## Section Name' -> section:section-name
+    const sectionMatch = line.match(/^#{2,}\s+(.+)$/);
+    if (sectionMatch) {
+      const slug = sectionMatch[1]
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      if (slug) directives[`section:${slug}`] = '';
+    }
+  }
+  return directives;
+}
+
+/**
+ * Load the nearest AGENTS.md raw contents.
+ * Safe to call even when no file exists.
+ */
+export function loadAgentsMd(cwd: string): string | undefined {
+  const filePath = findAgentsMd(cwd);
+  if (!filePath) return undefined;
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return undefined;
+  }
+}
+
 export function matchesPattern(
   pattern: ToolPattern,
   toolName: string,

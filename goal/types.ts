@@ -11,6 +11,29 @@ export interface GoalBudgetLimits {
   wallClockBudgetMs?: number;
 }
 
+/**
+ * Friendly helper: convert a budget value + unit into GoalBudgetLimits.
+ * Supports turns/tokens for count budgets and ms/s/minutes/hours for wall clock.
+ */
+export function parseBudgetToLimits(budget: number, unit: string): GoalBudgetLimits {
+  switch (unit) {
+    case "turns":
+      return { turnBudget: budget };
+    case "tokens":
+      return { tokenBudget: budget };
+    case "ms":
+      return { wallClockBudgetMs: budget };
+    case "s":
+      return { wallClockBudgetMs: budget * 1000 };
+    case "minutes":
+      return { wallClockBudgetMs: budget * 60 * 1000 };
+    case "hours":
+      return { wallClockBudgetMs: budget * 60 * 60 * 1000 };
+    default:
+      return {};
+  }
+}
+
 export interface GoalBudgetReport {
   tokenBudget: number | null;
   turnBudget: number | null;
@@ -52,6 +75,12 @@ export interface GoalQueueItem {
   status: "pending" | "active" | "completed" | "failed";
   createdAt: number;
   completedAt?: number;
+  /**
+   * P0 (4): priority recorded at enqueue time so a real priority queue can be
+   * maintained by insertion. Optional for backward compatibility with any items
+   * created before this field existed (defaults to "normal").
+   */
+  priority?: "high" | "normal" | "low";
 }
 
 export interface GoalQueue {

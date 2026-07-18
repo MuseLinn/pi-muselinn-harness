@@ -4,6 +4,7 @@
 
 import type { GoalManager } from "./index";
 import type { GoalSnapshot, GoalBudgetLimits } from "./types";
+import { parseBudgetToLimits } from "./types";
 
 /**
  * Register goal tools with Pi.
@@ -13,11 +14,12 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
   pi.registerTool({
     name: "create_goal",
     label: "Create Goal",
-    promptSnippet: "create_goal / get_goal / update_goal: manage the current goal",
+    promptSnippet: "create_goal / get_goal / update_goal / set_goal_budget: manage the current goal",
     promptGuidelines: [
       "Use create_goal to set a goal before starting complex multi-step work",
       "Use get_goal to check the current goal and its status",
       "Use update_goal to mark the goal status as 'complete', 'paused', or 'active'",
+      "Use set_goal_budget to add or update a budget limit on the active goal",
       "Keep the model working toward the active goal until it's complete",
     ],
     parameters: {
@@ -34,16 +36,30 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
             wallClockBudgetMs: { type: "number", description: "Max wall clock time in ms" },
           },
         },
+        replace: {
+          type: "boolean",
+          description: "Set to true to overwrite an already-active goal. Defaults to false.",
+        },
       },
       required: ["objective"],
     },
     async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
-      const g = goalManager.createGoal(
-        params.objective,
-        params.completion_criterion,
-        params.budgetLimits,
-        "model",
-      );
+      // P0 (1): active guard surfaces here; createGoal throws when an active
+      // goal exists and replace is not explicitly true.
+      let g: GoalSnapshot;
+      try {
+        g = goalManager.createGoal(
+          params.objective,
+          params.completion_criterion,
+          params.budgetLimits,
+          "model",
+          params.replace === true,
+        );
+      } catch (err: any) {
+        return {
+          content: [{ type: "text", text: `Cannot create goal: ${err?.message ?? String(err)}` }],
+        };
+      }
       // Update status bar after creating goal (Kimi Code-style)
       if (ctx?.ui?.setStatus && ctx?.ui?.theme) {
         ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
@@ -97,6 +113,11 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
         },
         objective: { type: "string", description: "Updated objective (optional)" },
         reason: { type: "string", description: "Reason for status change (optional)" },
+        verified: {
+          type: "boolean",
+          description:
+            "Required=true when marking complete AND the goal has a declared completionCriterion. Ignored otherwise.",
+        },
       },
     },
     async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
@@ -110,7 +131,19 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
 
       switch (params.status) {
         case "complete":
-          updated = goalManager.complete("model");
+          // P0 (2): pass caller's `verified` through; complete() refuses if a
+          // criterion is declared but verified is not true.
+          updated = goalManager.complete("model", undefined, params.verified === true);
+          if (!updated) {
+            return {
+              content: [{
+                type: "text",
+                text:
+                  "Cannot complete goal: a completionCriterion is declared. " +
+                  "Pass verified=true once the criterion has been confirmed satisfied.",
+              }],
+            };
+          }
           break;
         case "paused":
           updated = goalManager.pause("model");
@@ -133,6 +166,44 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
 
       return {
         content: [{ type: "text", text: `Goal updated.\n\n${goalManager.formatGoalPanel()}` }],
+      };
+    },
+  });
+
+  // ── set_goal_budget tool ──
+  pi.registerTool({
+    name: "set_goal_budget",
+    label: "Set Goal Budget",
+    promptSnippet: "set_goal_budget: update budget limits for the current goal",
+    promptGuidelines: [
+      "Use set_goal_budget to add or update a budget limit on the active goal",
+      "Units: turns, tokens, ms, s, minutes, hours",
+    ],
+    parameters: {
+      type: "object",
+      properties: {
+        budget: { type: "number", description: "Budget value" },
+        unit: {
+          type: "string",
+          enum: ["turns", "tokens", "ms", "s", "minutes", "hours"],
+          description: "Budget unit",
+        },
+      },
+      required: ["budget", "unit"],
+    },
+    async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
+      goalManager.tryRestoreFromSession(ctx);
+      const goal = goalManager.getGoal();
+      if (!goal) {
+        return { content: [{ type: "text", text: "No active goal to set budget on." }] };
+      }
+      const limits = parseBudgetToLimits(Number(params.budget), String(params.unit));
+      const updated = goalManager.setBudgetLimits(limits, "model");
+      if (!updated) {
+        return { content: [{ type: "text", text: "Failed to set goal budget." }] };
+      }
+      return {
+        content: [{ type: "text", text: `Goal budget updated.\n\n${goalManager.formatGoalPanel()}` }],
       };
     },
   });

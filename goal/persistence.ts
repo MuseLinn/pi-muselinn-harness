@@ -48,15 +48,20 @@ export function goalFromEntryData(data: GoalEntryData): GoalSnapshot {
 
 /**
  * Check if an entry is a goal entry.
+ * P0 (5): the actual stored shape is `{ type: "custom", customType: GOAL_ENTRY_TYPE,
+ * data: GoalEntryData }` — see `index.ts` tryRestoreFromSession and the top-level
+ * `pi.appendEntry(GOAL_ENTRY_TYPE, data)` writer, which Pi wraps as a custom
+ * entry. The previous `entry?.type === GOAL_ENTRY_TYPE` check matched nothing
+ * (dead code) and never matched real session entries. Unified to the real shape.
  */
 export function isGoalEntry(entry: any): boolean {
-  return entry?.type === GOAL_ENTRY_TYPE;
+  return entry?.type === "custom" && entry?.customType === GOAL_ENTRY_TYPE;
 }
 
 /**
  * Reconstruct goal from session entries (Kimi Code-style normalization).
  * Called during session_start to restore goal state.
- * 
+ *
  * Normalization rules (from Kimi Code):
  * - active → paused (goal can't still be running after restart)
  * - paused → preserved

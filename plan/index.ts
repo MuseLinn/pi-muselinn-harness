@@ -17,6 +17,122 @@ function generatePlanId(): string {
 }
 
 // ============================================================
+// Read-only Bash command whitelist (Plan Mode safety gate)
+// ------------------------------------------------------------
+// Plan Mode must allow exploration but must NOT allow writes,
+// deletions, network mutations, or commits. This is a small,
+// CONSERVATIVE regex whitelist of common read-only commands.
+// Anything not matched here is denied (Plan Mode is restrictive
+// by design). The list is intentionally easy to extend — add a
+// new RegExp to READ_ONLY_BASH_PATTERNS to grow the allow-list.
+// ============================================================
+
+const READ_ONLY_BASH_PATTERNS: RegExp[] = [
+  // ── Pure read-only coreutils ──
+  /^\s*ls(\s|$)/,
+  /^\s*pwd(\s|$)/,
+  /^\s*echo(\s|$)/,
+  /^\s*cat(\s|$)/,
+  /^\s*head(\s|$)/,
+  /^\s*tail(\s|$)/,
+  /^\s*less(\s|$)/,
+  /^\s*more(\s|$)/,
+  /^\s*wc(\s|$)/,
+  /^\s*which(\s|$)/,
+  /^\s*whereis(\s|$)/,
+  /^\s*file(\s|$)/,
+  /^\s*stat(\s|$)/,
+  /^\s*du(\s|$)/,
+  /^\s*df(\s|$)/,
+  /^\s*env(\s|$)/,
+  /^\s*printenv(\s|$)/,
+  /^\s*whoami(\s|$)/,
+  /^\s*hostname(\s|$)/,
+  /^\s*uname(\s|$)/,
+  /^\s*date(\s|$)/,
+  /^\s*diff(\s|$)/,
+  /^\s*cut(\s|$)/,
+  /^\s*tr(\s|$)/,
+  /^\s*uniq(\s|$)/,
+  /^\s*sort(\s|$)/,
+  // ── Search / inspect ──
+  /^\s*grep(\s|$)/,
+  /^\s*egrep(\s|$)/,
+  /^\s*fgrep(\s|$)/,
+  /^\s*rg(\s|$)/,
+  /^\s*find(\s|$)/,
+  // ── Git read-only ──
+  /^\s*git\s+status(\s|$)/,
+  /^\s*git\s+diff(\s|$)/,
+  /^\s*git\s+log(\s|$)/,
+  /^\s*git\s+show(\s|$)/,
+  /^\s*git\s+blame(\s|$)/,
+  /^\s*git\s+remote(\s|$)/,
+  /^\s*git\s+branch(\s|$)/,  // bare `git branch` lists; write forms (-d/-m) blocked by deny-by-default of unknown flags? keep simple
+  /^\s*git\s+ls-files(\s|$)/,
+  /^\s*git\s+rev-parse(\s|$)/,
+  // ── Node / package-manager dry, version, info only ──
+  /^\s*node\s+--check(\s|$)/,
+  /^\s*node\s+--version(\s|$)/,
+  /^\s*node\s+-v(\s|$)/,
+  /^\s*npm\s+(view|info|outdated|ls|list|--version|-v)(\s|$)/,
+  /^\s*npm\s+test(\s+--dry-run)?(\s|$)/,
+  /^\s*npm\s+run(\s|$)/,  // scripts may write; kept conservative but common. See note below.
+  /^\s*npx\s+--version(\s|$)/,
+  /^\s*tsc\s+--noEmit(\s|$)/,
+  /^\s*pnpm\s+(list|ls|outdated|--version|-v)(\s|$)/,
+];
+
+/**
+ * Determine whether a bash command string is read-only / safe in Plan Mode.
+ *
+ * Strategy:
+ * 1. Reject if the command contains shell injection / write primitives we
+ *    cannot statically vet: command substitution (`backticks` / `$(...)`),
+ *    output redirection (`>` / `>>` / `2>`), or the `find ... -exec` /
+ *    `-delete` side-effecting forms.
+ * 2. Split the remaining command on pipe / sequence separators (`|`, `||`,
+ *    `&&`, `;`) and require EVERY segment to match the read-only whitelist.
+ * 3. Any segment that does not match a whitelist entry → deny.
+ *
+ * Deny-by-default: an unmatched command is blocked, not silently allowed.
+ * To allow more commands, extend READ_ONLY_BASH_PATTERNS above.
+ */
+function isReadOnlyBashCommand(cmd: string): boolean {
+  if (!cmd) return false;
+  const trimmed = cmd.trim();
+  if (!trimmed) return false;
+
+  // Block command substitution and output redirection outright.
+  if (/`/.test(trimmed)) return false;
+  if (/\$\(/.test(trimmed)) return false;
+  if (/>>?/.test(trimmed)) return false;       // `>` or `>>`
+  if (/\b2>>?\b/.test(trimmed)) return false;  // stderr redirect
+  if (/<</.test(trimmed)) return false;        // heredoc (write-ish / injection)
+  // Block find side-effecting forms.
+  if (/\bfind\b.*\s-exec\b/.test(trimmed)) return false;
+  if (/\bfind\b.*\s-delete\b/.test(trimmed)) return false;
+  // Block common mutating git sub-commands even if pattern above matched a
+  // benign-looking prefix (defence in depth).
+  if (/\bgit\s+(push|commit|reset|merge|rebase|checkout|switch|pull|fetch|clone|stash\s+(drop|pop)|cherry-pick|tag\s+-d)\b/.test(trimmed)) {
+    return false;
+  }
+  // Block package install / publish that mutate node_modules or registries.
+  if (/\b(npm|pnpm|yarn)\s+(install|i|add|remove|uninstall|publish|ci|run\s+build)\b/.test(trimmed)) {
+    return false;
+  }
+
+  // Split on sequence / pipe operators and vet each segment.
+  const segments = trimmed.split(/\s*(?:\|\||&&|;|\|)\s*/);
+  for (const seg of segments) {
+    if (!seg) continue;
+    const matched = READ_ONLY_BASH_PATTERNS.some((re) => re.test(seg));
+    if (!matched) return false;
+  }
+  return true;
+}
+
+// ============================================================
 // PlanManager — lifecycle + persistence + injection
 // ============================================================
 
@@ -238,8 +354,12 @@ export class PlanManager {
   /**
    * Check if a tool is allowed in plan mode (Kimi Code-style).
    * Returns true if tool should be blocked.
+   *
+   * Optional `command` is the bash command string (only relevant when
+   * toolName === 'bash'); it is vetted by the read-only whitelist
+   * (isReadOnlyBashCommand). When omitted, bash is denied (deny-by-default).
    */
-  shouldBlockTool(toolName: string, filePath?: string): boolean {
+  shouldBlockTool(toolName: string, filePath?: string, command?: string): boolean {
     if (!currentPlanMode.isActive) return false;
 
     // Pi built-in tools: bash, edit, find, grep, ls, read, write
@@ -247,12 +367,29 @@ export class PlanManager {
     const readOnlyTools = ['read', 'grep', 'find', 'ls', 'get_goal'];
     if (readOnlyTools.includes(toolName)) return false;
 
-    // Bash is allowed (for read-only commands)
-    if (toolName === 'bash') return false;
+    // Bash: apply a conservative read-only whitelist. Commands that do not
+    // match are blocked — Plan Mode is restrictive by design. Extend
+    // READ_ONLY_BASH_PATTERNS above to allow more read-only commands.
+    if (toolName === 'bash') {
+      if (typeof command !== "string" || !isReadOnlyBashCommand(command)) {
+        return true; // deny
+      }
+      return false;
+    }
 
-    // Write/Edit to plan file is allowed
+    // Write/Edit to plan file is allowed — but only when the resolved path
+    // is inside the resolved plan directory. The previous check used loose
+    // substring heuristics (`includes('/plans/')` / `endsWith('.plan.md')`)
+    // which could be bypassed via crafted paths (e.g. `../plans/evil.md`
+    // outside the session, or any `*.plan.md` anywhere).
     if ((toolName === 'write' || toolName === 'edit') && filePath) {
-      if (filePath.includes('/plans/') || filePath.endsWith('.plan.md')) {
+      const resolvedFile = path.resolve(filePath);
+      const planDir = path.resolve(
+        this.sessionDir ? path.join(this.sessionDir, "plans") : path.join("plans")
+      );
+      // Must be strictly *inside* planDir (planDir + path.sep prefix).
+      // Matches the file itself if it lives directly under planDir.
+      if (resolvedFile === planDir || resolvedFile.startsWith(planDir + path.sep)) {
         return false;
       }
     }

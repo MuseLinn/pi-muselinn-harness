@@ -22,6 +22,8 @@ function cloneSnapshot(s: GoalSnapshot, patch: Partial<GoalSnapshot>): GoalSnaps
 export class GoalManager {
   private persistFn: ((data: GoalSnapshot | null) => void) | null = null;
   private appendEntryFn: ((type: string, data: any) => void) | null = null;
+  // P0 (3): per-goal block-attempt counter for the blocked 3-round threshold.
+  private blockAttempts = new Map<string, { reason: string | undefined; count: number }>();
 
   /** Bind a persistence callback (called every time goal changes) */
   setPersistence(fn: (data: GoalSnapshot | null) => void): void {
@@ -47,13 +49,23 @@ export class GoalManager {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
-  /** Create a new active goal */
+  /**
+   * Create a new active goal.
+   * P0 (1): active guard — refuses to create when an active goal already exists,
+   * unless `replace=true` is passed (caller explicitly acknowledges the overwrite).
+   * Throws a descriptive Error so tool/command layers can surface it to the model/user.
+   */
   createGoal(
     objective: string,
     completionCriterion?: string,
     budgetLimits?: GoalBudgetLimits,
     actor: GoalActor = "user",
+    replace: boolean = false,
   ): GoalSnapshot {
+    // P0 (1): active guard
+    if (currentGoal && currentGoal.status === "active" && !replace) {
+      throw new Error("已有 active 目标,使用 replace=true 或 /goal replace 才能覆盖");
+    }
     const goal: GoalSnapshot = {
       goalId: `g-${Date.now().toString(36)}`,
       objective,
@@ -82,11 +94,23 @@ export class GoalManager {
     return { ...patch, lastActor: actor, lastActedAt: new Date().toISOString() };
   }
 
-  /** Update goal textual fields (keeps status) */
-  editGoal(objective: string, completionCriterion?: string, actor: GoalActor = "user"): GoalSnapshot | null {
+  /**
+   * Update goal textual fields.
+   * P0 (6): default to preserving the existing status; only override it when the
+   * caller explicitly passes a `status` value. Passing `undefined` is treated as
+   * "no override" and keeps the current status (NOT a forced reset to active).
+   */
+  editGoal(
+    objective: string,
+    completionCriterion: string | undefined,
+    actor: GoalActor = "user",
+    status: GoalStatus | undefined = undefined,
+  ): GoalSnapshot | null {
     const g = currentGoal;
     if (!g) return null;
-    const updated = cloneSnapshot(g, this.withActor({ objective, completionCriterion, status: "active" }, actor));
+    const patch: Partial<GoalSnapshot> = { objective, completionCriterion };
+    if (status !== undefined) patch.status = status;
+    const updated = cloneSnapshot(g, this.withActor(patch, actor));
     setCurrentGoal(updated);
     this.persist();
     return updated;
@@ -126,15 +150,45 @@ export class GoalManager {
     }, actor));
     setCurrentGoal(updated);
     this.persist();
+    // P0 (3): a resume from a (soft or hard) blocked state starts a fresh
+    // 3-round window for any future block attempts.
+    this.blockAttempts.delete(g.goalId);
     return updated;
   }
 
-  /** Block — with optional budget-limit check */
+  /**
+   * Block — with optional budget-limit check.
+   * P0 (3): 3-round threshold. The same `reason` must be reported 3 consecutive
+   * times before the goal actually enters the `blocked` status. The first two
+   * attempts keep the existing status and only log internally; the counter
+   * resets when `reason` changes (new reason starts a fresh 3-round window).
+   * Once the goal is actually blocked, the counter for that goal is cleared.
+   */
   block(reason?: string, actor: GoalActor = "system"): GoalSnapshot | null {
     const g = currentGoal;
     if (!g || g.status === "complete") return null;
 
-    // Fold live wall clock interval
+    // P0 (3): block-attempt accounting
+    const key = g.goalId;
+    const prev = this.blockAttempts.get(key);
+    let count = 1;
+    if (prev && prev.reason === reason) {
+      count = prev.count + 1;
+    }
+    this.blockAttempts.set(key, { reason, count });
+
+    if (count < 3) {
+      // Keep existing status; only log internally. Do NOT fold wall clock since
+      // the goal's running state is unchanged.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[goal] block attempt ${count}/3 for goal ${key} (reason=${JSON.stringify(reason)}); status remains "${g.status}"`,
+      );
+      return g;
+    }
+
+    // 3rd consecutive identical block attempt → actually enter blocked.
+    // Fold live wall clock interval (matches prior behavior on real block).
     const now = Date.now();
     let wallClockMs = g.wallClockMs;
     if (g.status === "active" && g.wallClockResumedAt !== undefined) {
@@ -149,13 +203,51 @@ export class GoalManager {
     }, actor));
     setCurrentGoal(updated);
     this.persist();
+    // Clear the counter once the goal is actually blocked.
+    this.blockAttempts.delete(key);
     return updated;
   }
 
-  /** Mark complete. Kimi Code: preserves completionSummary. */
-  complete(actor: GoalActor = "user", summary?: string): GoalSnapshot | null {
+  /**
+   * P0 (2): placeholder criterion verifier. The extension cannot actually run
+   * verification today, so this only asserts the criterion is a non-empty string
+   * (i.e. "criterion declared"). When a real verification interface is wired in
+   * later, replace this body with a real check. `verified=true` from the caller
+   * is what currently gates completion when a criterion is declared.
+   */
+  private verifyCriterion(criterion: string | undefined): boolean {
+    return typeof criterion === "string" && criterion.trim().length > 0;
+  }
+
+  /**
+   * Mark complete. Kimi Code: preserves completionSummary.
+   * P0 (2): when `goal.completionCriterion` is declared (non-empty), the caller
+   * MUST pass `verified=true` to complete; otherwise completion is refused and
+   * the goal is left untouched. When no criterion is declared, completion is
+   * allowed as before.
+   */
+  complete(actor: GoalActor = "user", summary?: string, verified: boolean = false): GoalSnapshot | null {
     const g = currentGoal;
     if (!g) return null;
+
+    // P0 (2): criterion gate
+    if (g.completionCriterion && g.completionCriterion.trim().length > 0) {
+      if (!verified) {
+        // Need explicit verification; do not change the goal.
+        return null;
+      }
+      // Caller asserts completion; run placeholder check for parity with the
+      // future real verifier. A declared-but-empty criterion would fail here,
+      // which is the intended "criterion must actually be declared" rule.
+      if (!this.verifyCriterion(g.completionCriterion)) {
+        return null;
+      }
+    } else {
+      // No criterion declared → free to complete. Still run the placeholder so
+      // the code path is exercised; it returns false for empty/undefined and
+      // we simply ignore that here (no-criterion ⇒ allowed).
+      this.verifyCriterion(g.completionCriterion);
+    }
 
     const now = Date.now();
     let wallClockMs = g.wallClockMs;
@@ -182,6 +274,7 @@ export class GoalManager {
 
   /** Clear the goal */
   clear(actor: GoalActor = "user"): void {
+    currentGoal && this.blockAttempts.delete(currentGoal.goalId);
     setCurrentGoal(null);
     this.persist();
   }

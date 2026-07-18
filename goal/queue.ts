@@ -14,6 +14,11 @@ function generateQueueItemId(): string {
 
 /**
  * Add a goal to the queue.
+ * P0 (4): real priority queue. Items are inserted in priority order
+ * (high → normal → low) and FIFO within the same priority bucket. Items before
+ * and including `currentIndex` are never reordered (they're the active/already-
+ * processed slot). `priority` is recorded on the item so subsequent inserts can
+ * bucket correctly against previously-enqueued items.
  */
 export function addToQueue(
   objective: string,
@@ -23,6 +28,7 @@ export function addToQueue(
     priority?: "high" | "normal" | "low";
   } = {},
 ): GoalQueueItem {
+  const priority = options.priority ?? "normal";
   const item: GoalQueueItem = {
     id: generateQueueItemId(),
     objective,
@@ -30,30 +36,34 @@ export function addToQueue(
     budgetLimits: options.budgetLimits,
     status: "pending",
     createdAt: Date.now(),
+    priority,
   };
 
   const queue = { ...currentQueue };
 
-  if (options.priority === "high") {
-    // Insert after current active item
-    const insertIndex = queue.currentIndex + 1;
-    queue.items = [
-      ...queue.items.slice(0, insertIndex),
-      item,
-      ...queue.items.slice(insertIndex),
-    ];
-  } else if (options.priority === "low") {
-    // Append to end
-    queue.items = [...queue.items, item];
-  } else {
-    // Normal: insert after current active item
-    const insertIndex = queue.currentIndex + 1;
-    queue.items = [
-      ...queue.items.slice(0, insertIndex),
-      item,
-      ...queue.items.slice(insertIndex),
-    ];
+  // Rank: high=0, normal=1, low=2. Lower rank ⇒ closer to the head.
+  const rank = (p: GoalQueueItem["priority"]): number =>
+    p === "high" ? 0 : p === "low" ? 2 : 1;
+  const newRank = rank(priority);
+
+  // Scan the pending region (after the current active slot) for the first item
+  // whose rank is strictly greater than the new item's rank. Inserting there
+  // keeps higher-priority items ahead, preserves FIFO within the same rank
+  // (we insert before the first *strictly* lower-priority item, not before
+  // equal-priority items), and pushes existing lower-priority items back.
+  let insertIndex = queue.items.length; // default: append (e.g. low priority)
+  for (let i = queue.currentIndex + 1; i < queue.items.length; i++) {
+    if (rank(queue.items[i].priority) > newRank) {
+      insertIndex = i;
+      break;
+    }
   }
+
+  queue.items = [
+    ...queue.items.slice(0, insertIndex),
+    item,
+    ...queue.items.slice(insertIndex),
+  ];
 
   setCurrentQueue(queue);
   return item;

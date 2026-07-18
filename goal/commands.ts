@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { GoalManager } from "./index";
+import { parseBudgetToLimits } from "./types";
 import { formatQueue, addToQueue, prioritizeQueueItem, removeFromQueue, skipCurrentQueueItem } from "./queue";
 
 /**
@@ -12,7 +13,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
   // ── /goal command ──
   pi.registerCommand("goal", {
     description: "Manage the current goal (Kimi Code-style)",
-    usage: "/goal <objective> | /goal pause | /goal resume | /goal cancel | /goal replace <new> | /goal next | /goal status",
+    usage: "/goal <objective> | /goal pause | /goal resume | /goal cancel | /goal replace <new> | /goal next | /goal status | /goal budget <number> <unit>",
     getArgumentCompletions: (prefix: string) => {
       const items = [
         { value: "pause", label: "pause", description: "Pause active goal" },
@@ -23,6 +24,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
         { value: "status", label: "status", description: "Show goal status" },
         { value: "queue", label: "queue", description: "Show goal queue" },
         { value: "add", label: "add <objective>", description: "Add goal to queue" },
+        { value: "budget", label: "budget <number> <unit>", description: "Set goal budget (turns,tokens,ms,s,minutes,hours)" },
       ];
       if (!prefix) return items;
       return items.filter(i => i.value.startsWith(prefix.toLowerCase())) || null;
@@ -134,10 +136,30 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
         case "skip": {
           const next = skipCurrentQueueItem();
           if (next) {
-            goalManager.createGoal(next.objective, next.completionCriterion, next.budgetLimits, "user");
+            // /goal skip explicitly abandons the current goal, so allow overwrite.
+            goalManager.createGoal(next.objective, next.completionCriterion, next.budgetLimits, "user", true);
             ctx.ui.notify(`Skipped to: ${next.objective.slice(0, 60)}`, "info");
           } else {
             ctx.ui.notify("No more items in queue.", "info");
+          }
+          break;
+        }
+
+        case "budget": {
+          const parts = rest.trim().split(/\s+/);
+          const budget = parseFloat(parts[0]);
+          const unit = parts[1]?.toLowerCase();
+          const validUnits = ["turns", "tokens", "ms", "s", "minutes", "hours"];
+          if (Number.isNaN(budget) || !unit || !validUnits.includes(unit)) {
+            ctx.ui.notify("Usage: /goal budget <number> <unit> (turns, tokens, ms, s, minutes, hours)", "error");
+            break;
+          }
+          const limits = parseBudgetToLimits(budget, unit);
+          const updated = goalManager.setBudgetLimits(limits, "user");
+          if (updated) {
+            ctx.ui.notify(`Goal budget updated: ${budget} ${unit}`, "info");
+          } else {
+            ctx.ui.notify("No active goal to set budget on.", "error");
           }
           break;
         }
@@ -149,13 +171,20 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
             if (existing && existing.status === "active") {
               ctx.ui.notify("Goal already active. Use /goal replace <new> to replace.", "info");
             } else {
-              goalManager.createGoal(args.trim(), undefined, undefined, "user");
+              // P0 (1): createGoal now refuses if an active goal somehow exists
+              // (race with tool-side creation). Wrap so the CLI degrades gracefully.
+              try {
+                goalManager.createGoal(args.trim(), undefined, undefined, "user");
+              } catch (e: any) {
+                ctx.ui.notify(`Cannot set goal: ${e?.message ?? String(e)}`, "error");
+                break;
+              }
               ctx.ui.notify(`Goal set:\n\n${goalManager.formatGoalPanel()}`, "info");
               // Update status bar (Kimi Code-style)
               if (ctx.ui?.setStatus && ctx.ui?.theme) {
                 ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
+              }
             }
-          }
           } else {
             ctx.ui.notify("Usage: /goal <objective>", "error");
           }

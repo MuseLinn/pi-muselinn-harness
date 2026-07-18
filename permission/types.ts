@@ -19,6 +19,9 @@ export interface PolicyContext {
   mode: PermissionMode;
   hasUI: boolean;
   signal?: AbortSignal;
+  sessionId?: string;
+  /** Raw contents of the nearest AGENTS.md (if any). */
+  agentsMd?: string;
 }
 
 export interface Policy {

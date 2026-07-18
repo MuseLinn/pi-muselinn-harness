@@ -8,6 +8,8 @@ import {
   createAgentSession,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 export interface BackgroundTaskEntry {
   id: string;
@@ -19,7 +21,9 @@ export interface BackgroundTaskEntry {
   error?: string;
   stopReason?: string;          // Kimi Code: reason report to model
   startTime: number;
+  createdAt: number;            // task creation timestamp (used for stale cleanup)
   endTime?: number;
+  completedAtMs?: number;       // completion timestamp (set on complete/fail/restart-demotion)
   turns: number;
   usage: { input: number; output: number; cost: number };
 }
@@ -31,6 +35,7 @@ export interface BackgroundTaskEntry {
 class BackgroundTaskManager {
   private tasks = new Map<string, BackgroundTaskEntry>();
   private sessions = new Map<string, { session: any; unsubscribe: () => void }>();
+  private taskWaiters = new Map<string, Array<() => void>>();
   private appendEntryFn: ((type: string, data: any) => void) | null = null;
   private notifyFn: ((msg: string, type?: string) => void) | null = null;
 
@@ -40,8 +45,11 @@ class BackgroundTaskManager {
     this.notifyFn = notify;
   }
 
-  /** Register a new background task */
+  /** Register a new background task. Enforces a 50-task-per-session ceiling. */
   register(entry: BackgroundTaskEntry): void {
+    if (this.tasks.size >= 50) {
+      throw new Error("Maximum concurrent background tasks (50) reached for this session.");
+    }
     this.tasks.set(entry.id, entry);
     this.persist();
   }
@@ -85,12 +93,60 @@ class BackgroundTaskManager {
     return lines.join("\n");
   }
 
+  /** Add a waiter to be resolved when a task finishes (complete/fail/stop). */
+  addWaiter(taskId: string, resolve: () => void): void {
+    const waiters = this.taskWaiters.get(taskId);
+    if (waiters) {
+      waiters.push(resolve);
+    } else {
+      this.taskWaiters.set(taskId, [resolve]);
+    }
+  }
+
+  /** Remove a previously registered waiter. */
+  removeWaiter(taskId: string, resolve: () => void): void {
+    const waiters = this.taskWaiters.get(taskId);
+    if (!waiters) return;
+    const idx = waiters.indexOf(resolve);
+    if (idx >= 0) waiters.splice(idx, 1);
+    if (waiters.length === 0) this.taskWaiters.delete(taskId);
+  }
+
+  /** Notify and clear all waiters for a task. */
+  private notifyWaiters(taskId: string): void {
+    const waiters = this.taskWaiters.get(taskId);
+    if (!waiters) return;
+    this.taskWaiters.delete(taskId);
+    for (const resolve of waiters) {
+      try { resolve(); } catch { /* ignore */ }
+    }
+  }
+
+  /** Block until a running task finishes or the timeout elapses. */
+  waitForDone(taskId: string, timeoutMs = 120000): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task || task.status !== "running") return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        this.removeWaiter(taskId, done);
+        resolve();
+      };
+      this.addWaiter(taskId, done);
+      const timer = setTimeout(done, timeoutMs);
+    });
+  }
+
   /** Mark task as completed */
   complete(taskId: string, outputLines: string[]): void {
     const task = this.tasks.get(taskId);
     if (!task) return;
     task.status = "completed";
     task.endTime = Date.now();
+    task.completedAtMs = task.endTime;
     task.outputLines = outputLines;
 
     // Cleanup session handle
@@ -101,16 +157,19 @@ class BackgroundTaskManager {
     }
 
     this.persist();
+    this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} completed`, "success");
   }
 
-  /** Mark task as failed */
-  fail(taskId: string, error: string): void {
+  /** Mark task as failed. Optional stopReason is preserved (e.g. timeout_30min). */
+  fail(taskId: string, error: string, stopReason?: string): void {
     const task = this.tasks.get(taskId);
     if (!task) return;
     task.status = "failed";
     task.endTime = Date.now();
+    task.completedAtMs = task.endTime;
     task.error = error;
+    if (stopReason) task.stopReason = stopReason;
 
     const handle = this.sessions.get(taskId);
     if (handle) {
@@ -119,6 +178,7 @@ class BackgroundTaskManager {
     }
 
     this.persist();
+    this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} failed: ${error}`, "error");
   }
 
@@ -141,7 +201,9 @@ class BackgroundTaskManager {
 
     task.status = "aborted";
     task.endTime = Date.now();
+    task.completedAtMs = task.endTime;
     this.persist();
+    this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} stopped: ${normalized}`, "warning");
     return true;
   }
@@ -173,19 +235,52 @@ class BackgroundTaskManager {
       error: t.error,
       stopReason: t.stopReason,
       startTime: t.startTime,
+      createdAt: t.createdAt,
       endTime: t.endTime,
+      completedAtMs: t.completedAtMs,
       turns: t.turns,
       usage: t.usage,
     }));
     this.appendEntryFn("muselinn_background_tasks", data);
   }
 
-  /** Restore from persisted entries */
+  /** Restore from persisted entries.
+   *  - Tasks older than 7 days are demoted to failed with stopReason="stale_7d".
+   *  - Orphan running tasks (left "running" across a process restart) are
+   *    demoted to "failed" with stopReason="process_restart" so the UI never
+   *    shows zombie forever-running tasks after a crash/restart. */
   restore(entries: any[]): void {
+    const now = Date.now();
+    const STALE_AGE_MS = 7 * 86400 * 1000;
     for (const e of entries) {
       if (e.id && !this.tasks.has(e.id)) {
+        const createdAt = e.createdAt || e.startTime || now;
+        const isStale = now - createdAt > STALE_AGE_MS;
+        const wasRunning = e.status === "running";
+        let status: BackgroundTaskEntry["status"] = e.status || "failed";
+        let stopReason = e.stopReason;
+        let endTime = e.endTime;
+        let completedAtMs = e.completedAtMs;
+
+        if (isStale) {
+          status = "failed";
+          stopReason = "stale_7d";
+          endTime = now;
+          completedAtMs = now;
+        } else if (wasRunning) {
+          status = "failed";
+          stopReason = "process_restart";
+          endTime = now;
+          completedAtMs = now;
+        }
+
         this.tasks.set(e.id, {
           ...e,
+          status,
+          stopReason,
+          endTime,
+          completedAtMs,
+          createdAt,
           outputLines: [],
         });
       }
@@ -219,6 +314,7 @@ export function registerBackgroundTools(pi: any): void {
         prompt: { type: "string", description: "The task prompt for the sub-agent" },
         model: { type: "string", description: "Optional model override" },
         subagent_type: { type: "string", enum: ["explore", "plan", "coder"], default: "explore" },
+        output_path: { type: "string", description: "Optional file path. When set, the full task output is written to this file on completion (use Read with offset/limit to page through large outputs)." },
       },
       required: ["prompt"],
     },
@@ -243,12 +339,13 @@ export function registerBackgroundTools(pi: any): void {
         status: "running",
         outputLines: [],
         startTime: Date.now(),
+        createdAt: Date.now(),
         turns: 0,
         usage: { input: 0, output: 0, cost: 0 },
       });
 
       // Run in background (not awaited)
-      runBackgroundSession(taskId, model, params.prompt, tools, resourceLoader, signal);
+      runBackgroundSession(taskId, model, params.prompt, tools, resourceLoader, signal, params.output_path);
 
       return {
         content: [{ type: "text", text: `Background task started. ID: ${taskId}\nUse task_list to check status, task_output(id) to see results.` }],
@@ -260,17 +357,23 @@ export function registerBackgroundTools(pi: any): void {
   pi.registerTool({
     name: "task_list",
     label: "List Background Tasks",
-    description: "List all background tasks (running/completed/failed/aborted).",
+    description: "List background tasks (running/completed/failed/aborted).",
     promptSnippet: "task_list: list background tasks",
-    parameters: { type: "object", properties: {} },
-    async execute(toolCallId: string, _params: any, _signal: any, _onUpdate: any, _ctx: any) {
-      const tasks = backgroundManager.list();
+    parameters: {
+      type: "object",
+      properties: {
+        active_only: { type: "boolean", default: false, description: "Only list currently running tasks" },
+      },
+    },
+    async execute(toolCallId: string, params: any, _signal: any, _onUpdate: any, _ctx: any) {
+      const tasks = params?.active_only ? backgroundManager.listRunning() : backgroundManager.list();
       if (tasks.length === 0) {
-        return { content: [{ type: "text", text: "No background tasks." }] };
+        return { content: [{ type: "text", text: params?.active_only ? "No running background tasks." : "No background tasks." }] };
       }
       const lines = tasks.map(t => {
         const dur = t.startTime ? (t.endTime ? `${Math.floor((t.endTime - t.startTime) / 1000)}s` : "running") : "—";
-        return `  ${t.id} [${t.status}] ${t.prompt.slice(0, 60)} (${dur})`;
+        const reason = t.stopReason ? ` (${t.stopReason})` : "";
+        return `  ${t.id} [${t.status}${reason}] ${t.prompt.slice(0, 60)} (${dur})`;
       });
       return { content: [{ type: "text", text: `Background tasks:\n${lines.join("\n")}` }] };
     },
@@ -287,10 +390,16 @@ export function registerBackgroundTools(pi: any): void {
       properties: {
         task_id: { type: "string", description: "Task ID from run_background" },
         tail: { type: "number", description: "Only show last N lines (optional)" },
+        block: { type: "boolean", default: false, description: "Wait for the task to finish before returning output" },
+        timeout: { type: "number", description: "Max seconds to wait when block=true (default 120, cap 600)" },
       },
       required: ["task_id"],
     },
     async execute(toolCallId: string, params: any, _signal: any, _onUpdate: any, _ctx: any) {
+      if (params?.block) {
+        const waitMs = Math.min(Math.max(params.timeout || 120, 1), 600) * 1000;
+        await backgroundManager.waitForDone(params.task_id, waitMs);
+      }
       const output = backgroundManager.getOutput(params.task_id, params.tail);
       return { content: [{ type: "text", text: output }] };
     },
@@ -318,6 +427,8 @@ export function registerBackgroundTools(pi: any): void {
   });
 }
 
+const BACKGROUND_TIMEOUT_MS = 30 * 60 * 1000; // Kimi Code-aligned: 30 min cap
+
 async function runBackgroundSession(
   taskId: string,
   model: any,
@@ -325,7 +436,16 @@ async function runBackgroundSession(
   tools: string[],
   resourceLoader: any,
   signal: AbortSignal,
+  outputPath?: string,
 ): Promise<void> {
+  let session: any = null;
+  let unsub: (() => void) | null = null;
+  let unlinkAbort: (() => void) | null = null;
+  let timedOut = false;
+  const timeoutTimer = setTimeout(() => {
+    timedOut = true;
+    try { session?.abort(); } catch { /* ignore */ }
+  }, BACKGROUND_TIMEOUT_MS);
   try {
     const result = await createAgentSession({
       sessionManager: SessionManager.inMemory(),
@@ -334,9 +454,9 @@ async function runBackgroundSession(
       tools,
       resourceLoader,
     });
-    const session = result.session;
+    session = result.session;
 
-    const unsub = session.subscribe((event: any) => {
+    unsub = session.subscribe((event: any) => {
       if (event.type === "message_end" && event.message?.role === "assistant") {
         const msg = event.message;
         const texts = (msg.content || []).filter((p: any) => p.type === "text");
@@ -347,7 +467,27 @@ async function runBackgroundSession(
     });
     backgroundManager.setSession(taskId, session, unsub);
 
+    // (1) Manual abort bridging — session.prompt does not accept { signal };
+    // chain parent signal -> session.abort() so cancellation actually lands.
+    // Mirrors the pattern in swarm/subagent.ts (linkAbortSignal + onAbort).
+    if (signal.aborted) {
+      try { session.abort(); } catch { /* ignore */ }
+    } else {
+      const onAbort = () => { try { session?.abort(); } catch { /* ignore */ } };
+      signal.addEventListener("abort", onAbort, { once: true });
+      unlinkAbort = () => {
+        try { signal.removeEventListener("abort", onAbort); } catch { /* ignore */ }
+      };
+    }
+
     await session.prompt(prompt, { source: "extension" });
+
+    // The 30-min timer fires via session.abort(), which may resolve (not
+    // reject) prompt() — check the flag on the success path too.
+    if (timedOut) {
+      backgroundManager.fail(taskId, "Background task timed out after 30 minutes", "timeout_30min");
+      return;
+    }
 
     const msgs = session.state.messages;
     const allText = msgs
@@ -355,10 +495,39 @@ async function runBackgroundSession(
       .flatMap((m: any) => (m.content || []).filter((p: any) => p.type === "text").map((p: any) => p.text))
       .filter(Boolean);
 
-    backgroundManager.complete(taskId, allText);
-    session.dispose();
+    if (outputPath) {
+      // Kimi Code-style: full output lands in output_path; the task entry keeps
+      // only a pointer so in-memory outputLines stay small and Read can page.
+      try {
+        fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true });
+        fs.writeFileSync(outputPath, allText.join("\n\n"), "utf-8");
+        backgroundManager.complete(taskId, [
+          `[output written to ${outputPath} — ${allText.length} message(s); use Read with offset/limit to page]`,
+          ...allText.slice(-3),
+        ]);
+      } catch (writeErr: any) {
+        backgroundManager.complete(taskId, [
+          `[failed to write output_path ${outputPath}: ${writeErr?.message || writeErr}]`,
+          ...allText,
+        ]);
+      }
+    } else {
+      backgroundManager.complete(taskId, allText);
+    }
   } catch (err: any) {
-    backgroundManager.fail(taskId, err.message || String(err));
+    if (timedOut) {
+      backgroundManager.fail(taskId, "Background task timed out after 30 minutes", "timeout_30min");
+    } else {
+      backgroundManager.fail(taskId, err.message || String(err));
+    }
+  } finally {
+    // (2) Ensures cleanup runs on both success, prompt-abort, and exception paths.
+    // dispose() was previously on the success path only; unsubscribe + abort
+    // listener cleanup must also run when complete() throws or prompt rejects.
+    clearTimeout(timeoutTimer);
+    try { unlinkAbort?.(); } catch { /* ignore */ }
+    try { unsub?.(); } catch { /* ignore */ }
+    try { session?.dispose(); } catch { /* ignore */ }
   }
 }
 

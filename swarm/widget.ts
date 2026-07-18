@@ -27,6 +27,7 @@ export function buildWidgetLines(
   theme: any,
   cancelIsPending: boolean,
   nowMs?: number,
+  width?: number,
 ): { lines: string[]; refreshInterval: number } | null {
   if (!state || state.tasks.length === 0 || state.status === "pending") return null;
 
@@ -66,7 +67,9 @@ export function buildWidgetLines(
   }
 
   // ---- Grid ----
-  const termWidth = process?.stdout?.columns || 100;
+  // P0 fix: prefer explicit TUI width passed by caller; fall back to process.stdout.columns
+  // until index.ts call sites are updated to pass tuiRef.tui?.width (the real rendered widget width).
+  const termWidth = width ?? process?.stdout?.columns ?? 100;
   const gridHeight = 10;
   const layout = calculateGridLayout(total, termWidth - 4, gridHeight);
 

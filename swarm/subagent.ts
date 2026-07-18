@@ -15,10 +15,10 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import type { SubAgentType, SubAgentTask } from "./types";
-import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult } from "./types";
+import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults } from "./types";
 
 // Timeout & output limit constants (Kimi Code-aligned)
-const SUBAGENT_TIMEOUT_MS = parseInt(process.env.KIMI_SUBAGENT_TIMEOUT_MS || "600000", 10); // 10 min default
+const SUBAGENT_TIMEOUT_MS = parseInt(process.env.KIMI_SUBAGENT_TIMEOUT_MS || "1800000", 10); // 30 min default (Kimi Code-aligned)
 const MAX_OUTPUT_BYTES = 1 * 1024 * 1024; // 1 MiB (Kimi Code)
 
 // ============================================================
@@ -57,6 +57,39 @@ export function linkAbortSignal(source: AbortSignal, target: AbortController): (
   return () => {
     source.removeEventListener('abort', onAbort);
   };
+}
+
+// ============================================================
+// log_swarm_warn — log non-AbortError failures without rethrowing
+// ============================================================
+
+function log_swarm_warn(label: string, e: unknown): void {
+  if (e && (e as any)?.name === 'AbortError') return;
+  console.error(`[swarm] ${label}: ${(e as any)?.message ?? e}`);
+}
+
+// ============================================================
+// combineAbortSignals — AbortSignal.any polyfill (cleanup-safe)
+// ============================================================
+
+function combineAbortSignals(signals: AbortSignal[]): { signal: AbortSignal; cleanup: () => void } {
+  const anyFn = (AbortSignal as any).any;
+  if (typeof anyFn === 'function') {
+    return { signal: anyFn.call(AbortSignal, signals) as AbortSignal, cleanup: () => {} };
+  }
+  // Polyfill: manually bridge each source into one controller.
+  const controller = new AbortController();
+  const offs: Array<() => void> = [];
+  for (const s of signals) {
+    if (s.aborted) {
+      controller.abort((s as any).reason);
+      break;
+    }
+    const onA = () => controller.abort((s as any).reason);
+    s.addEventListener('abort', onA, { once: true });
+    offs.push(() => { try { s.removeEventListener('abort', onA); } catch {} });
+  }
+  return { signal: controller.signal, cleanup: () => { for (const o of offs) o(); } };
 }
 
 // ============================================================
@@ -106,8 +139,8 @@ export function getDefaultModel(): string {
       const settings = JSON.parse(raw);
       if (settings.defaultModel) return settings.defaultModel;
     }
-  } catch {
-    /* ignore */
+  } catch (settingsErr) {
+    log_swarm_warn('getDefaultModel settings.json', settingsErr);
   }
   return "";
 }
@@ -120,8 +153,8 @@ export function getDefaultProvider(): string {
       const settings = JSON.parse(raw);
       if (settings.defaultProvider) return settings.defaultProvider;
     }
-  } catch {
-    /* ignore */
+  } catch (settingsErr) {
+    log_swarm_warn('getDefaultProvider settings.json', settingsErr);
   }
   return "";
 }
@@ -221,12 +254,27 @@ async function runWithModel(
   let outputBytes = 0;
   let outputLimitExceeded = false;
   let timeoutAborted = false;
+  // Hoisted so cleanupAbortListeners() works from outer catch/finally too.
+  let combinedSignal: AbortSignal | undefined;
+  let onCombinedAbort: (() => void) | undefined;
+  let childController: AbortController | undefined;
+  let unlink: (() => void) | undefined;
+  let onAbort: (() => void) | undefined;
+  let cleanupCombined: () => void = () => {};
+  const cleanupAbortListeners = () => {
+    try { if (childController && onAbort) childController.signal.removeEventListener("abort", onAbort); } catch (e) { log_swarm_warn('removeEventListener(onAbort) failed', e); }
+    try { if (combinedSignal && onCombinedAbort) combinedSignal.removeEventListener("abort", onCombinedAbort); } catch (e) { log_swarm_warn('removeEventListener(onCombinedAbort) failed', e); }
+    try { unlink?.(); } catch (e) { log_swarm_warn('unlink failed', e); }
+    try { cleanupCombined(); } catch (e) { log_swarm_warn('cleanupCombined failed', e); }
+  };
   try {
-    // Combine cancel signal + timeout signal
+    // Combine cancel signal + timeout signal (polyfill when AbortSignal.any missing)
     const timeoutSignal = AbortSignal.timeout(SUBAGENT_TIMEOUT_MS);
-    const combinedSignal = AbortSignal.any?.([signal, timeoutSignal].filter(Boolean) as AbortSignal[]) ?? signal;
+    const combined = combineAbortSignals([signal, timeoutSignal]);
+    combinedSignal = combined.signal;
+    cleanupCombined = combined.cleanup;
 
-    const onCombinedAbort = () => {
+    onCombinedAbort = () => {
       timeoutAborted = !signal.aborted;
       session?.abort();
     };
@@ -241,7 +289,7 @@ async function runWithModel(
       resourceLoader,
     });
     session = result.session;
-    try { progressEstimator.markStarted(task.id, Date.now()); } catch {}
+    try { progressEstimator.markStarted(task.id, Date.now()); } catch (e) { log_swarm_warn('progressEstimator.markStarted failed', e); }
 
     const entry = { session, taskId: task.id };
     activeSessions?.set(task.id, entry);
@@ -285,14 +333,15 @@ async function runWithModel(
               task.currentAction = fullText.slice(0, 60) || "";
             }
           }
+        }
         onProgress();
       }
     });
 
     // Link parent abort signal → child session
-    const childController = new AbortController();
-    const unlink = linkAbortSignal(signal, childController);
-    const onAbort = () => session?.abort();
+    childController = new AbortController();
+    unlink = linkAbortSignal(signal, childController);
+    onAbort = () => session?.abort();
     childController.signal.addEventListener("abort", onAbort, { once: true });
 
     task.status = "running";
@@ -306,9 +355,9 @@ async function runWithModel(
     } catch (promptErr: any) {
       const wasAborted =
         signal.aborted ||
-        childController.signal.aborted ||
+        (childController?.signal.aborted ?? false) ||
         swarmCancelled;
-      const wasTimeout = timeoutAborted || combinedSignal?.aborted;
+      const wasTimeout = timeoutAborted;
 
       if (wasTimeout) {
         task.status = "failed";
@@ -316,11 +365,10 @@ async function runWithModel(
         task.endTime = Date.now();
         task.completedAtMs = Date.now();
         task.progressPercent = 100;
-        try { progressEstimator.markFailed(task.id, Date.now()); } catch {}
+        try { progressEstimator.markFailed(task.id, Date.now()); } catch (e) { log_swarm_warn('progressEstimator.markFailed failed', e); }
         onProgress();
         setResumeResult(task.id, { status: "failed", output: task.error });
-        childController.signal.removeEventListener("abort", onAbort);
-        unlink();
+        cleanupAbortListeners();
         unsub();
         activeSessions?.delete(task.id);
         return;
@@ -329,32 +377,31 @@ async function runWithModel(
       if (wasAborted) {
         task.status = "aborted";
         task.endTime = Date.now();
-    task.completedAtMs = Date.now();
+        task.completedAtMs = Date.now();
         task.progressPercent = 100;
         onProgress();
         setResumeResult(task.id, { status: "aborted" });
-        childController.signal.removeEventListener("abort", onAbort);
-        unlink();
+        cleanupAbortListeners();
         unsub();
         activeSessions?.delete(task.id);
         return;
       }
+      log_swarm_warn('prompt failed', promptErr);
       task.status = "failed";
       task.endTime = Date.now();
-    task.completedAtMs = Date.now();
+      task.completedAtMs = Date.now();
       task.error = promptErr.message || String(promptErr);
       task.progressPercent = 100;
-      try { progressEstimator.markFailed(task.id, Date.now()); } catch {}
+      try { progressEstimator.markFailed(task.id, Date.now()); } catch (e) { log_swarm_warn('progressEstimator.markFailed failed', e); }
       onProgress();
       setResumeResult(task.id, { status: "failed", output: promptErr.message });
-      childController.signal.removeEventListener("abort", onAbort);
+      cleanupAbortListeners();
       unsub();
       activeSessions?.delete(task.id);
       return;
     }
 
-    childController.signal.removeEventListener("abort", onAbort);
-    unlink();
+    cleanupAbortListeners();
 
     task.endTime = Date.now();
     task.completedAtMs = Date.now();
@@ -408,28 +455,33 @@ async function runWithModel(
       try {
         if (task.status === "done") progressEstimator.markCompleted(task.id, nowMs);
         else progressEstimator.markFailed(task.id, nowMs);
-      } catch { /* non-critical */ }
+      } catch (e) { log_swarm_warn('progressEstimator final-mark failed', e); }
     }
 
     unsub();
     activeSessions?.delete(task.id);
     onProgress();
   } catch (initErr: any) {
+    log_swarm_warn('runWithModel init failed', initErr);
     task.status = "failed";
     task.endTime = Date.now();
     task.completedAtMs = Date.now();
     task.error = initErr.message || String(initErr);
     task.progressPercent = 100;
-    try { progressEstimator.markFailed(task.id, Date.now()); } catch {}
+    try { progressEstimator.markFailed(task.id, Date.now()); } catch (e) { log_swarm_warn('progressEstimator.markFailed failed', e); }
     setResumeResult(task.id, { status: "failed", output: initErr.message || String(initErr) });
+    cleanupAbortListeners();
     activeSessions?.delete(task.id);
     onProgress();
   } finally {
+    // Defensive: ensure abort listeners are unlinked even if an unexpected
+    // throw skipped every return path. Safe to call multiple times.
+    cleanupAbortListeners();
     if (session) {
       try {
         session.dispose();
-      } catch {
-        /* ignore */
+      } catch (e) {
+        log_swarm_warn('session.dispose failed', e);
       }
     }
   }
@@ -440,34 +492,57 @@ async function runWithModel(
 // ============================================================
 
 /**
- * Kimi Code-style progressive launch: initial 5 + 700ms/item spacing.
- * Also handles rate limit backoff and capacity recovery.
+ * Worker-pool execution with optional transitional disbursement.
+ * Honors max_concurrency by launching up to maxC workers that pull from a
+ * shared queue. Rate-limit retry remains inside runSubAgent.
+ *
+ * When disburseOptions is provided, the first batch is launched synchronously
+ * and the pool is filled to maxC after one spacing interval — preserving the
+ * Kimi Code-style "initial 5 + 700ms spacing" feel while bounding concurrency.
  */
 export async function runProgressive<T>(
   items: T[],
-  initialBatch: number,
-  spacingMs: number,
+  maxConcurrency: number,
   fn: (item: T, index: number) => Promise<void>,
+  disburseOptions?: { initialBatch: number; spacingMs: number },
 ): Promise<void> {
-  let next = 0;
+  // Each runProgressive invocation launches a fresh swarm batch — clear any
+  // resume results accumulated by previous swarms so they don't leak across runs.
+  clearResumeResults();
   const total = items.length;
-  const launched = new Set<Promise<void>>();
+  if (total === 0) return;
 
-  // Launch initial batch
-  const initialCount = Math.min(initialBatch, total);
-  for (let i = 0; i < initialCount; i++) {
-    const idx = next++;
-    launched.add(fn(items[idx], idx));
+  const maxC = Math.max(1, Math.min(maxConcurrency, 128));
+  let next = 0;
+  const workers: Promise<void>[] = [];
+
+  const worker = async () => {
+    while (true) {
+      const idx = next++;
+      if (idx >= total) return;
+      await fn(items[idx], idx);
+    }
+  };
+
+  if (disburseOptions) {
+    // Transitional disbursement: seed initial batch synchronously, then fill to maxC.
+    const firstBatch = Math.min(maxC, disburseOptions.initialBatch, total);
+    for (let i = 0; i < firstBatch; i++) {
+      workers.push(worker());
+    }
+    if (maxC > firstBatch && total > firstBatch) {
+      await sleep(disburseOptions.spacingMs);
+      for (let i = firstBatch; i < maxC; i++) {
+        workers.push(worker());
+      }
+    }
+  } else {
+    for (let i = 0; i < maxC; i++) {
+      workers.push(worker());
+    }
   }
 
-  // Progressively launch remaining items
-  while (next < total) {
-    await sleep(spacingMs);
-    const idx = next++;
-    launched.add(fn(items[idx], idx));
-  }
-
-  await Promise.all(launched);
+  await Promise.all(workers);
 }
 
 function sleep(ms: number): Promise<void> {

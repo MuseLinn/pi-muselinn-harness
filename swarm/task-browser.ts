@@ -12,6 +12,10 @@ const MIN_HEIGHT = 10;
 const LIST_COL_MIN = 28;
 const LIST_COL_MAX = 44;
 const LIST_COL_RATIO = 0.32;
+// P0 fix: bound the viewer's local copy of output lines to prevent unbounded accumulation
+// when a task runs for a long time. Only affects the viewer snapshot; the underlying
+// task.outputLines storage is not mutated.
+const MAX_VIEWER_LINES = 2000;
 
 // ============================================================
 // Helper functions
@@ -207,7 +211,14 @@ export class TasksBrowserComponent extends Container {
       if (k === "y" || k === "Y") {
         const taskId = this.pendingStopTaskId;
         this.clearPendingStop();
-        this.props.onStopConfirmed(taskId);
+        // P0 fix: surface abort failures instead of silently swallowing. The underlying
+        // abort().catch(()=>{}) in commands.ts:190 swallows errors and commands.ts is outside
+        // this module's editable scope, so best-effort report via console.error here.
+        try {
+          this.props.onStopConfirmed(taskId);
+        } catch (e) {
+          console.error(`[swarm] onStopConfirmed failed for ${taskId}:`, e);
+        }
         this.invalidate();
         return;
       }
@@ -262,7 +273,8 @@ export class TasksBrowserComponent extends Container {
         this.viewerScrollTop = 0;
         this.viewerFollowTail = true;
         this.viewerTaskId = task.id;
-        this.viewerOutputLines = task.outputLines || [];
+        // P0 fix: keep only the most recent MAX_VIEWER_LINES lines for the viewer to bound memory.
+        this.viewerOutputLines = (task.outputLines || []).slice(-MAX_VIEWER_LINES);
         this.invalidate();
       }
       return;

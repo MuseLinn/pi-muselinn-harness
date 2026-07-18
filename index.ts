@@ -18,8 +18,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-import type { ModelTier, SubAgentType } from "./swarm/types";
+import type { ModelTier, SubAgentType, SwarmState, SubAgentTask } from "./swarm/types";
 import { setResumeResult } from "./swarm/types";
 import {
   FRAME_INTERVAL_MS,
@@ -47,6 +49,7 @@ import { planManager } from "./plan";
 import { permissionManager } from "./permission";
 import { registerPermissionCommands } from "./permission/commands";
 import { backgroundManager, registerBackgroundTools } from "./task";
+import { cronManager, registerCronTools } from "./task/cron";
 import shared from "./state";
 
 // Interactive question tools (copied from Pi SDK examples)
@@ -57,6 +60,74 @@ function parseModelSpec(spec: string): { provider?: string; modelId: string } {
   const colonIdx = spec.indexOf(":");
   if (colonIdx > 0) return { provider: spec.substring(0, colonIdx), modelId: spec.substring(colonIdx + 1) };
   return { modelId: spec };
+}
+
+// ============================================================
+// Background swarm runner — fire-and-forget execution wired to the
+// background task manager (task_list / task_output / task_stop).
+// ============================================================
+async function runSwarmInBackground(
+  bgId: string,
+  state: SwarmState,
+  tasks: SubAgentTask[],
+  ctx: any,
+  maxC: number,
+  outputPath?: string,
+): Promise<void> {
+  const controller = new AbortController();
+  // task_stop flips the entry status to "aborted"; poll and translate that
+  // into an abort so in-flight subagents and the worker pool wind down.
+  const stopPoll = setInterval(() => {
+    const t = backgroundManager.get(bgId);
+    if (!t || t.status !== "running") {
+      try { controller.abort(); } catch { /* ignore */ }
+    }
+  }, 500);
+  try {
+    await runProgressive(tasks, maxC, async (task) => {
+      if (controller.signal.aborted) {
+        task.status = "aborted";
+        return;
+      }
+      await runSubAgent(task, ctx, controller.signal, () => {
+        const d = tasks.filter((t) => t.status === "done").length;
+        backgroundManager.appendOutput(bgId, [`progress: ${d}/${tasks.length} done`]);
+      });
+    });
+
+    // stop() already flipped the entry to "aborted" — leave it as-is.
+    if (controller.signal.aborted) return;
+
+    state.endTime = Date.now();
+    state.status = tasks.every((t) => t.status === "done")
+      ? "completed"
+      : tasks.some((t) => t.status === "done")
+        ? "partial"
+        : "failed";
+
+    const report = formatReport(state);
+    if (outputPath) {
+      // Kimi Code-style: full report lands in output_path; the task entry
+      // keeps only a pointer + tail so in-memory outputLines stay small.
+      try {
+        fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true });
+        fs.writeFileSync(outputPath, report, "utf-8");
+        backgroundManager.complete(bgId, [
+          `[report written to ${outputPath} — use Read with offset/limit to page]`,
+          ...report.split("\n").slice(-5),
+        ]);
+      } catch (e: any) {
+        backgroundManager.complete(bgId, [`[failed to write output_path ${outputPath}: ${e?.message || e}]`, report]);
+      }
+    } else {
+      backgroundManager.complete(bgId, report.split("\n"));
+    }
+  } catch (e: any) {
+    backgroundManager.fail(bgId, e?.message || String(e));
+  } finally {
+    clearInterval(stopPoll);
+    if (currentSwarm === state) setCurrentSwarm(null);
+  }
 }
 
 const GOAL_ENTRY_TYPE = "muselinn_goal";
@@ -157,6 +228,11 @@ export default function (pi: ExtensionAPI) {
           break;
         }
       }
+    } catch { /* not critical */ }
+
+    // Restore cron tasks from persisted entries (cronManager scans for its own entry type)
+    try {
+      cronManager.restore(ctx.sessionManager.getEntries());
     } catch { /* not critical */ }
 
     // Restore permission mode from persisted entries
@@ -288,9 +364,13 @@ export default function (pi: ExtensionAPI) {
     const toolName = event.toolName || "";
     const input = (event.input || event.args || {}) as Record<string, unknown>;
     const filePath = (input.file_path as string) || (input.path as string) || "";
-    
+    // Bash command string — forwarded to plan-mode gate so the read-only
+    // whitelist in PlanManager.shouldBlockTool can vet it. Other tools ignore
+    // this 3rd (optional) arg.
+    const bashCommand = (input.command as string) || (input.cmd as string) || (input.script as string) || "";
+
     // Plan mode restrictions (checked first, before policy chain)
-    if (planManager.shouldBlockTool(toolName, filePath)) {
+    if (planManager.shouldBlockTool(toolName, filePath, bashCommand)) {
       ctx.ui.notify(`Tool "${toolName}" is blocked in Plan Mode. Use read-only tools only.`, "warning");
       return { block: true, reason: "Plan Mode: tool not allowed" };
     }
@@ -305,6 +385,9 @@ export default function (pi: ExtensionAPI) {
 
   // ── Background Task Tools ──
   registerBackgroundTools(pi);
+
+  // ── Cron Tools (scheduled prompts) ──
+  registerCronTools(pi);
 
   // ============================================================
   // Shared: Task-aware model resolution
@@ -462,7 +545,19 @@ export default function (pi: ExtensionAPI) {
         ),
         { description: "Per-item model overrides. Keys are item indices, values are model names/aliases." },
       ),
-      max_concurrency: Type.Optional(Type.Number({ default: 8 })),
+      max_concurrency: Type.Optional(Type.Number({ default: 5 })),
+      run_in_background: Type.Optional(
+        Type.Boolean({
+          default: false,
+          description:
+            "Run the swarm as a background task and return a task ID immediately. Results are collected via task_list/task_output; final report optionally lands in output_path.",
+        }),
+      ),
+      output_path: Type.Optional(
+        Type.String({
+          description: "Only with run_in_background: write the final swarm report to this file (page through it with Read offset/limit).",
+        }),
+      ),
     }),
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
@@ -474,7 +569,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       const tier: ModelTier = params.model_tier || "auto";
-      const maxC = Math.min(params.max_concurrency || 8, 128);
+      const maxC = Math.min(params.max_concurrency || 5, 128);
+      const runInBackground = params.run_in_background === true;
       const defaultModelId = getDefaultModel();
       const defaultProvider = getDefaultProvider();
 
@@ -638,6 +734,39 @@ export default function (pi: ExtensionAPI) {
         setCancelTimer(null);
       }
 
+      // ── Background mode: hand off to the background task manager ──
+      if (runInBackground) {
+        const bgId = `bg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        backgroundManager.register({
+          id: bgId,
+          prompt: `[swarm] ${params.description} (${tasks.length} agents)`,
+          model: modelId,
+          subagentType: params.subagent_type || "coder",
+          status: "running",
+          outputLines: [],
+          startTime: Date.now(),
+          createdAt: Date.now(),
+          turns: 0,
+          usage: { input: 0, output: 0, cost: 0 },
+        });
+        const outputPath = params.output_path as string | undefined;
+        state.status = "running";
+        // Fire-and-forget: progress lands in the task entry, the final
+        // report in the entry (and optionally in output_path).
+        void runSwarmInBackground(bgId, state, tasks, ctx, maxC, outputPath);
+        return {
+          content: [{
+            type: "text",
+            text:
+              `Swarm started in background. Task ID: ${bgId}\n` +
+              `${tasks.length} agents queued (max_concurrency=${maxC}, 30min/agent timeout).\n` +
+              `Use task_list to check status, task_output(task_id="${bgId}", block=true) to wait for completion.` +
+              (outputPath ? `\nFinal report will be written to: ${outputPath}` : ""),
+          }],
+          details: null,
+        };
+      }
+
       // Setup parent abort controller for cancel propagation
       setGlobalAbortController(new AbortController());
       const unlinkGlobal = linkAbortSignal(signal, globalAbortController!);
@@ -701,9 +830,10 @@ export default function (pi: ExtensionAPI) {
         });
       };
 
-      // Kimi Code-style: progressive launch (initial 5 + 700ms/item)
+      // Kimi Code-style: progressive launch (initial batch + 700ms spacing),
+      // bounded by max_concurrency via the worker pool in runProgressive.
       try {
-        await runProgressive(tasks, 5, 700, async (task) => {
+        await runProgressive(tasks, maxC, async (task) => {
           if (signal.aborted || currentSwarm === null) {
             task.status = "aborted";
             return;
@@ -713,7 +843,7 @@ export default function (pi: ExtensionAPI) {
             [signal, globalAbortController?.signal].filter(Boolean) as AbortSignal[],
           ) ?? signal;
           await runSubAgent(task, ctx, combinedSignal, updateProgress);
-        });
+        }, { initialBatch: Math.min(5, maxC), spacingMs: 700 });
       } finally {
         // Clean up global abort controller
         unlinkGlobal();
