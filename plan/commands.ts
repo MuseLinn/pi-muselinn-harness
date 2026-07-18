@@ -5,6 +5,7 @@
 import type { PlanManager } from "./index";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { planArgumentCompletions } from "../completions";
 
 /**
  * Get per-session state file path (inside session directory, keyed by sessionId).
@@ -41,6 +42,8 @@ export function registerPlanCommands(pi: any, planManager: PlanManager): void {
   // ── /plan command ──
   pi.registerCommand("plan", {
     description: "Toggle plan mode on/off",
+    usage: "/plan [on|off|clear]",
+    getArgumentCompletions: (prefix: string) => planArgumentCompletions(prefix),
     handler: async (args: string, ctx: any) => {
       const arg = (args || "").trim().toLowerCase();
 

@@ -5,6 +5,7 @@
 import type { GoalManager } from "./index";
 import { parseBudgetToLimits } from "./types";
 import { formatQueue, addToQueue, prioritizeQueueItem, removeFromQueue, skipCurrentQueueItem } from "./queue";
+import { goalArgumentCompletions } from "../completions";
 
 /**
  * Register goal commands with Pi.
@@ -14,21 +15,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
   pi.registerCommand("goal", {
     description: "Manage the current goal (Kimi Code-style)",
     usage: "/goal <objective> | /goal pause | /goal resume | /goal cancel | /goal replace <new> | /goal next | /goal status | /goal budget <number> <unit>",
-    getArgumentCompletions: (prefix: string) => {
-      const items = [
-        { value: "pause", label: "pause", description: "Pause active goal" },
-        { value: "resume", label: "resume", description: "Resume paused goal" },
-        { value: "cancel", label: "cancel", description: "Cancel goal" },
-        { value: "replace", label: "replace <new>", description: "Replace current goal" },
-        { value: "next", label: "next", description: "Complete current goal" },
-        { value: "status", label: "status", description: "Show goal status" },
-        { value: "queue", label: "queue", description: "Show goal queue" },
-        { value: "add", label: "add <objective>", description: "Add goal to queue" },
-        { value: "budget", label: "budget <number> <unit>", description: "Set goal budget (turns,tokens,ms,s,minutes,hours)" },
-      ];
-      if (!prefix) return items;
-      return items.filter(i => i.value.startsWith(prefix.toLowerCase())) || null;
-    },
+    getArgumentCompletions: (prefix: string) => goalArgumentCompletions(prefix),
     handler: async (args: string, ctx: any) => {
       const subcommand = args.trim().split(/\s+/)[0]?.toLowerCase() || "";
       const rest = args.trim().replace(/^(pause|resume|cancel|replace|next|status|queue)\s*/i, "").trim();

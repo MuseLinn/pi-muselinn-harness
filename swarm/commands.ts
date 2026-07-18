@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { AutocompleteItem } from "@earendil-works/pi-coding-agent";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   currentSwarm,
   cancelPending,
@@ -18,6 +18,118 @@ import {
 } from "./types";
 import { TasksBrowserComponent, TasksBrowserProps } from "./task-browser";
 import { UserCancellationError } from "./subagent";
+import { swarmArgumentCompletions } from "../completions";
+
+/**
+ * Open the Kimi Code-style 3-panel Task Browser overlay.
+ * Shared by the /tasks command and the ctrl+shift+t shortcut.
+ *
+ * Single destroy path for every overlay exit (ESC/q, onCancel, stop
+ * confirm, pi-side close): clears the 1s refresh interval AND the
+ * component's 5s stop-confirmation timer. Idempotent.
+ */
+export async function openTaskBrowser(ctx: ExtensionContext): Promise<void> {
+  const theme = ctx.ui.theme;
+  let refreshTimer: ReturnType<typeof setInterval> | null = null;
+  let component: TasksBrowserComponent | null = null;
+
+  // Persistent state managed by the launcher
+  let filter: "all" | "active" = "all";
+  let selectedTaskId: string | undefined;
+  let outputPreview: string | undefined;
+  let flashMessage: string | undefined;
+
+  const cleanup = () => {
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    component?.dispose();
+    component = null; // Prevent a late refresh tick from touching setProps
+  };
+
+  // Helper to build props with current state + live tasks
+  function buildProps(done: (v?: any) => void): TasksBrowserProps {
+    return {
+      tasks: currentSwarm?.tasks || [],
+      filter,
+      selectedTaskId,
+      outputPreview,
+      flashMessage,
+      onSelect: (taskId: string) => { selectedTaskId = taskId; },
+      onToggleFilter: () => {
+        filter = filter === "all" ? "active" : "all";
+      },
+      onRefresh: () => { /* timer handles refresh */ },
+      onCancel: () => { done(undefined); },
+      onStopConfirmed: (taskId: string) => {
+        // Abort the session for this task — surface failures instead of swallowing
+        if (activeSessions) {
+          const entry = activeSessions.get(taskId);
+          if (entry) entry.session.abort().catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            try { ctx.ui.notify(`Failed to abort task ${taskId}: ${msg}`, "error"); } catch { console.error(`[swarm] abort failed for ${taskId}:`, msg); }
+          });
+        }
+      },
+      onOpenOutput: (taskId: string) => {
+        const s = currentSwarm;
+        if (!s) return;
+        const task = s.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        // Use real output from task.outputLines
+        outputPreview = task.outputLines?.join("\n") || `[no output captured]\nTask: ${task.id}\nStatus: ${task.status}\nModel: ${task.model}`;
+      },
+    };
+  }
+
+  try {
+    await ctx.ui.custom(
+      (_tui, _theme, kb, done) => {
+        // Create component on first render; hand it pi's keybindings so
+        // named keys (tui.select.up/down/confirm/cancel/pageUp/pageDown)
+        // honor user overrides.
+        if (!component) {
+          component = new TasksBrowserComponent(buildProps(done), theme);
+        }
+        component.setKeybindings(kb);
+
+        // Auto-refresh every 1s — push latest state + tasks
+        refreshTimer = setInterval(() => {
+          if (component) {
+            component.setProps(buildProps(done));
+          }
+          _tui?.invalidate?.();
+        }, 1000);
+
+        return {
+          render: (width: number) => component!.render(width),
+          invalidate: () => component?.invalidate(),
+          handleInput: (data: string) => {
+            // Let the component consume input first while its output
+            // viewer is open or a stop confirmation is pending, so
+            // ESC/q close the viewer / cancel the confirmation instead
+            // of closing the whole overlay.
+            if (component?.wantsInput()) {
+              component.handleInput(data);
+              return;
+            }
+            if (data === "\x1b" || data.toLowerCase() === "q") {
+              // done() → pi close() → wrapper.dispose() → cleanup()
+              done(undefined);
+              return;
+            }
+            if (component) component.handleInput(data);
+          },
+          // pi calls dispose() on every close path (resolve/reject of
+          // ctx.ui.custom), so this is the single reliable destroy hook.
+          dispose: () => { cleanup(); },
+        };
+      },
+      { overlay: true },
+    );
+  } finally {
+    // Backstop: factory threw or custom() rejected before dispose ran.
+    cleanup();
+  }
+}
 
 export function registerCommands(pi: ExtensionAPI): void {
   // ============================================================
@@ -25,15 +137,9 @@ export function registerCommands(pi: ExtensionAPI): void {
   // ============================================================
   pi.registerCommand("swarm", {
     description: "Toggle swarm mode or run one task in swarm mode",
-    usage: "/swarm [on|off] | <task>",
-    getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {
-      const items: AutocompleteItem[] = [
-        { value: "on", label: "on", description: "Turn swarm mode ON" },
-        { value: "off", label: "off", description: "Turn swarm mode OFF" },
-      ];
-      if (!prefix) return items;
-      return items.filter(i => i.value.startsWith(prefix.toLowerCase())) || null;
-    },
+    usage: "/swarm [on|off|status] | <task>",
+    getArgumentCompletions: (prefix: string): AutocompleteItem[] | null =>
+      swarmArgumentCompletions(prefix),
     handler: async (args, ctx) => {
       const arg = (args || "").trim().toLowerCase();
 
@@ -149,107 +255,29 @@ export function registerCommands(pi: ExtensionAPI): void {
   pi.registerCommand("tasks", {
     description: "Browse tasks with Kimi Code-style 3-panel browser",
     handler: async (_args, ctx) => {
-      const theme = ctx.ui.theme;
-      let refreshTimer: ReturnType<typeof setInterval> | null = null;
-      let component: TasksBrowserComponent | null = null;
-
-      // Persistent state managed by the handler
-      let filter: "all" | "active" = "all";
-      let selectedTaskId: string | undefined;
-      let outputPreview: string | undefined;
-      let flashMessage: string | undefined;
-
-      // Single destroy path for every overlay exit (ESC/q, onCancel, stop
-      // confirm, pi-side close): clears the 1s refresh interval AND the
-      // component's 5s stop-confirmation timer. Idempotent.
-      const cleanup = () => {
-        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-        component?.dispose();
-        component = null; // Prevent a late refresh tick from touching setProps
-      };
-
-      // Helper to build props with current state + live tasks
-      function buildProps(done: (v?: any) => void): TasksBrowserProps {
-        return {
-          tasks: currentSwarm?.tasks || [],
-          filter,
-          selectedTaskId,
-          outputPreview,
-          flashMessage,
-          onSelect: (taskId: string) => { selectedTaskId = taskId; },
-          onToggleFilter: () => {
-            filter = filter === "all" ? "active" : "all";
-          },
-          onRefresh: () => { /* timer handles refresh */ },
-          onCancel: () => { done(undefined); },
-          onStopConfirmed: (taskId: string) => {
-            // Abort the session for this task — surface failures instead of swallowing
-            if (activeSessions) {
-              const entry = activeSessions.get(taskId);
-              if (entry) entry.session.abort().catch((e: unknown) => {
-                const msg = e instanceof Error ? e.message : String(e);
-                try { ctx.ui.notify(`Failed to abort task ${taskId}: ${msg}`, "error"); } catch { console.error(`[swarm] abort failed for ${taskId}:`, msg); }
-              });
-            }
-          },
-          onOpenOutput: (taskId: string) => {
-            const s = currentSwarm;
-            if (!s) return;
-            const task = s.tasks.find(t => t.id === taskId);
-            if (!task) return;
-            // Use real output from task.outputLines
-            outputPreview = task.outputLines?.join("\n") || `[no output captured]\nTask: ${task.id}\nStatus: ${task.status}\nModel: ${task.model}`;
-          },
-        };
-      }
-
-      try {
-        await ctx.ui.custom(
-          (_tui, _theme, _kb, done) => {
-            // Create component on first render
-            if (!component) {
-              component = new TasksBrowserComponent(buildProps(done), theme);
-            }
-
-            // Auto-refresh every 1s — push latest state + tasks
-            refreshTimer = setInterval(() => {
-              if (component) {
-                component.setProps(buildProps(done));
-              }
-              _tui?.invalidate?.();
-            }, 1000);
-
-            return {
-              render: (width: number) => component!.render(width),
-              invalidate: () => component?.invalidate(),
-              handleInput: (data: string) => {
-                // Let the component consume input first while its output
-                // viewer is open or a stop confirmation is pending, so
-                // ESC/q close the viewer / cancel the confirmation instead
-                // of closing the whole overlay.
-                if (component?.wantsInput()) {
-                  component.handleInput(data);
-                  return;
-                }
-                if (data === "\x1b" || data.toLowerCase() === "q") {
-                  // done() → pi close() → wrapper.dispose() → cleanup()
-                  done(undefined);
-                  return;
-                }
-                if (component) component.handleInput(data);
-              },
-              // pi calls dispose() on every close path (resolve/reject of
-              // ctx.ui.custom), so this is the single reliable destroy hook.
-              dispose: () => { cleanup(); },
-            };
-          },
-          { overlay: true },
-        );
-      } finally {
-        // Backstop: factory threw or custom() rejected before dispose ran.
-        cleanup();
-      }
+      await openTaskBrowser(ctx);
     },
   });
+
+  // ============================================================
+  // ctrl+shift+t — open the Task Browser from anywhere.
+  // (ctrl+t is pi's built-in "toggle thinking blocks" and reserved,
+  // so pi would skip it; ctrl+shift+t is free.) Registration is
+  // best-effort: any failure degrades to a warning, never a load error.
+  // ============================================================
+  try {
+    pi.registerShortcut("ctrl+shift+t", {
+      description: "Open the swarm task browser",
+      handler: async (ctx) => {
+        try {
+          await openTaskBrowser(ctx);
+        } catch (e) {
+          console.warn("[swarm] ctrl+shift+t task browser failed:", e);
+        }
+      },
+    });
+  } catch (e) {
+    console.warn("[swarm] registerShortcut(ctrl+shift+t) unavailable, skipping:", e);
+  }
 
 }

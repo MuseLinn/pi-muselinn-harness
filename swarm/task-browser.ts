@@ -3,8 +3,21 @@
 // Architecture: Component class with setProps(), handleInput(), render()
 // ============================================================
 
-import { Container, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Container, Text, truncateToWidth, visibleWidth, matchesKey } from "@earendil-works/pi-tui";
+import type { KeybindingsManager } from "@earendil-works/pi-tui";
 import type { SubAgentTask } from "./types";
+import {
+  statusGlyph,
+  statusColorName,
+  statusLabel,
+  isTerminalStatus,
+  compareTasks,
+  collapseTaskList,
+  formatCollapseSummary,
+  routeBrowserKey,
+  routeViewerKey,
+  type KeyMatchFn,
+} from "./task-list-utils";
 
 const ELLIPSIS = "…";
 const MIN_WIDTH = 48;
@@ -17,38 +30,23 @@ const LIST_COL_RATIO = 0.32;
 // task.outputLines storage is not mutated.
 const MAX_VIEWER_LINES = 2000;
 
+// Legacy keyId fallbacks for the named pi-tui keybindings, used when the
+// KeybindingsManager is unavailable (older pi, non-interactive smoke runs).
+const NAMED_KEY_FALLBACK: Record<string, string> = {
+  "tui.select.up": "up",
+  "tui.select.down": "down",
+  "tui.select.confirm": "enter",
+  "tui.select.cancel": "escape",
+  "tui.select.pageUp": "pageUp",
+  "tui.select.pageDown": "pageDown",
+};
+
 // ============================================================
 // Helper functions
 // ============================================================
 
-function statusIcon(status: string): string {
-  switch (status) {
-    case "done": return "✓";
-    case "failed": return "✗";
-    case "aborted": return "⊘";
-    case "running": return "◉";
-    default: return "○";
-  }
-}
-
-function statusColor(status: string): "success" | "text" | "error" | "warning" {
-  switch (status) {
-    case "done": return "success";
-    case "running": return "warning";
-    case "failed": return "error";
-    case "aborted": return "warning";
-    default: return "text";
-  }
-}
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case "done": return "completed";
-    case "failed": return "failed";
-    case "aborted": return "aborted";
-    case "running": return "running";
-    default: return "pending";
-  }
+function isTerminal(status: string): boolean {
+  return isTerminalStatus(status);
 }
 
 function formatTime(ms: number): string {
@@ -72,18 +70,6 @@ function fitExactly(line: string, width: number): string {
   let s = line;
   if (visibleWidth(s) > width) s = truncateToWidth(s, width, ELLIPSIS);
   return padToWidth(s, width);
-}
-
-function isTerminal(status: string): boolean {
-  return status === "done" || status === "failed" || status === "aborted";
-}
-
-function compareTasks(a: SubAgentTask, b: SubAgentTask): number {
-  const aTerminal = isTerminal(a.status);
-  const bTerminal = isTerminal(b.status);
-  if (aTerminal !== bTerminal) return aTerminal ? 1 : -1;
-  if (!aTerminal) return (a.startTime || 0) - (b.startTime || 0);
-  return (b.endTime || 0) - (a.endTime || 0);
 }
 
 // ============================================================
@@ -127,9 +113,9 @@ export class TasksBrowserComponent extends Container {
   private theme: any;
   private sortedVisible: SubAgentTask[];
   private selectedIndex = 0;
-  private listScroll = 0;
   private pendingStopTaskId: string | undefined = undefined;
   private pendingStopTimer: NodeJS.Timeout | undefined = undefined;
+  private keybindings: KeybindingsManager | undefined = undefined;
 
   // ── Output Viewer state ──
   private viewerOpen = false;
@@ -166,6 +152,34 @@ export class TasksBrowserComponent extends Container {
   }
 
   /**
+   * Receive pi's KeybindingsManager (the third argument of the
+   * ctx.ui.custom factory). Named keybindings (tui.select.*) then honor
+   * user keybinding overrides; without it we fall back to pi-tui
+   * default key sequences via matchesKey.
+   */
+  setKeybindings(kb: KeybindingsManager | undefined): void {
+    this.keybindings = kb;
+  }
+
+  /**
+   * Key matcher injected into the pure routers in task-list-utils.ts.
+   * Named keybindings (tui.select.*) go through the KeybindingsManager
+   * first, falling back to the pi-tui default sequence; everything else
+   * (letters, tab, home/end) goes through matchesKey directly.
+   */
+  private matchKey: KeyMatchFn = (data, keyId) => {
+    if (keyId.startsWith("tui.")) {
+      try {
+        if (this.keybindings && this.keybindings.matches(data, keyId as any)) return true;
+      } catch { /* fall through to legacy default */ }
+      const legacy = NAMED_KEY_FALLBACK[keyId];
+      if (!legacy) return false;
+      try { return matchesKey(data, legacy as any); } catch { return false; }
+    }
+    try { return matchesKey(data, keyId as any); } catch { return false; }
+  };
+
+  /**
    * True when the component wants to consume this input itself (output
    * viewer is open, or a stop confirmation is pending) instead of letting
    * the host treat ESC/q as "close overlay".
@@ -187,7 +201,6 @@ export class TasksBrowserComponent extends Container {
   private syncSelectionFromProps(): void {
     if (this.sortedVisible.length === 0) {
       this.selectedIndex = 0;
-      this.listScroll = 0;
       return;
     }
     if (this.props.selectedTaskId !== undefined) {
@@ -224,15 +237,15 @@ export class TasksBrowserComponent extends Container {
       return;
     }
 
-    const k = data.length === 1 ? data : "";
+    const action = routeBrowserKey(data, this.pendingStopTaskId !== undefined, this.matchKey);
 
-    if (this.pendingStopTaskId !== undefined) {
-      if (k === "y" || k === "Y") {
-        const taskId = this.pendingStopTaskId;
+    switch (action) {
+      case "confirmStop": {
+        const taskId = this.pendingStopTaskId!;
         this.clearPendingStop();
         // P0 fix: surface abort failures instead of silently swallowing. The underlying
-        // abort().catch(()=>{}) in commands.ts:190 swallows errors and commands.ts is outside
-        // this module's editable scope, so best-effort report via console.error here.
+        // abort().catch(()=>{}) in commands.ts swallows errors, so best-effort report
+        // via console.error here.
         try {
           this.props.onStopConfirmed(taskId);
         } catch (e) {
@@ -241,62 +254,65 @@ export class TasksBrowserComponent extends Container {
         this.invalidate();
         return;
       }
-      this.clearPendingStop();
-      this.invalidate();
-      return;
-    }
-
-    if (data === "\x1b" || k === "q" || k === "Q") {
-      this.props.onCancel();
-      return;
-    }
-    if (data === "\x1b[A" || k === "k") {
-      if (this.sortedVisible.length === 0) return;
-      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-      this.emitSelect();
-      this.invalidate();
-      return;
-    }
-    if (data === "\x1b[B" || k === "j") {
-      if (this.sortedVisible.length === 0) return;
-      this.selectedIndex = Math.min(this.sortedVisible.length - 1, this.selectedIndex + 1);
-      this.emitSelect();
-      this.invalidate();
-      return;
-    }
-    if (data === "\t") {
-      this.props.onToggleFilter();
-      return;
-    }
-    if (k === "r" || k === "R") {
-      this.props.onRefresh();
-      return;
-    }
-    if (k === "s" || k === "S") {
-      const task = this.sortedVisible[this.selectedIndex];
-      if (task === undefined) return;
-      if (isTerminal(task.status)) return;
-      this.pendingStopTaskId = task.id;
-      this.pendingStopTimer = setTimeout(() => {
+      case "dismissStop": {
         this.clearPendingStop();
         this.invalidate();
-      }, 5000);
-      this.invalidate();
-      return;
-    }
-    if (k === "o" || k === "O" || data === "\r") {
-      const task = this.sortedVisible[this.selectedIndex];
-      if (task) {
-        // Open full-screen output viewer with real output
-        this.viewerOpen = true;
-        this.viewerScrollTop = 0;
-        this.viewerFollowTail = true;
-        this.viewerTaskId = task.id;
-        // P0 fix: keep only the most recent MAX_VIEWER_LINES lines for the viewer to bound memory.
-        this.viewerOutputLines = (task.outputLines || []).slice(-MAX_VIEWER_LINES);
-        this.invalidate();
+        return;
       }
-      return;
+      case "cancel": {
+        this.props.onCancel();
+        return;
+      }
+      case "moveUp": {
+        if (this.sortedVisible.length === 0) return;
+        this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+        this.emitSelect();
+        this.invalidate();
+        return;
+      }
+      case "moveDown": {
+        if (this.sortedVisible.length === 0) return;
+        this.selectedIndex = Math.min(this.sortedVisible.length - 1, this.selectedIndex + 1);
+        this.emitSelect();
+        this.invalidate();
+        return;
+      }
+      case "toggleFilter": {
+        this.props.onToggleFilter();
+        return;
+      }
+      case "refresh": {
+        this.props.onRefresh();
+        return;
+      }
+      case "requestStop": {
+        const task = this.sortedVisible[this.selectedIndex];
+        if (task === undefined) return;
+        if (isTerminal(task.status)) return;
+        this.pendingStopTaskId = task.id;
+        this.pendingStopTimer = setTimeout(() => {
+          this.clearPendingStop();
+          this.invalidate();
+        }, 5000);
+        this.invalidate();
+        return;
+      }
+      case "openOutput": {
+        const task = this.sortedVisible[this.selectedIndex];
+        if (task) {
+          // Open full-screen output viewer with real output
+          this.viewerOpen = true;
+          this.viewerScrollTop = 0;
+          this.viewerFollowTail = true;
+          this.viewerTaskId = task.id;
+          // P0 fix: keep only the most recent MAX_VIEWER_LINES lines for the viewer to bound memory.
+          this.viewerOutputLines = (task.outputLines || []).slice(-MAX_VIEWER_LINES);
+          this.invalidate();
+        }
+        return;
+      }
+      case "ignore":
+        return;
     }
   }
 
@@ -470,15 +486,21 @@ export class TasksBrowserComponent extends Container {
       return this.renderFrame(title, lines, width, height);
     }
 
-    this.adjustScroll(innerHeight);
-    const start = this.listScroll;
-    const window = this.sortedVisible.slice(start, start + innerHeight);
+    // Overflow collapse (rpiv-todo semantics): when the list does not fit
+    // the window, reserve the last row for a "+N more (x done, y running)"
+    // summary and keep tasks by priority — running first, done dropped
+    // first. The selected task is always kept visible.
+    const collapsed = collapseTaskList(this.sortedVisible, innerHeight, this.selectedIndex);
+    const summaryText = formatCollapseSummary(collapsed.hidden);
 
     const innerWidth = width - 2;
     const lines: string[] = [];
-    for (const [vi, task] of window.entries()) {
-      const index = start + vi;
+    for (const task of collapsed.visible) {
+      const index = this.sortedVisible.indexOf(task);
       lines.push(this.renderListRow(task, index === this.selectedIndex, innerWidth));
+    }
+    if (summaryText !== null && lines.length < innerHeight) {
+      lines.push(styledFg(this.theme, "dim", ` ${summaryText}`));
     }
     while (lines.length < innerHeight) lines.push("");
 
@@ -495,8 +517,8 @@ export class TasksBrowserComponent extends Container {
       : styledFg(this.theme, idColor, task.id);
     const idPad = " ".repeat(Math.max(0, 6 - task.id.length));
 
-    const icon = statusIcon(task.status);
-    const statusBadge = styledFg(this.theme, statusColor(task.status), icon);
+    const icon = statusGlyph(task.status);
+    const statusBadge = styledFg(this.theme, statusColorName(task.status), icon);
 
     const prefix = `${pointerStyled}${idText}${idPad} ${statusBadge}`;
     const prefixWidth = visibleWidth(prefix);
@@ -506,23 +528,15 @@ export class TasksBrowserComponent extends Container {
     const description =
       singleLine((task.item || task.task || "").slice(0, 30)) ||
       "(no description)";
-    const desc = truncateToWidth(description, descBudget, ELLIPSIS);
+    let desc = truncateToWidth(description, descBudget, ELLIPSIS);
+    // rpiv-todo semantics: completed tasks render dim + strikethrough.
+    if (task.status === "done") {
+      desc = typeof this.theme?.strikethrough === "function"
+        ? this.theme.strikethrough(this.theme.fg("dim", desc))
+        : this.theme.fg("dim", desc);
+      return fitExactly(`${prefix} ${desc}`, innerWidth);
+    }
     return fitExactly(`${prefix} ${styledFg(this.theme, "text", desc)}`, innerWidth);
-  }
-
-  private adjustScroll(visibleRows: number): void {
-    if (visibleRows <= 0) {
-      this.listScroll = 0;
-      return;
-    }
-    if (this.selectedIndex < this.listScroll) {
-      this.listScroll = this.selectedIndex;
-    } else if (this.selectedIndex >= this.listScroll + visibleRows) {
-      this.listScroll = this.selectedIndex - visibleRows + 1;
-    }
-    const maxScroll = Math.max(0, this.sortedVisible.length - visibleRows);
-    if (this.listScroll < 0) this.listScroll = 0;
-    if (this.listScroll > maxScroll) this.listScroll = maxScroll;
   }
 
   // ── Right: detail + preview stack ──────────────────────────────
@@ -551,7 +565,7 @@ export class TasksBrowserComponent extends Container {
 
     const lines: string[] = [
       `${label("Task ID:")}${value(task.id)}`,
-      `${label("Status:")}${styledFg(this.theme, statusColor(task.status), statusLabel(task.status))}`,
+      `${label("Status:")}${styledFg(this.theme, statusColorName(task.status), statusLabel(task.status))}`,
       `${label("Description:")}${value(singleLine((task.item || task.task || "").slice(0, 50)) || "—")}`,
       `${label("Agent type:")}${value(task.type)}`,
       `${label("Model:")}${value(task.model)}`,
@@ -622,56 +636,53 @@ export class TasksBrowserComponent extends Container {
   // ── Output Viewer ──────────────────────────────────────────────
 
   private handleViewerInput(data: string): void {
-    const k = data.length === 1 ? data : "";
     const totalLines = this.viewerOutputLines.length;
+    const action = routeViewerKey(data, this.matchKey);
 
-    // Close viewer
-    if (data === "\x1b" || k === "q" || k === "Q") {
-      this.viewerOpen = false;
-      this.invalidate();
-      return;
-    }
-    // Scroll up
-    if (data === "\x1b[A" || k === "k") {
-      this.viewerScrollTop = Math.max(0, this.viewerScrollTop - 1);
-      this.viewerFollowTail = false;
-      this.invalidate();
-      return;
-    }
-    // Scroll down
-    if (data === "\x1b[B" || k === "j") {
-      this.viewerScrollTop = Math.min(Math.max(0, totalLines - 1), this.viewerScrollTop + 1);
-      this.viewerFollowTail = false;
-      this.invalidate();
-      return;
-    }
-    // Page up
-    if (k === "u" || data === "\x1b[5~") {
-      this.viewerScrollTop = Math.max(0, this.viewerScrollTop - 20);
-      this.viewerFollowTail = false;
-      this.invalidate();
-      return;
-    }
-    // Page down
-    if (k === "d" || data === "\x1b[6~") {
-      this.viewerScrollTop = Math.min(Math.max(0, totalLines - 1), this.viewerScrollTop + 20);
-      this.viewerFollowTail = false;
-      this.invalidate();
-      return;
-    }
-    // Home
-    if (k === "g" || data === "\x1b[H") {
-      this.viewerScrollTop = 0;
-      this.viewerFollowTail = false;
-      this.invalidate();
-      return;
-    }
-    // End
-    if (k === "G" || data === "\x1b[F") {
-      this.viewerScrollTop = Math.max(0, totalLines - 1);
-      this.viewerFollowTail = true;
-      this.invalidate();
-      return;
+    switch (action) {
+      case "close": {
+        this.viewerOpen = false;
+        this.invalidate();
+        return;
+      }
+      case "scrollUp": {
+        this.viewerScrollTop = Math.max(0, this.viewerScrollTop - 1);
+        this.viewerFollowTail = false;
+        this.invalidate();
+        return;
+      }
+      case "scrollDown": {
+        this.viewerScrollTop = Math.min(Math.max(0, totalLines - 1), this.viewerScrollTop + 1);
+        this.viewerFollowTail = false;
+        this.invalidate();
+        return;
+      }
+      case "pageUp": {
+        this.viewerScrollTop = Math.max(0, this.viewerScrollTop - 20);
+        this.viewerFollowTail = false;
+        this.invalidate();
+        return;
+      }
+      case "pageDown": {
+        this.viewerScrollTop = Math.min(Math.max(0, totalLines - 1), this.viewerScrollTop + 20);
+        this.viewerFollowTail = false;
+        this.invalidate();
+        return;
+      }
+      case "top": {
+        this.viewerScrollTop = 0;
+        this.viewerFollowTail = false;
+        this.invalidate();
+        return;
+      }
+      case "bottom": {
+        this.viewerScrollTop = Math.max(0, totalLines - 1);
+        this.viewerFollowTail = true;
+        this.invalidate();
+        return;
+      }
+      case "ignore":
+        return;
     }
   }
 
@@ -683,7 +694,7 @@ export class TasksBrowserComponent extends Container {
     // Header
     const task = this.sortedVisible.find((t) => t.id === this.viewerTaskId);
     const titleText = styledBoldFg(t, "accent", ` OUTPUT: ${this.viewerTaskId} `);
-    const statusText = task ? styledFg(t, statusColor(task.status), ` ${statusLabel(task.status)} `) : "";
+    const statusText = task ? styledFg(t, statusColorName(task.status), ` ${statusLabel(task.status)} `) : "";
     const header = fitExactly(titleText + statusText, width);
 
     // Footer
