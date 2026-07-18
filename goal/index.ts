@@ -462,8 +462,8 @@ export class GoalManager {
   }
 
   /** Build a GoalPanel-style formatted report (Kimi Code-style) */
-  formatGoalPanel(): string {
-    const g = currentGoal;
+  formatGoalPanel(goal?: GoalSnapshot): string {
+    const g = goal || currentGoal;
     if (!g) return "No goal set.";
 
     const lines: string[] = [];

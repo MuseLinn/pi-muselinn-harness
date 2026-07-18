@@ -49,7 +49,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
         ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
       }
       return {
-        content: [{ type: "text", text: `Goal created: ${g.objective}\nStatus: ${g.status}\n\n${goalManager.formatGoalPanel()}` }],
+        content: [{ type: "text", text: `Goal created: ${g.objective}\nStatus: ${g.status}\n\n${goalManager.formatGoalPanel(g)}` }],
       };
     },
   });
