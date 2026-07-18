@@ -242,6 +242,7 @@ async function runWithModel(
         if (toolCalls > 0) {
           task.toolCalls += toolCalls;
           task.estimatedTotalCalls = Math.max(task.estimatedTotalCalls, Math.ceil(task.toolCalls * 1.5));
+        }
         const texts = (msg.content || []).filter((p: any) => p.type === "text");
         if (texts.length > 0) {
           const fullText = texts.map((p: any) => p.text || "").join("\n");
