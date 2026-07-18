@@ -640,7 +640,7 @@ export default function (pi: ExtensionAPI) {
             const tw = _t?.width ?? 80;
             return tuiRef.lines.map((l: string) => truncateToWidth(l, tw));
           },
-          invalidate: () => tuiRef.tui?.invalidate?.(),
+          invalidate: () => {},
         };
       });
 
@@ -906,7 +906,7 @@ export default function (pi: ExtensionAPI) {
             const tw = _t?.width ?? 80;
             return tuiRef.lines.map((l: string) => truncateToWidth(l, tw));
           },
-          invalidate: () => tuiRef.tui?.invalidate?.(),
+          invalidate: () => {},
         };
       });
 
