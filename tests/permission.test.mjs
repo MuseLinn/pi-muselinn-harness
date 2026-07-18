@@ -59,6 +59,11 @@ const cleanCwd = fs.mkdtempSync(path.join(os.tmpdir(), "perm-test-clean-"));
 process.env.KIMI_CODE_HOME = cleanCwd;
 process.env.HOME = cleanCwd;
 process.env.USERPROFILE = cleanCwd;
+// Isolate hooks: the permission ask path fires PermissionRequest/Result hook
+// events, and this machine's real ~/.kimi-code/config.toml (16 hooks) would
+// otherwise be found by the project-config walk above cleanCwd and spawn
+// hook processes with cwd=cleanCwd (locking the temp dir on cleanup).
+process.env.KIMI_CODE_HOOKS_CONFIG = path.join(cleanCwd, "no-hooks.toml");
 
 // ctx stub: confirmAnswer controls the simulated user's choice on ask prompts.
 function makeCtx(confirmAnswer) {

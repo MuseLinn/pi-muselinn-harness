@@ -50,6 +50,7 @@ import { permissionManager } from "./permission";
 import { registerPermissionCommands } from "./permission/commands";
 import { backgroundManager, registerBackgroundTools } from "./task";
 import { cronManager, registerCronTools } from "./task/cron";
+import { registerHooks, hookEngine } from "./hooks/index";
 import shared from "./state";
 
 // Interactive question tools (copied from Pi SDK examples)
@@ -154,6 +155,10 @@ async function runSwarmInBackground(
 const GOAL_ENTRY_TYPE = "muselinn_goal";
 
 export default function (pi: ExtensionAPI) {
+  // ── Hooks engine: wire all pi events (input/tool_result/agent_settled/
+  //    turn_end/session_*) before anything else so hooks observe every event ──
+  try { registerHooks(pi); } catch { /* hooks must never break extension load */ }
+
   // ── Goal persistence: save on every change ──
   // Note: pi/ctx go stale after session replacement (newSession/fork/reload
   // or process teardown in pi -p). Persistence callbacks may fire from
@@ -382,6 +387,21 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, ctx) => {
     const toolName = event.toolName || "";
     const input = (event.input || event.args || {}) as Record<string, unknown>;
+
+    // Hooks: PreToolUse — Kimi Code runs hooks before permission checks.
+    try {
+      const hookResult = await hookEngine.fire(
+        "PreToolUse",
+        { tool_name: toolName, tool_input: input, tool_call_id: (event as any).toolCallId },
+        { blockable: true, matcherText: toolName, cwd: ctx?.cwd },
+      );
+      if (hookResult.blocked) {
+        const reason = hookResult.reasons.join("; ") || "Blocked by hook";
+        try { ctx.ui.notify(`Blocked by hook: ${reason}`, "warning"); } catch { /* ok */ }
+        return { block: true, reason };
+      }
+    } catch { /* hook failures fail open */ }
+
     const filePath = (input.file_path as string) || (input.path as string) || "";
     // Bash command string — forwarded to plan-mode gate so the read-only
     // whitelist in PlanManager.shouldBlockTool can vet it. Other tools ignore

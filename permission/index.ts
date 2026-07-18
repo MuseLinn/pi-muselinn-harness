@@ -6,6 +6,7 @@ import type { PermissionMode, PolicyContext, PolicyResult } from './types';
 import { currentMode, setMode, sessionApprovals } from './types';
 import { policyChain, isDestructive, inputFingerprint } from './policies';
 import { loadAgentsMd } from './config';
+import { hookEngine } from '../hooks/index';
 
 export class PermissionManager {
   private mode: PermissionMode = 'manual';
@@ -75,11 +76,13 @@ export class PermissionManager {
           if (!policyCtx.hasUI) {
             return { block: true, reason: `${policy.name}: no UI available for approval` };
           }
+          try { void hookEngine.fire('PermissionRequest', { tool_name: toolName, policy: policy.name, message: result.message }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
           const approved = await ctx.ui.confirm(
             'Approval Required',
             result.message || `Tool: ${toolName}\n\nAllow?`,
             { signal: ctx?.signal }
           );
+          try { void hookEngine.fire('PermissionResult', { tool_name: toolName, policy: policy.name, approved: !!approved }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
           if (!approved) {
             return { block: true, reason: `User denied: ${policy.name}` };
           }

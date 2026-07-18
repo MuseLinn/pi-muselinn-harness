@@ -16,6 +16,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { SubAgentType, SubAgentTask } from "./types";
 import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "./types";
+import { hookEngine } from "../hooks/index";
 
 // Append one output line with a hard array-length cap (oldest dropped first).
 function pushOutputLine(task: SubAgentTask, line: string): void {
@@ -226,6 +227,8 @@ export async function runSubAgent(
   signal: AbortSignal,
   onProgress: () => void,
 ): Promise<void> {
+  try { void hookEngine.fire("SubagentStart", { subagent_type: task.type, task_id: task.id }, { matcherText: task.type, cwd: ctx.cwd }); } catch { /* hooks fail open */ }
+  try {
   const resourceLoader = createSubagentResourceLoader(ctx);
   const models = ctx.modelRegistry.getAvailable();
   // Kimi Code-aligned built-in subagent tool sets:
@@ -263,6 +266,9 @@ export async function runSubAgent(
   }
 
   await runWithModel(model, task, ctx, resourceLoader, allTools, signal, onProgress);
+  } finally {
+    try { void hookEngine.fire("SubagentStop", { subagent_type: task.type, task_id: task.id, status: task.status }, { matcherText: task.type, cwd: ctx.cwd }); } catch { /* hooks fail open */ }
+  }
 }
 
 async function runWithModel(

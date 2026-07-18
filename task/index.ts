@@ -4,6 +4,7 @@
 
 import type { SubAgentTask } from "../swarm/types";
 import { goalManager } from "../goal";
+import { hookEngine } from "../hooks/index";
 import {
   createAgentSession,
   SessionManager,
@@ -193,6 +194,7 @@ class BackgroundTaskManager {
     this.persistTask(task);
     this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} completed`, "success");
+    try { void hookEngine.fire("Notification", { notification_type: "task.completed", message: `Background task ${taskId} completed` }, { matcherText: "task.completed" }); } catch { /* hooks fail open */ }
   }
 
   /** Mark task as failed. Optional stopReason is preserved (e.g. timeout_30min). */
@@ -214,6 +216,7 @@ class BackgroundTaskManager {
     this.persistTask(task);
     this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} failed: ${error}`, "error");
+    try { void hookEngine.fire("Notification", { notification_type: "task.failed", message: `Background task ${taskId} failed: ${error}` }, { matcherText: "task.failed" }); } catch { /* hooks fail open */ }
   }
 
   /** Stop a running task. Kimi Code-style: records stopReason. */
@@ -239,6 +242,7 @@ class BackgroundTaskManager {
     this.persistTask(task);
     this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} stopped: ${normalized}`, "warning");
+    try { void hookEngine.fire("Notification", { notification_type: "task.aborted", message: `Background task ${taskId} stopped: ${normalized}` }, { matcherText: "task.aborted" }); } catch { /* hooks fail open */ }
     return true;
   }
 
@@ -500,6 +504,8 @@ async function runBackgroundSession(
   let unsub: (() => void) | null = null;
   let unlinkAbort: (() => void) | null = null;
   let timedOut = false;
+  const subagentType = tools.includes("bash") ? "coder" : "explore";
+  try { void hookEngine.fire("SubagentStart", { subagent_type: subagentType, task_id: taskId }, { matcherText: subagentType }); } catch { /* hooks fail open */ }
   const timeoutTimer = setTimeout(() => {
     timedOut = true;
     try { session?.abort(); } catch { /* ignore */ }
@@ -586,6 +592,7 @@ async function runBackgroundSession(
     try { unlinkAbort?.(); } catch { /* ignore */ }
     try { unsub?.(); } catch { /* ignore */ }
     try { session?.dispose(); } catch { /* ignore */ }
+    try { void hookEngine.fire("SubagentStop", { subagent_type: subagentType, task_id: taskId, status: backgroundManager.get(taskId)?.status }, { matcherText: subagentType }); } catch { /* hooks fail open */ }
   }
 }
 
