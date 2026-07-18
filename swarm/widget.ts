@@ -180,7 +180,11 @@ export function buildStatusLine(
 
   if (phases.length === 0) return "";
 
-  const label = running > 0 ? "Working..." : done === total ? "Completed." : "Failed.";
+  // Moon spinner (Kimi Code-style)
+  const MOON_PHASES = ["\uD83C\uDF11", "\uD83C\uDF12", "\uD83C\uDF13", "\uD83C\uDF14", "\uD83C\uDF15", "\uD83C\uDF16", "\uD83C\uDF17", "\uD83C\uDF18"];
+  const moonFrame = running > 0 ? MOON_PHASES[Math.floor(Date.now() / 120) % MOON_PHASES.length] + " " : "";
+
+  const label = moonFrame + (running > 0 ? "Working..." : done === total ? "Completed." : "Failed.");
 
   const barWidth = 30;
   const totalCount = phases.reduce((s, p) => s + p.count, 0);

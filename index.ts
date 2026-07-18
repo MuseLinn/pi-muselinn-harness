@@ -752,7 +752,7 @@ export default function (pi: ExtensionAPI) {
         setTimeout(() => {
           ctx.ui.setWidget("swarm-mode-progress", undefined);
           if (currentSwarm === state) setCurrentSwarm(null);
-        }, 5000);
+        }, 30000);
       }
 
       return {
@@ -769,9 +769,25 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(result, _r, theme) {
-      const text = result.content[0];
+      const state = result.details as any;
+      if (!state || !state.tasks) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text.slice(0, 100) : "(no output)", 0, 0);
+      }
+
+      const total = state.tasks.length;
+      const done = state.tasks.filter((t: any) => t.status === "done").length;
+      const failed = state.tasks.filter((t: any) => t.status === "failed").length;
+      const aborted = state.tasks.filter((t: any) => t.status === "aborted").length;
+
+      let icon: string;
+      if (failed > 0) icon = theme.fg("error", "\u2717");
+      else if (aborted > 0) icon = theme.fg("warning", "\u26A0");
+      else icon = theme.fg("success", "\u2713");
+
+      const label = failed > 0 ? `${done}/${total} completed, ${failed} failed` : aborted > 0 ? `${done}/${total} completed, ${aborted} aborted` : `${done}/${total} completed`;
       return new Text(
-        text?.type === "text" ? text.text : "(no output)",
+        `${icon} ${theme.fg("text", "Agent swarm:")} ${theme.fg(failed > 0 ? "error" : "success", label)}`,
         0,
         0,
       );
@@ -974,7 +990,7 @@ export default function (pi: ExtensionAPI) {
         setTimeout(() => {
           ctx.ui.setWidget("swarm-mode-progress", undefined);
           if (currentSwarm === state) setCurrentSwarm(null);
-        }, 5000);
+        }, 30000);
       }
 
       return {
@@ -991,9 +1007,21 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(result, _r, theme) {
-      const text = result.content[0];
+      const state = result.details as any;
+      if (!state || !state.tasks || state.tasks.length === 0) {
+        const text = result.content[0];
+        return new Text(text?.type === "text" ? text.text.slice(0, 100) : "(no output)", 0, 0);
+      }
+
+      const task = state.tasks[0];
+      const icon = task.status === "done" ? theme.fg("success", "\u2713") :
+                   task.status === "failed" ? theme.fg("error", "\u2717") :
+                   task.status === "aborted" ? theme.fg("warning", "\u26A0") : theme.fg("muted", "○");
+      const label = task.status === "done" ? "Completed" :
+                    task.status === "failed" ? `Failed: ${(task.error || "").slice(0, 40)}` :
+                    task.status === "aborted" ? "Aborted" : "Running...";
       return new Text(
-        text?.type === "text" ? text.text : "(no output)",
+        `${icon} ${theme.fg("text", "Agent:")} ${theme.fg(task.status === "done" ? "success" : "error", label)}`,
         0,
         0,
       );
