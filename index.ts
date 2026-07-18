@@ -51,6 +51,13 @@ import shared from "./state";
 // Interactive question tools (copied from Pi SDK examples)
 
 
+// Shared: parse provider:model spec
+function parseModelSpec(spec: string): { provider?: string; modelId: string } {
+  const colonIdx = spec.indexOf(":");
+  if (colonIdx > 0) return { provider: spec.substring(0, colonIdx), modelId: spec.substring(colonIdx + 1) };
+  return { modelId: spec };
+}
+
 const GOAL_ENTRY_TYPE = "muselinn_goal";
 
 export default function (pi: ExtensionAPI) {
@@ -531,13 +538,6 @@ export default function (pi: ExtensionAPI) {
         resolvedMap[k] = autoResolveModel(v as string);
       }
 
-      // Helper: parse provider:model spec
-      function parseModelSpec(spec: string): { provider?: string; modelId: string } {
-        const colonIdx = spec.indexOf(":");
-        if (colonIdx > 0) return { provider: spec.substring(0, colonIdx), modelId: spec.substring(colonIdx + 1) };
-        return { modelId: spec };
-      }
-
       // Helper: resolve provider:model spec to actual model ID
       function resolveModelSpec(spec: string): string {
         const parsed = parseModelSpec(spec);
@@ -816,13 +816,31 @@ export default function (pi: ExtensionAPI) {
       // Smart model resolution (fully automatic - same as agent_swarm)
       let modelId = params.model || "";
       if (modelId) {
-        const query = modelId.toLowerCase();
-        const candidates = available.filter((m: any) => {
-          const id = m.id.toLowerCase();
-          const name = (m.name || "").toLowerCase();
-          const provider = (m.provider || "").toLowerCase();
-          return id.includes(query) || name.includes(query) || provider.includes(query);
-        });
+        // Parse provider:model format first
+        const parsed = parseModelSpec(modelId);
+        let candidates: any[];
+        if (parsed.provider) {
+          // Exact provider + model ID match
+          candidates = available.filter((m: any) =>
+            m.id.toLowerCase() === parsed.modelId.toLowerCase() &&
+            m.provider?.toLowerCase() === parsed.provider.toLowerCase()
+          );
+          // Fallback: any provider with this model ID
+          if (candidates.length === 0) {
+            candidates = available.filter((m: any) =>
+              m.id.toLowerCase() === parsed.modelId.toLowerCase()
+            );
+          }
+        } else {
+          // No provider specified: text search across id/name/provider
+          const query = modelId.toLowerCase();
+          candidates = available.filter((m: any) => {
+            const id = m.id.toLowerCase();
+            const name = (m.name || "").toLowerCase();
+            const provider = (m.provider || "").toLowerCase();
+            return id.includes(query) || name.includes(query) || provider.includes(query);
+          });
+        }
         if (candidates.length === 0) {
           ctx.ui.notify(`No model matching "${modelId}" found.`, "error");
           return;
