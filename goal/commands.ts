@@ -155,6 +155,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
               if (ctx.ui?.setStatus && ctx.ui?.theme) {
                 ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
             }
+          }
           } else {
             ctx.ui.notify("Usage: /goal <objective>", "error");
           }
