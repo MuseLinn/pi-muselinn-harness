@@ -237,6 +237,11 @@ async function runWithModel(
           task.usage.cost += adds;
         }
         task.progressPercent = Math.min(90, task.turns * 15 + 10);
+        // Count tool calls for real progress tracking
+        const toolCalls = (msg.content || []).filter((p: any) => p.type === "toolCall" || p.toolCallId).length;
+        if (toolCalls > 0) {
+          task.toolCalls += toolCalls;
+          task.estimatedTotalCalls = Math.max(task.estimatedTotalCalls, Math.ceil(task.toolCalls * 1.5));
         const texts = (msg.content || []).filter((p: any) => p.type === "text");
         if (texts.length > 0) {
           const fullText = texts.map((p: any) => p.text || "").join("\n");

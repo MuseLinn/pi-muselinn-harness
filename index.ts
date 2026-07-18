@@ -586,6 +586,8 @@ export default function (pi: ExtensionAPI) {
           usage: { input: 0, output: 0, cost: 0 },
           outputLines: [],
           progressPercent: 0,
+          toolCalls: 0,
+          estimatedTotalCalls: 10,
           ticks: 0,
         });
       }
@@ -608,6 +610,8 @@ export default function (pi: ExtensionAPI) {
           usage: { input: 0, output: 0, cost: 0 },
           outputLines: [],
           progressPercent: 0,
+          toolCalls: 0,
+          estimatedTotalCalls: 10,
           ticks: 0,
         });
       }

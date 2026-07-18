@@ -32,6 +32,10 @@ export interface SubAgentTask {
   currentAction?: string;
   outputLines: string[];       // 完整输出文本行（实时累积 + 完成后补充）
   progressPercent: number;
+  /** Real tool calls completed (drives braille bar) */
+  toolCalls: number;
+  /** Estimated total tool calls for this agent */
+  estimatedTotalCalls: number;
   /** Tick counter for braille bar animation — incremented each frame */
   ticks: number;
   /** Timestamp when task completed (ms) — drives fill animation */
@@ -84,7 +88,7 @@ export const STATUS_BAR_PHASES = ["completed", "working", "queued", "failed"] as
 export const STATUS_BAR_CHAR = "━";
 export const AGENT_SWARM_LEFT_INDENT = " ";
 export const COMPLETE_FILL_MS = 360;
-export const FRAME_INTERVAL_MS = 80;
+export const FRAME_INTERVAL_MS = 250;
 
 // ============================================================
 // Goal Types — re-export from goal/types.ts (single source of truth)

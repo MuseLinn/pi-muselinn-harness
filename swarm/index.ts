@@ -6,7 +6,7 @@ export { UserCancellationError, userCancellationReason, isUserCancellation, runS
 export { buildWidgetLines } from "./widget";
 export { formatReport } from "./report";
 export { TasksBrowserComponent } from "./task-browser";
-export { fmtDuration, fmtTokens, fmtCost, calculateGridLayout, accumulatedBrailleBar, incrementTicks, computeDisplayTicks, visibleWidth } from "./helpers";
+export { fmtDuration, fmtTokens, fmtCost, calculateGridLayout, accumulatedBrailleBar, computeProgress, needsAnimation, visibleWidth } from "./helpers";
 
 // Re-export types
 export type { SwarmState, SubAgentTask, SubAgentType, ModelTier, AgentStatus, GridLayout } from "./types";

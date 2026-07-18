@@ -4,7 +4,7 @@
 
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
 import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal } from "./types";
-import { accumulatedBrailleBar, computeDisplayTicks, incrementTicks, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
+import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
 
 /**
  * Build goal status line for widget display.
@@ -38,7 +38,7 @@ export function buildWidgetLines(
   const aborted = state.tasks.filter((t) => t.status === "aborted").length;
 
   // Increment ticks for all running/pending tasks (once per frame)
-  const hasAnimation = incrementTicks(state.tasks, ts);
+  const hasAnimation = needsAnimation(state.tasks, ts);
 
   const lines: string[] = [];
 
@@ -76,8 +76,8 @@ export function buildWidgetLines(
       const idx = row * layout.columns + col;
       if (idx >= total) continue;
       const t = state.tasks[idx];
-      const displayTicks = computeDisplayTicks(t, ts);
-      const bar = accumulatedBrailleBar(displayTicks, layout.barCells, t.status);
+      const progress = computeProgress(t);
+      const bar = accumulatedBrailleBar(progress, layout.barCells, t.status, t.completedAtMs, ts);
       const label = cellLabel(t, layout.cellWidth, theme);
       const cell = `${theme.fg("muted", t.id)} ${colorBar(bar, t.status, theme)} ${label}`;
       cells.push(cell);

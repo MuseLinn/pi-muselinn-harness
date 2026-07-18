@@ -2,12 +2,11 @@
 // Swarm Mode — Utility Helpers
 // ============================================================
 
-import { SubAgentTask, GridLayout, AgentStatus } from "./types";
+import { GridLayout, AgentStatus } from "./types";
 import {
   BRAILLE_LEVELS,
   BRAILLE_BAR_FILLED,
   BRAILLE_EMPTY,
-  BRAILLE_RIGHT_COLUMN_FULL,
   BRAILLE_BAR_MAX_WIDTH,
   BRAILLE_BAR_MIN_WIDTH,
   MIN_LABEL_WIDTH,
@@ -17,60 +16,52 @@ import {
 } from "./types";
 
 // ============================================================
-// Braille Bar — Kimi Code tick-driven accumulated render
+// Braille Bar — Real progress based on tool call count
 // ============================================================
 
 /**
  * Completed fill animation: smoothly fills remaining bar over COMPLETE_FILL_MS.
- * Returns the display ticks for rendering.
  */
-export function completedDisplayTicks(ticks: number, width: number, phaseElapsedMs: number): number {
+export function completedDisplayTicks(progress: number, width: number, phaseElapsedMs: number): number {
+  if (progress >= 1) return width * BRAILLE_LEVELS.length;
+  const baseTicks = Math.floor(progress * width * BRAILLE_LEVELS.length);
   const fullBarTicks = width * BRAILLE_LEVELS.length;
-  if (ticks >= fullBarTicks) return fullBarTicks;
   const fillProgress = Math.max(0, Math.min(1, phaseElapsedMs / COMPLETE_FILL_MS));
-  return Math.min(fullBarTicks, Math.ceil(ticks + (fullBarTicks - ticks) * fillProgress));
+  return Math.min(fullBarTicks, Math.ceil(baseTicks + (fullBarTicks - baseTicks) * fillProgress));
 }
 
 /**
- * Like Kimi Code's `accumulatedBrailleBar()`:
- * Renders a braille progress bar driven by a cumulative tick counter.
- * Each cycle (width × braille levels) fills all cells, then resets.
- * `completedCycles` > 0 shows a separator `⢸` at the boundary.
+ * Renders a braille progress bar based on real progress (0~1).
+ * Replaces the fake tick-driven animation with real tool call progress.
  */
 export function accumulatedBrailleBar(
-  ticks: number,
+  progress: number,
   width: number,
   phase: AgentStatus,
+  completedAtMs?: number,
+  nowMs?: number,
 ): string {
   const innerWidth = Math.max(1, width);
   const dotsPerCell = BRAILLE_LEVELS.length;
-  const cycleSize = innerWidth * dotsPerCell;
-  const safeTicks = Math.max(0, Math.ceil(ticks));
-  const completedCycles = Math.floor(safeTicks / cycleSize);
-  const cycleTicks = safeTicks % cycleSize;
-  const activeCells = cycleTicks === 0 ? 0 : Math.ceil(cycleTicks / dotsPerCell);
-  const separatorIndex =
-    completedCycles > 0 && activeCells > 0 && activeCells < innerWidth
-      ? activeCells
-      : -1;
+
+  // For completed/failed tasks, do the fill animation
+  let displayProgress = progress;
+  if ((phase === "done" || phase === "failed") && completedAtMs !== undefined) {
+    const elapsed = Math.max(0, (nowMs ?? Date.now()) - completedAtMs);
+    displayProgress = Math.min(1, progress + (1 - progress) * Math.min(1, elapsed / COMPLETE_FILL_MS));
+  }
+
+  displayProgress = Math.max(0, Math.min(1, displayProgress));
+  const totalDots = Math.round(displayProgress * innerWidth * dotsPerCell);
 
   const cells: string[] = [];
   for (let i = 0; i < innerWidth; i++) {
-    if (i === separatorIndex) {
-      cells.push(BRAILLE_RIGHT_COLUMN_FULL);
-      continue;
-    }
-    if (i < activeCells) {
-      // Last active cell may be partially filled
-      const cellStart = i * dotsPerCell;
-      const filledDots = Math.max(0, cycleTicks - cellStart);
-      if (filledDots >= dotsPerCell) {
-        cells.push(BRAILLE_BAR_FILLED);
-      } else if (filledDots > 0) {
-        cells.push(BRAILLE_LEVELS[filledDots - 1]);
-      } else {
-        cells.push(BRAILLE_EMPTY);
-      }
+    const cellStart = i * dotsPerCell;
+    const filledDots = Math.max(0, Math.min(dotsPerCell, totalDots - cellStart));
+    if (filledDots >= dotsPerCell) {
+      cells.push(BRAILLE_BAR_FILLED);
+    } else if (filledDots > 0) {
+      cells.push(BRAILLE_LEVELS[filledDots - 1]);
     } else {
       cells.push(BRAILLE_EMPTY);
     }
@@ -79,54 +70,24 @@ export function accumulatedBrailleBar(
 }
 
 /**
- * Determine display ticks for a task based on its phase and timing.
+ * Compute progress for a task based on real tool call counts.
  */
-export function computeDisplayTicks(
-  task: SubAgentTask,
-  nowMs: number,
-): number {
-  const baseTicks = task.ticks;
-  if (task.status === "done" && task.completedAtMs !== undefined) {
-    const elapsed = Math.max(0, nowMs - task.completedAtMs);
-    return completedDisplayTicks(baseTicks, BRAILLE_BAR_MAX_WIDTH, elapsed);
-  }
-  if (task.status === "failed" && task.completedAtMs !== undefined) {
-    const elapsed = Math.max(0, nowMs - task.completedAtMs);
-    return completedDisplayTicks(Math.max(1, baseTicks), BRAILLE_BAR_MAX_WIDTH, elapsed);
-  }
-  if (task.status === "aborted") return baseTicks;
-  return baseTicks;
+export function computeProgress(task: { toolCalls: number; estimatedTotalCalls: number; status: string }): number {
+  if (task.status === "done" || task.status === "failed") return 1;
+  if (task.estimatedTotalCalls <= 0) return 0;
+  return Math.min(1, task.toolCalls / task.estimatedTotalCalls);
 }
 
 /**
- * Check if a task still needs animation frames
+ * Check if any task still needs animation frames (completed fill).
  */
-export function needsAnimation(task: SubAgentTask, nowMs: number): boolean {
-  if (task.status === "running") return true;
-  if (task.status === "pending") return true;
-  if (task.status === "aborted") return false;
-  if (task.completedAtMs !== undefined) {
-    return nowMs - task.completedAtMs < COMPLETE_FILL_MS;
-  }
-  return false;
-}
-
-/**
- * Increment ticks for all running/pending tasks once per frame.
- */
-export function incrementTicks(tasks: SubAgentTask[], nowMs: number): boolean {
-  let hasAnimation = false;
+export function needsAnimation(tasks: { status: string; completedAtMs?: number }[], nowMs: number): boolean {
   for (const t of tasks) {
-    if (t.status === "running" || t.status === "pending") {
-      t.ticks++;
-      hasAnimation = true;
-    } else if (t.status === "done" || t.status === "failed") {
-      if (t.completedAtMs !== undefined && nowMs - t.completedAtMs < COMPLETE_FILL_MS) {
-        hasAnimation = true;
-      }
+    if (t.status === "done" || t.status === "failed") {
+      if (t.completedAtMs !== undefined && nowMs - t.completedAtMs < COMPLETE_FILL_MS) return true;
     }
   }
-  return hasAnimation;
+  return false;
 }
 
 // ============================================================
