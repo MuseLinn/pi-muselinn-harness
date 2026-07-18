@@ -227,7 +227,13 @@ class CronManager {
   /** Delete a cron task by ID */
   delete(id: string): boolean {
     const existed = this.tasks.delete(id);
-    if (existed) this.persist();
+    if (existed) {
+      this.persist();
+      if (this.tasks.size === 0 && this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+    }
     return existed;
   }
 
@@ -278,7 +284,10 @@ class CronManager {
         break;
       }
     }
-    this.ensureTimer();
+    // Only arm the 30s interval when there is actually something to fire —
+    // an always-on setInterval keeps the event loop alive forever and
+    // prevents `pi -p` from exiting after the answer is printed.
+    if (this.tasks.size > 0) this.ensureTimer();
   }
 
   /** Persist to session */
@@ -384,7 +393,9 @@ export const cronManager = new CronManager();
 export function registerCronTools(pi: any): void {
   cronManager.bind(
     pi,
-    (type, data) => pi.appendEntry?.(type, data),
+    // Guard: cron fires from a 30s interval that may outlive the session;
+    // appendEntry on a stale pi throws.
+    (type, data) => { try { pi.appendEntry?.(type, data); } catch { /* stale ctx */ } },
   );
 
   // ── cron_create tool ──

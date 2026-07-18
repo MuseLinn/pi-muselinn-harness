@@ -55,10 +55,12 @@ import shared from "./state";
 // Interactive question tools (copied from Pi SDK examples)
 
 
-// Shared: parse provider:model spec
+// Shared: parse provider:model spec (also accepts provider/model slash form)
 function parseModelSpec(spec: string): { provider?: string; modelId: string } {
   const colonIdx = spec.indexOf(":");
   if (colonIdx > 0) return { provider: spec.substring(0, colonIdx), modelId: spec.substring(colonIdx + 1) };
+  const slashIdx = spec.indexOf("/");
+  if (slashIdx > 0) return { provider: spec.substring(0, slashIdx), modelId: spec.substring(slashIdx + 1) };
   return { modelId: spec };
 }
 
@@ -153,9 +155,12 @@ const GOAL_ENTRY_TYPE = "muselinn_goal";
 
 export default function (pi: ExtensionAPI) {
   // ── Goal persistence: save on every change ──
+  // Note: pi/ctx go stale after session replacement (newSession/fork/reload
+  // or process teardown in pi -p). Persistence callbacks may fire from
+  // timers/background completions after that, so guard every appendEntry.
   goalManager.setPersistence((data) => {
     if (data) {
-      pi.appendEntry(GOAL_ENTRY_TYPE, data);
+      try { pi.appendEntry(GOAL_ENTRY_TYPE, data); } catch { /* stale ctx */ }
     }
   });
 
@@ -164,12 +169,12 @@ export default function (pi: ExtensionAPI) {
 
   // ── Permission mode persistence ──
   permissionManager.setPersistence((mode) => {
-    pi.appendEntry("muselinn_permission", { mode });
+    try { pi.appendEntry("muselinn_permission", { mode }); } catch { /* stale ctx */ }
   });
 
   // ── Background task manager binding ──
   backgroundManager.bind(
-    (type, data) => pi.appendEntry(type, data),
+    (type, data) => { try { pi.appendEntry(type, data); } catch { /* stale ctx */ } },
     (msg, type) => { /* notifications handled via appendEntry */ },
   );
 
@@ -597,17 +602,31 @@ export default function (pi: ExtensionAPI) {
       // Smart model resolution (fully automatic - no hardcoded aliases)
       let modelId = params.model || "";
       if (modelId) {
-        // User specified: auto-discover best match
-        const query = modelId.toLowerCase();
-        const candidates = available.filter((m: any) => {
-          const id = m.id.toLowerCase();
-          const name = (m.name || "").toLowerCase();
-          const provider = (m.provider || "").toLowerCase();
-          return id.includes(query) || name.includes(query) || provider.includes(query);
-        });
+        // User specified: support provider:model / provider/model, then fuzzy match
+        const parsed = parseModelSpec(modelId);
+        let candidates: any[];
+        if (parsed.provider) {
+          candidates = available.filter((m: any) =>
+            m.id.toLowerCase() === parsed.modelId.toLowerCase() &&
+            m.provider?.toLowerCase() === parsed.provider.toLowerCase()
+          );
+          if (candidates.length === 0) {
+            candidates = available.filter((m: any) =>
+              m.id.toLowerCase() === parsed.modelId.toLowerCase()
+            );
+          }
+        } else {
+          const query = modelId.toLowerCase();
+          candidates = available.filter((m: any) => {
+            const id = m.id.toLowerCase();
+            const name = (m.name || "").toLowerCase();
+            const provider = (m.provider || "").toLowerCase();
+            return id.includes(query) || name.includes(query) || provider.includes(query);
+          });
+        }
         if (candidates.length === 0) {
-          ctx.ui.notify(`No model matching "${modelId}" found. Available: ${available.map((m: any) => m.id).slice(0, 10).join(", ")}...`, "error");
-          return;
+          // Never return undefined — pi reads result.content and crashes.
+          return { content: [{ type: "text", text: `No model matching "${modelId}" found. Available: ${available.map((m: any) => m.id).slice(0, 10).join(", ")}...` }] };
         }
         const scored = candidates.map((m: any) => {
           let score = 0;
@@ -625,7 +644,9 @@ export default function (pi: ExtensionAPI) {
           available, defaultModelId, defaultProvider, ctx
         );
       }
-      if (!modelId) { ctx.ui.notify("No models available in registry.", "error"); return; }
+      if (!modelId) {
+        return { content: [{ type: "text", text: "No models available in registry." }] };
+      }
       const selectedModelObj = available.find((m: any) => m.id === modelId);
       const isVision = selectedModelObj?.input?.includes("image");
       if (isVision) {
@@ -895,7 +916,13 @@ export default function (pi: ExtensionAPI) {
         }
 
         setTimeout(() => {
-          ctx.ui.setWidget("swarm-mode-progress", undefined);
+          // The session may have ended/been replaced before this deferred
+          // cleanup fires (e.g. pi -p exits right after the report). Any
+          // access to a stale ctx throws — the widget is gone with the old
+          // session anyway, so just bail out.
+          try {
+            ctx.ui.setWidget("swarm-mode-progress", undefined);
+          } catch { /* stale ctx */ }
           if (currentSwarm === state) setCurrentSwarm(null);
         }, 30000);
       }
@@ -1016,8 +1043,8 @@ export default function (pi: ExtensionAPI) {
           });
         }
         if (candidates.length === 0) {
-          ctx.ui.notify(`No model matching "${modelId}" found.`, "error");
-          return;
+          // Never return undefined — pi reads result.content and crashes.
+          return { content: [{ type: "text", text: `No model matching "${modelId}" found.` }] };
         }
         const scored = candidates.map((m: any) => {
           let score = 0;
@@ -1035,7 +1062,9 @@ export default function (pi: ExtensionAPI) {
           available, defaultModelId, defaultProvider, ctx
         );
       }
-      if (!modelId) { ctx.ui.notify("No models available.", "error"); return; }
+      if (!modelId) {
+        return { content: [{ type: "text", text: "No models available." }] };
+      }
 
       // No more scoring code below this point
 
@@ -1122,7 +1151,11 @@ export default function (pi: ExtensionAPI) {
         setActiveSessions(null);
 
         setTimeout(() => {
-          ctx.ui.setWidget("swarm-mode-progress", undefined);
+          // Same stale-ctx guard as agent_swarm: the session may be gone by
+          // the time this deferred cleanup fires.
+          try {
+            ctx.ui.setWidget("swarm-mode-progress", undefined);
+          } catch { /* stale ctx */ }
           if (currentSwarm === state) setCurrentSwarm(null);
         }, 30000);
       }
