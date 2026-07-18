@@ -67,7 +67,8 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       type: "object",
       properties: {},
     },
-    async execute(_toolCallId: string, _params: any, _signal: any, _onUpdate: any, _ctx: any) {
+    async execute(_toolCallId: string, _params: any, _signal: any, _onUpdate: any, ctx: any) {
+      goalManager.tryRestoreFromSession(ctx);
       const goal = goalManager.getGoal();
       if (!goal) {
         return { content: [{ type: "text", text: "No active goal." }] };
@@ -98,7 +99,8 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
         reason: { type: "string", description: "Reason for status change (optional)" },
       },
     },
-    async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, _ctx: any) {
+    async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
+      goalManager.tryRestoreFromSession(ctx);
       const goal = goalManager.getGoal();
       if (!goal) {
         return { content: [{ type: "text", text: "No active goal to update." }] };

@@ -649,6 +649,23 @@ export class GoalManager {
     setCurrentGoal(data);
   }
 
+  /** Try to restore goal from session entries (handles Pi hot-reload) */
+  tryRestoreFromSession(ctx: any): boolean {
+    if (currentGoal) return true;
+    try {
+      const entries = ctx.sessionManager?.getEntries?.();
+      if (!entries) return false;
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i] as any;
+        if (e.type === "custom" && e.customType === GOAL_ENTRY_TYPE && e.data) {
+          this.restoreFromData(e.data);
+          return true;
+        }
+      }
+    } catch { /* not critical */ }
+    return false;
+  }
+
   /** Reconstruct goal from session entries (normalization after replay) */
   reconstructFromEntries(entries: any[]): GoalSnapshot | null {
     const goal = reconstructGoalFromEntries(entries);
