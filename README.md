@@ -1,6 +1,6 @@
 # pi-muselinn-harness
 
-Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 五模块架构，全面对齐 Kimi Code 的子系统行为。
+Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills 七模块架构，全面对齐 Kimi Code 的子系统行为。
 
 ## 功能
 
@@ -12,7 +12,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **智能模型路由** — 从 `ctx.modelRegistry` 自动发现，任务感知选择
 - **盲文进度条** — 真实工具调用进度驱动，250ms 帧 + 状态指纹门控(未变帧零成本跳过)
 - **自适应布局** — pi-tui Component 协议渲染，状态栏宽度随终端自适应(10–60)，窄终端不错位
-- **三栏任务浏览器** — 键盘导航 + 分页
+- **三栏任务浏览器** — 状态字形(○ pending / ◐ running / ✓ done / ✗ failed / ▲ aborted)+ 完成行删除线、溢出折叠(`+N more`,优先保留 running)、命名键位路由(跟随用户自定义键位)、`ctrl+shift+t` 快捷键
 - **取消/恢复** — UserCancellationError + AbortSignal 链，`/cancel` 两步确认
 
 ### Goal 模块
@@ -49,6 +49,19 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **增量持久化** — 单任务变更只 append 单条 entry,restore 兼容旧快照
 - **Cron 定时任务** — 5 字段 cron(本地时区)+ 确定性 jitter(实测周期 10%,上限 15min)+ recurring/one-shot + 50 上限 + 7 天 stale 自动删
 
+### Hooks 模块
+- **Kimi Code 对齐的 `[[hooks]]` 引擎** — 读取 `$KIMI_CODE_HOME/config.toml`(默认 `~/.kimi-code/config.toml`)+ 项目级 `.kimi-code/config.toml`,支持 event/matcher/command/timeout 四字段
+- **全事件覆盖** — UserPromptSubmit / PreToolUse / Stop(可阻断)+ PostToolUse / PostToolUseFailure / PermissionRequest / PermissionResult / SessionStart / SessionEnd / SubagentStart / SubagentStop / StopFailure / Interrupt / PreCompact / PostCompact / Notification(观察型)
+- **退出码语义** — `0` 放行(stdout 附加上下文)、`2` 阻断(stderr 为原因)、其他/超时/崩溃 fail-open;支持 stdout JSON `permissionDecision: deny`
+- **内置 TOML 迷你解析器** — 零依赖,非法规则 warn 跳过不炸扩展;mtime 缓存热加载
+- **安全网** — Stop 连续阻断 3 次自动停止注入(防死循环);所有触发镜像到 `pi.events` 供其他扩展订阅
+
+### Skills 模块
+- **Kimi Code 四级作用域扫描** — 项目级 `.kimi-code/skills`、`.agents/skills` → 用户级 `$KIMI_CODE_HOME/skills`、`~/.agents/skills`,项目优先按 name 去重
+- **目录型 + 扁平型** — `SKILL.md` 子目录(可带辅助文件)与单 `.md` 文件,frontmatter 全字段(name/description/type/whenToUse/disableModelInvocation/arguments,含横杠/下划线变体)
+- **子代理可用** — swarm 与后台任务的子代理 session 经 resourceLoader 拿到 skills;主会话经 `resources_discover` 注入同一批目录
+- **零依赖 frontmatter 解析器** + mtime 目录树缓存
+
 ## 与 Kimi Code 的对齐情况
 
 对照 [Kimi Code CLI 官方文档 — Agent 与子 Agent](https://www.kimi.com/code/docs/kimi-code-cli/customization/agents.html):
@@ -65,6 +78,8 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 | 权限继承 | ⚠️ | 子 Agent 按创建时的工具白名单执行,不经主会话 18 级策略链逐次审批;收紧权限请用主会话策略或收窄 subagent_type |
 | 指令文件层级 | ✅ | 项目级 `AGENTS.md` / `.kimi-code/AGENTS.md` → `$KIMI_CODE_HOME/AGENTS.md` → `~/.agents/AGENTS.md`,聚合生效 |
 | 会话目录 wire.jsonl 持久化 | ❌ | 子 Agent 用 SessionManager.inMemory(),状态不落盘(进程内生命周期) |
+| Hooks(`[[hooks]]` 生命周期钩子) | ✅ | 16 个事件全覆盖,退出码/stdout JSON 阻断语义,fail-open |
+| Agent Skills(四级作用域) | ✅ | 项目/用户四级目录,目录型+扁平型,子代理与主会话双通道 |
 
 ## 安装
 
@@ -79,14 +94,16 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `/swarm on\|off` | 开关 Swarm 模式 |
 | `/cancel` | 取消当前任务(两步确认) |
 | `/resume` | 恢复中断的 swarm |
-| `/tasks` | 打开任务浏览器 |
+| `/tasks` | 打开任务浏览器(快捷键 `ctrl+shift+t`) |
 | `/goal <objective>` | 设置目标 |
 | `/goal pause\|resume\|cancel\|replace` | 管理目标 |
-| `/goal budget <n> <unit>` | 设置预算(turns/tokens/ms/s/min/hours) |
+| `/goal budget <n> <unit>` | 设置预算(turns/tokens/ms/s/minutes/hours) |
 | `/goal queue` / `/goal add\|prioritize\|drop\|skip` | 队列操作 |
 | `/plan` / `/plan on\|off\|clear` | Plan Mode 控制 |
 | `/mode` | 切换权限模式(auto/yolo/manual) |
 | `/swarm-status` | 查看状态 |
+
+> `/goal` `/swarm` `/plan` `/mode` 均支持 Tab 子命令/参数补全。
 
 ## 工具
 
@@ -105,11 +122,13 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 pi-muselinn-harness/
 ├── index.ts          入口(agent_swarm / agent 工具、后台 swarm runner、各模块接线)
 ├── state.ts          共享状态
+├── completions.ts    命令参数补全(Tab 补全,prefix 过滤+空回退)
 ├── swarm/            Swarm 模块
 │   ├── subagent.ts   子代理执行(worker 池、30min 超时、配置缓存)
-│   ├── commands.ts   /swarm /cancel /resume /tasks
+│   ├── commands.ts   /swarm /cancel /resume /tasks + ctrl+shift+t
 │   ├── widget.ts     TUI 组件(pi-tui Component + 指纹门控)
-│   ├── task-browser.ts 三栏浏览器
+│   ├── task-browser.ts 三栏浏览器(状态字形/折叠/命名键位)
+│   ├── task-list-utils.ts 折叠与键位路由(纯函数)
 │   ├── estimator.ts  进度估算(几何平均)
 │   └── helpers.ts    盲文进度条/布局(memo 缓存)
 ├── goal/             Goal 模块
@@ -127,20 +146,33 @@ pi-muselinn-harness/
 ├── permission/       Permission 模块
 │   ├── index.ts      evaluate 入口(18 级策略链)
 │   ├── policies.ts   各策略(destructive/敏感文件/会话批准...)
-│   ├── config.ts     配置加载(mtime 缓存)+ AGENTS.md 解析
+│   ├── config.ts     配置加载(mtime 缓存)+ AGENTS.md 层级解析
 │   └── commands.ts   /mode 命令
 ├── task/             Task 模块
 │   ├── index.ts      后台任务管理(50 上限/7天 stale/增量持久化)
 │   └── cron.ts       Cron 定时任务(5 字段 + jitter + one-shot)
+├── hooks/            Hooks 模块(Kimi Code [[hooks]] 引擎)
+│   ├── config.ts     TOML 迷你解析 + 双层配置 + mtime 缓存
+│   ├── executor.ts   spawn 执行 + 退出码语义 + fail-open
+│   └── index.ts      HookEngine + 16 事件接线 + pi.events 镜像
+├── skills/           Skills 模块(Kimi Code 四级作用域)
+│   ├── frontmatter.ts YAML frontmatter 迷你解析
+│   ├── scanner.ts    四级扫描 + 去重 + 缓存
+│   └── index.ts      loadSkillsForCwd / resources_discover 接线
 └── tests/            node 级单元测试(见下)
 ```
 
 ## 测试
 
-无需模型额度的 node 级单元测试：
+无需模型额度的 node 级单元测试(共 168 项断言):
 
 ```bash
-node --experimental-strip-types tests/cron.test.mjs   # Cron 子系统 16 项断言
+node tests/permission.test.mjs                    # Permission 策略链 14 项
+node tests/goal.test.mjs                          # Goal 状态机 17 项
+node --experimental-strip-types tests/cron.test.mjs  # Cron 子系统 16 项
+node tests/hooks.test.mjs                         # Hooks 引擎 43 项
+node tests/skills.test.mjs                        # Skills 扫描/解析 28 项
+node tests/tui.test.mjs                           # TUI 折叠/键位/补全 50 项
 ```
 
 ## 依赖
