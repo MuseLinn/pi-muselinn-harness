@@ -274,7 +274,8 @@ export class PlanManager {
     if (!currentPlanMode.isActive) return undefined;
 
     const plan = currentPlanMode.currentPlan;
-    if (!plan) return undefined;
+    // Use plan path or default to sessionDir-based path
+    const planPath = plan?.path || (this.sessionDir ? `${this.sessionDir}/plans/` : "plans/");
 
     const parts = [
       `## Plan Mode Active`,
@@ -282,9 +283,9 @@ export class PlanManager {
       `You are in Plan Mode. Your task is to:`,
       `1. Explore the codebase using read-only tools (read, grep, find, ls)`,
       `2. Write a detailed implementation plan`,
-      `3. Save the plan to a file`,
+      `3. Save the plan to a file (use path: \`${planPath}\`)`,
       ``,
-      `Plan file path: ${plan.path || 'Not set yet'}`,
+      `Plan file path: ${planPath}`,
       ``,
       `**IMPORTANT**: You can ONLY use read-only tools and write/edit the plan file.`,
       `Do NOT modify any source code files until the plan is approved.`,

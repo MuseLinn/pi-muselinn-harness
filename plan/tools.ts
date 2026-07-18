@@ -38,7 +38,7 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
       return {
         content: [{
           type: "text",
-          text: `Plan mode activated.\nPlan ID: ${plan.id}\n\nYou can now:\n1. Explore the codebase with read-only tools\n2. Write your implementation plan\n3. Save the plan to a file\n4. Call exit_plan_mode when ready`,
+          text: `Plan mode activated.\nPlan ID: ${plan.id}\nPlan file: ${plan.path}\n\nYou can now:\n1. Explore the codebase with read-only tools\n2. Write your implementation plan to: ${plan.path}\n3. Save the plan to a file\n4. Call exit_plan_mode when ready`,
         }],
       };
     },
