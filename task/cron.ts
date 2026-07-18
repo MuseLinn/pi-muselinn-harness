@@ -103,21 +103,16 @@ function hashString(str: string): number {
 }
 
 function estimatePeriodMinutes(parsed: CronFields): number {
-  const minuteCount = parsed.minutes.size;
-  const hourCount = parsed.hours.size;
-
-  // Occurrences per hour
-  const perHour = minuteCount * hourCount;
-  if (perHour > 0 && perHour < 60) {
-    return Math.max(1, Math.floor(60 / perHour));
-  }
-
-  // Fires at least once per hour (minute field includes all values)
-  if (hourCount < 24) {
-    return 60;
-  }
-
-  // Daily or rarer
+  // Brute-force the actual period: find the next two grid fire times and
+  // diff them. Accurate for any field combination (e.g. "*/5 * * * *" -> 5),
+  // unlike heuristic field-size math which mis-estimates dense crons.
+  try {
+    const now = new Date();
+    const t1 = computeNextFireAt(parsed, 0, now);
+    const t2 = computeNextFireAt(parsed, 0, new Date(t1.getTime() + 1000));
+    const periodMin = (t2.getTime() - t1.getTime()) / 60000;
+    if (periodMin > 0 && Number.isFinite(periodMin)) return periodMin;
+  } catch { /* fall through to safe default */ }
   return 24 * 60;
 }
 
