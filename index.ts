@@ -36,6 +36,7 @@ import {
   setSavedSwarmState,
   setGlobalAbortController,
   globalAbortController,
+  progressEstimator,
 } from "./swarm/types";
 import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkAbortSignal } from "./swarm/subagent";
 import { buildWidgetLines } from "./swarm/widget";
@@ -626,6 +627,8 @@ export default function (pi: ExtensionAPI) {
         startTime: Date.now(),
       };
       setCurrentSwarm(state);
+      progressEstimator.reset();
+      for (const t of tasks) progressEstimator.ensureMember(t.id);
       setActiveSessions(new Map());
       setCancelPending(false);
       setSwarmCancelled(false);
@@ -918,6 +921,8 @@ export default function (pi: ExtensionAPI) {
         startTime: Date.now(),
       };
       setCurrentSwarm(state);
+      progressEstimator.reset();
+      progressEstimator.ensureMember("001");
       setActiveSessions(new Map());
       setSwarmCancelled(false);
 

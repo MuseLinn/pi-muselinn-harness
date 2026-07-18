@@ -6,6 +6,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResourceLoader } from "@earendil-works/pi-coding-agent";
 import { goalManager } from "../goal";
+import { progressEstimator } from "./types";
 import {
   CONFIG_DIR_NAME,
   createAgentSession,
@@ -222,6 +223,7 @@ async function runWithModel(
       resourceLoader,
     });
     session = result.session;
+    try { progressEstimator.markStarted(task.id, Date.now()); } catch {}
 
     const entry = { session, taskId: task.id };
     activeSessions?.set(task.id, entry);
@@ -241,7 +243,14 @@ async function runWithModel(
         const toolCalls = (msg.content || []).filter((p: any) => p.type === "toolCall" || p.toolCallId).length;
         if (toolCalls > 0) {
           task.toolCalls += toolCalls;
-          task.estimatedTotalCalls = Math.max(task.estimatedTotalCalls, Math.ceil(task.toolCalls * 1.5));
+          // Update estimator with new tool calls
+          for (let i = 0; i < toolCalls; i++) progressEstimator.recordToolCall(task.id);
+          const estimate = progressEstimator.estimate(task.id);
+          if (estimate.confidence > 0) {
+            task.estimatedTotalCalls = estimate.estimatedTotalCalls;
+          } else {
+            task.estimatedTotalCalls = Math.max(task.estimatedTotalCalls, Math.ceil(task.toolCalls * 1.5));
+          }
         }
         const texts = (msg.content || []).filter((p: any) => p.type === "text");
         if (texts.length > 0) {
@@ -291,6 +300,7 @@ async function runWithModel(
     task.completedAtMs = Date.now();
       task.error = promptErr.message || String(promptErr);
       task.progressPercent = 100;
+      try { progressEstimator.markFailed(task.id, Date.now()); } catch {}
       onProgress();
       setResumeResult(task.id, { status: "failed", output: promptErr.message });
       childController.signal.removeEventListener("abort", onAbort);
@@ -348,6 +358,15 @@ async function runWithModel(
       task.status = "done";
     }
 
+    // Notify estimator of final status
+    const nowMs = Date.now();
+    if (task.status === "done" || task.status === "failed") {
+      try {
+        if (task.status === "done") progressEstimator.markCompleted(task.id, nowMs);
+        else progressEstimator.markFailed(task.id, nowMs);
+      } catch { /* non-critical */ }
+    }
+
     unsub();
     activeSessions?.delete(task.id);
     onProgress();
@@ -357,6 +376,7 @@ async function runWithModel(
     task.completedAtMs = Date.now();
     task.error = initErr.message || String(initErr);
     task.progressPercent = 100;
+    try { progressEstimator.markFailed(task.id, Date.now()); } catch {}
     setResumeResult(task.id, { status: "failed", output: initErr.message || String(initErr) });
     activeSessions?.delete(task.id);
     onProgress();

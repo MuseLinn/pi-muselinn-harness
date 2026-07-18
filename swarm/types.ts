@@ -104,6 +104,8 @@ export { currentGoal, setCurrentGoal };
 // Global State
 // ============================================================
 
+import { ProgressEstimator } from "./estimator";
+
 export let currentSwarm: SwarmState | null = null;
 export let activeSessions: Map<string, { session: { abort(): Promise<void>; dispose(): void }; taskId: string }> | null = null;
 export let cancelPending = false;
@@ -111,6 +113,7 @@ export let cancelTimer: ReturnType<typeof setTimeout> | null = null;
 export let savedSwarmState: SavedSwarm | null = null;
 export let swarmCancelled = false;
 export let globalAbortController: AbortController | null = null; // parent cancel → children
+export let progressEstimator = new ProgressEstimator(); // Kimi Code-style progress prediction
 
 // Resume tracking: agentId → completed info for resume_agent_ids
 const resumeResults = new Map<string, { status: string; output?: string }>();
