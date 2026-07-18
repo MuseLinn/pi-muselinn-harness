@@ -3,7 +3,7 @@
 // ============================================================
 
 export { UserCancellationError, userCancellationReason, isUserCancellation, runSubAgent, runProgressive, linkAbortSignal, getDefaultModel, getDefaultProvider } from "./subagent";
-export { buildWidgetLines } from "./widget";
+export { buildWidgetLines, SwarmWidgetComponent } from "./widget";
 export { formatReport } from "./report";
 export { TasksBrowserComponent } from "./task-browser";
 export { fmtDuration, fmtTokens, fmtCost, calculateGridLayout, accumulatedBrailleBar, computeProgress, needsAnimation, visibleWidth } from "./helpers";

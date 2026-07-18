@@ -1,7 +1,11 @@
 // ============================================================
-// Swarm Mode — TUI Widget (Kimi Code-style braille grid, tick-driven)
+// Swarm Mode — TUI Widget (Kimi Code-style braille grid)
+// Renders through the pi-tui Component protocol (SwarmWidgetComponent,
+// same Container-based pattern as TasksBrowserComponent); the refresh
+// timer ticks at FRAME_INTERVAL_MS and is fingerprint-gated.
 // ============================================================
 
+import { Container, truncateToWidth } from "@earendil-works/pi-tui";
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
 import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS } from "./types";
 import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
@@ -71,8 +75,9 @@ export function buildWidgetLines(
   }
 
   // ---- Grid ----
-  // P0 fix: prefer explicit TUI width passed by caller; fall back to process.stdout.columns
-  // until index.ts call sites are updated to pass tuiRef.tui?.width (the real rendered widget width).
+  // Width is the real rendered widget width passed down from the pi-tui
+  // Component render(width) contract; stdout.columns is only a fallback for
+  // direct calls that happen before the first render.
   const termWidth = width ?? process?.stdout?.columns ?? 100;
   const gridHeight = 10;
   const layout = calculateGridLayout(total, termWidth - 4, gridHeight);
@@ -97,11 +102,15 @@ export function buildWidgetLines(
     ? ` ${theme.fg("accent", "Goal:")} ${theme.fg(
         currentGoal.status === "active" ? "success" : currentGoal.status === "blocked" ? "warning" : "muted",
         currentGoal.status,
-      )} ${theme.fg("muted", currentGoal.objective.slice(0, termWidth - 30))}`
+      )} ${theme.fg("muted", currentGoal.objective.slice(0, Math.max(0, termWidth - 30)))}`
     : null;
 
   // ---- Status Line ----
-  const statusLine = buildStatusLine(theme, done, running, failed, aborted, total, cancelIsPending);
+  // Status bar width adapts to the terminal: 30 cells at ~100 columns
+  // (matches the previous hard-coded look), clamped to 10..60 so narrow
+  // terminals stay aligned and wide terminals don't get an oversized bar.
+  const barWidth = Math.max(10, Math.min(60, Math.floor(termWidth * 0.3)));
+  const statusLine = buildStatusLine(theme, done, running, failed, aborted, total, cancelIsPending, ts, barWidth);
   lines.push(statusLine);
   if (goalLine) lines.push(goalLine);
 
@@ -176,6 +185,8 @@ export function buildStatusLine(
   aborted: number,
   total: number,
   _cancelIsPending: boolean,
+  nowMs?: number,
+  barWidth = 30,
 ): string {
   const phases: Array<{ key: string; count: number; color: string }> = [];
   if (done > 0) phases.push({ key: "completed", count: done, color: "success" });
@@ -187,13 +198,14 @@ export function buildStatusLine(
 
   if (phases.length === 0) return "";
 
-  // Moon spinner (Kimi Code-style)
+  // Moon spinner (Kimi Code-style). Uses the caller-supplied frame timestamp
+  // so re-renders between timer ticks never advance the phase; once nothing
+  // is running the moon disappears and the label settles on its final text.
   const MOON_PHASES = ["\uD83C\uDF11", "\uD83C\uDF12", "\uD83C\uDF13", "\uD83C\uDF14", "\uD83C\uDF15", "\uD83C\uDF16", "\uD83C\uDF17", "\uD83C\uDF18"];
-  const moonFrame = running > 0 ? MOON_PHASES[Math.floor(Date.now() / 120) % MOON_PHASES.length] + " " : "";
+  const moonFrame = running > 0 ? MOON_PHASES[Math.floor((nowMs ?? Date.now()) / 120) % MOON_PHASES.length] + " " : "";
 
   const label = moonFrame + (running > 0 ? "Working..." : done === total ? "Completed." : "Failed.");
 
-  const barWidth = 30;
   const totalCount = phases.reduce((s, p) => s + p.count, 0);
   const segments = phases.map((p) => {
     const w = Math.max(1, Math.round((p.count / totalCount) * barWidth));
@@ -223,10 +235,11 @@ export function computeWidgetFingerprint(
   state: SwarmState | null,
   cancelIsPending: boolean,
   nowMs?: number,
+  width?: number,
 ): string | null {
   if (!state || state.tasks.length === 0 || state.status === "pending") return null;
   const ts = nowMs ?? Date.now();
-  const termWidth = process?.stdout?.columns ?? 100;
+  const termWidth = width ?? process?.stdout?.columns ?? 100;
 
   let fp = `${state.name}|${state.status}|${cancelIsPending ? 1 : 0}|${termWidth}`;
 
@@ -252,4 +265,102 @@ export function computeWidgetFingerprint(
   }
 
   return fp;
+}
+
+// ============================================================
+// SwarmWidgetComponent — pi-tui Component wrapping the swarm widget
+// ============================================================
+
+export type SwarmWidgetUpdate = "changed" | "unchanged" | "empty";
+
+/**
+ * pi-tui Component for the swarm progress widget, using the same
+ * Container-based architecture as TasksBrowserComponent so both surfaces
+ * share one Component protocol (`render(width): string[]` + `invalidate()`).
+ *
+ * The widget is registered through ctx.ui.setWidget(key, factory); pi mounts
+ * the returned component in a Container whose render(width) is invoked by the
+ * TUI root with the full terminal width. Lines are still hand-built ANSI
+ * (theme.fg / gradientText / braille grid) — pi-tui's Text component would
+ * word-wrap long lines and pad to full width, which breaks the braille grid
+ * on narrow terminals, so render() only truncates to the viewport width.
+ *
+ * Time-purity: render() never reads the clock. Visible line content is
+ * rebuilt only by update() (fingerprint-gated, driven by the refresh timer
+ * and progress callbacks) or by a viewport width change, and width-change
+ * rebuilds reuse the timestamp of the last update. Once the swarm settles
+ * (refreshIntervalMs === 0) and the timer stops, re-renders triggered by
+ * unrelated UI activity repaint the cached frame verbatim — the moon
+ * spinner / fill animation stay frozen on their last frame.
+ */
+export class SwarmWidgetComponent extends Container {
+  private readonly getState: () => SwarmState | null;
+  private readonly theme: any;
+  private readonly isCancelPending: () => boolean;
+
+  private lines: string[] = [];
+  /** Last viewport width seen by render(); 0 = never rendered. */
+  private renderWidth = 0;
+  /** Timestamp of the last update() that produced the cached lines. */
+  private lastBuildMs = 0;
+  private lastFingerprint: string | null = null;
+  /** Refresh cadence from the last build; 0 = animation settled. */
+  refreshIntervalMs = 0;
+
+  constructor(
+    getState: () => SwarmState | null,
+    theme: any,
+    isCancelPending: () => boolean,
+  ) {
+    super();
+    this.getState = getState;
+    this.theme = theme;
+    this.isCancelPending = isCancelPending;
+  }
+
+  /** Width used for layout before the first render() delivers the real one. */
+  private effectiveWidth(): number {
+    return this.renderWidth > 0 ? this.renderWidth : (process?.stdout?.columns ?? 100);
+  }
+
+  /**
+   * Fingerprint-gated rebuild. Called by the refresh timer and by subagent
+   * progress callbacks. Returns "changed" when the visible lines were
+   * rebuilt, "unchanged" when the fingerprint matched the cached frame, and
+   * "empty" when there is nothing to display (no active swarm state).
+   */
+  update(nowMs?: number): SwarmWidgetUpdate {
+    const ts = nowMs ?? Date.now();
+    const width = this.effectiveWidth();
+    const state = this.getState();
+    const fp = computeWidgetFingerprint(state, this.isCancelPending(), ts, width);
+    if (fp !== null && fp === this.lastFingerprint) return "unchanged";
+    const result = buildWidgetLines(state, this.theme, this.isCancelPending(), ts, width);
+    if (!result || result.lines.length === 0) return "empty";
+    this.lastFingerprint = fp;
+    this.lastBuildMs = ts;
+    this.lines = result.lines;
+    this.refreshIntervalMs = result.refreshInterval;
+    return "changed";
+  }
+
+  override render(width: number): string[] {
+    if (width > 0 && width !== this.renderWidth) {
+      this.renderWidth = width;
+      if (this.lines.length > 0) {
+        // Rebuild the layout for the new width with the ORIGINAL build
+        // timestamp so time-driven frames (moon spinner, fill animation)
+        // stay frozen between updates.
+        const state = this.getState();
+        const result = buildWidgetLines(state, this.theme, this.isCancelPending(), this.lastBuildMs, width);
+        if (result && result.lines.length > 0) {
+          this.lines = result.lines;
+          this.refreshIntervalMs = result.refreshInterval;
+          this.lastFingerprint = computeWidgetFingerprint(state, this.isCancelPending(), this.lastBuildMs, width);
+        }
+      }
+    }
+    // Final safety: never emit a line wider than the viewport.
+    return this.lines.map((l) => truncateToWidth(l, width));
+  }
 }

@@ -16,7 +16,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -41,7 +41,7 @@ import {
   progressEstimator,
 } from "./swarm/types";
 import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkAbortSignal } from "./swarm/subagent";
-import { buildWidgetLines, computeWidgetFingerprint } from "./swarm/widget";
+import { SwarmWidgetComponent } from "./swarm/widget";
 import { formatReport } from "./swarm/report";
 import { registerCommands } from "./swarm/commands";
 import { goalManager } from "./goal";
@@ -789,49 +789,38 @@ export default function (pi: ExtensionAPI) {
       state.status = "running";
 
       // Widget setup ----------------------------------------------------------
-      const tuiRef: { tui: any; lines: string[] } = { tui: null, lines: [] };
-      ctx.ui.setWidget("swarm-mode-progress", (_t: any, _th: any) => {
-        tuiRef.tui = _t;
-        return {
-          render: () => {
-            const tw = _t?.width ?? 80;
-            return tuiRef.lines.map((l: string) => truncateToWidth(l, tw));
-          },
-          invalidate: () => {},
-        };
+      // pi-tui Component (same Container-based protocol as the /tasks
+      // browser). pi mounts it via setWidget and calls render(width) with the
+      // real viewport width; all line building is fingerprint-gated inside
+      // widget.update().
+      const widget = new SwarmWidgetComponent(() => currentSwarm, theme, () => cancelPending);
+      let widgetTui: any = null;
+      ctx.ui.setWidget("swarm-mode-progress", (t: any, _th: any) => {
+        widgetTui = t;
+        return widget;
       });
-
+      const repaintWidget = () => {
+        widgetTui?.invalidate?.();
+        widgetTui?.requestRender?.();
+      };
       const updateWidget = () => {
-        const result = buildWidgetLines(state, theme, cancelPending);
-        if (result && result.lines.length > 0) {
-          tuiRef.lines = result.lines;
-          tuiRef.tui?.invalidate?.();
-        }
+        if (widget.update() === "changed") repaintWidget();
       };
       updateWidget();
 
-      // Periodic refresh (braille animation, 80ms tick-driven) ---------------
-      // Fingerprint gate: skip the full rebuild + invalidate on frames where
-      // nothing visible changed (animation phases are part of the fingerprint,
-      // so active animation still rebuilds every frame).
+      // Periodic refresh at FRAME_INTERVAL_MS (250ms) — drives the braille
+      // fill animation and moon spinner. The fingerprint gate inside
+      // widget.update() skips the rebuild + repaint on frames where nothing
+      // visible changed, and the timer stops itself once the build reports
+      // refreshIntervalMs === 0 (animation settled).
       let refreshTimer: ReturnType<typeof setInterval> | null = null;
-      let lastFingerprint: string | null = null;
       const startRefresh = () => {
         if (refreshTimer) return;
         refreshTimer = setInterval(() => {
-          const fp = computeWidgetFingerprint(currentSwarm, cancelPending);
-          if (fp !== null && fp === lastFingerprint) return;
-          const result = buildWidgetLines(currentSwarm, theme, cancelPending);
-          if (result && result.lines.length > 0) {
-            lastFingerprint = fp;
-            tuiRef.lines = result.lines;
-            tuiRef.tui?.invalidate?.();
-            // Stop when animation finishes
-            if (result.refreshInterval <= 0 && refreshTimer) {
-              clearInterval(refreshTimer);
-              refreshTimer = null;
-            }
-          } else if (refreshTimer) {
+          const status = widget.update();
+          if (status === "changed") repaintWidget();
+          // Stop when the swarm is gone or the animation has settled.
+          if ((status === "empty" || widget.refreshIntervalMs <= 0) && refreshTimer) {
             clearInterval(refreshTimer);
             refreshTimer = null;
           }
@@ -879,11 +868,9 @@ export default function (pi: ExtensionAPI) {
             ? "partial"
             : "failed";
 
-        const finalResult = buildWidgetLines(state, theme, false);
-        if (finalResult && finalResult.lines.length > 0) {
-          tuiRef.lines = finalResult.lines;
-          tuiRef.tui?.invalidate?.();
-        }
+        // Final one-shot repaint (fingerprint-gated like everything else);
+        // after this the timer is stopped and nothing re-renders the widget.
+        if (widget.update() === "changed") repaintWidget();
 
         if (refreshTimer) {
           clearInterval(refreshTimer);
@@ -1084,46 +1071,31 @@ export default function (pi: ExtensionAPI) {
       const theme = ctx.ui.theme;
       state.status = "running";
 
-      const tuiRef: { tui: any; lines: string[] } = { tui: null, lines: [] };
-      ctx.ui.setWidget("swarm-mode-progress", (_t: any, _th: any) => {
-        tuiRef.tui = _t;
-        return {
-          render: () => {
-            const tw = _t?.width ?? 80;
-            return tuiRef.lines.map((l: string) => truncateToWidth(l, tw));
-          },
-          invalidate: () => {},
-        };
+      // pi-tui Component (same protocol as agent_swarm's widget above).
+      const widget = new SwarmWidgetComponent(() => state, theme, () => false);
+      let widgetTui: any = null;
+      ctx.ui.setWidget("swarm-mode-progress", (t: any, _th: any) => {
+        widgetTui = t;
+        return widget;
       });
-
+      const repaintWidget = () => {
+        widgetTui?.invalidate?.();
+        widgetTui?.requestRender?.();
+      };
       const updateWidget = () => {
-        const result = buildWidgetLines(state, theme, false);
-        if (result && result.lines.length > 0) {
-          tuiRef.lines = result.lines;
-          tuiRef.tui?.invalidate?.();
-        }
+        if (widget.update() === "changed") repaintWidget();
       };
       updateWidget();
 
-      // Periodic refresh (braille animation, 80ms tick-driven)
-      // Fingerprint gate: same skip-if-unchanged logic as agent_swarm.
+      // Periodic refresh at FRAME_INTERVAL_MS (250ms) — same fingerprint
+      // gate and settle-stop logic as agent_swarm.
       let refreshTimer: ReturnType<typeof setInterval> | null = null;
-      let lastFingerprint: string | null = null;
       const startRefresh = () => {
         if (refreshTimer) return;
         refreshTimer = setInterval(() => {
-          const fp = computeWidgetFingerprint(state, false);
-          if (fp !== null && fp === lastFingerprint) return;
-          const result = buildWidgetLines(state, theme, false);
-          if (result && result.lines.length > 0) {
-            lastFingerprint = fp;
-            tuiRef.lines = result.lines;
-            tuiRef.tui?.invalidate?.();
-            if (result.refreshInterval <= 0 && refreshTimer) {
-              clearInterval(refreshTimer);
-              refreshTimer = null;
-            }
-          } else if (refreshTimer) {
+          const status = widget.update();
+          if (status === "changed") repaintWidget();
+          if ((status === "empty" || widget.refreshIntervalMs <= 0) && refreshTimer) {
             clearInterval(refreshTimer);
             refreshTimer = null;
           }
@@ -1144,11 +1116,8 @@ export default function (pi: ExtensionAPI) {
         state.endTime = Date.now();
         state.status = task.status === "done" ? "completed" : "failed";
 
-        const finalResult = buildWidgetLines(state, theme, false);
-        if (finalResult && finalResult.lines.length > 0) {
-          tuiRef.lines = finalResult.lines;
-          tuiRef.tui?.invalidate?.();
-        }
+        // Final one-shot repaint; nothing re-renders the widget afterwards.
+        if (widget.update() === "changed") repaintWidget();
 
         setActiveSessions(null);
 

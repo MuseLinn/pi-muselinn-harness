@@ -3,33 +3,23 @@
 // ============================================================
 
 import type { AutocompleteItem } from "@earendil-works/pi-coding-agent";
-import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { ModelTier, SubAgentType } from "./types";
 import {
   currentSwarm,
   cancelPending,
   cancelTimer,
   savedSwarmState,
   activeSessions,
-  swarmCancelled,
   setCancelPending,
   setCancelTimer,
   setSwarmCancelled,
   setSavedSwarmState,
-  setGlobalAbortController,
   globalAbortController,
-  currentGoal,
-  setCurrentGoal,
 } from "./types";
-import { fmtDuration, fmtTokens, fmtCost } from "./helpers";
-import { buildWidgetLines } from "./widget";
 import { TasksBrowserComponent, TasksBrowserProps } from "./task-browser";
-import { goalManager } from "../goal";
 import { UserCancellationError } from "./subagent";
 
 export function registerCommands(pi: ExtensionAPI): void {
-  const piSendUser = pi.sendUserMessage.bind(pi);
   // ============================================================
   // /swarm - Main swarm control
   // ============================================================
@@ -169,6 +159,15 @@ export function registerCommands(pi: ExtensionAPI): void {
       let outputPreview: string | undefined;
       let flashMessage: string | undefined;
 
+      // Single destroy path for every overlay exit (ESC/q, onCancel, stop
+      // confirm, pi-side close): clears the 1s refresh interval AND the
+      // component's 5s stop-confirmation timer. Idempotent.
+      const cleanup = () => {
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        component?.dispose();
+        component = null; // Prevent a late refresh tick from touching setProps
+      };
+
       // Helper to build props with current state + live tasks
       function buildProps(done: (v?: any) => void): TasksBrowserProps {
         return {
@@ -204,39 +203,52 @@ export function registerCommands(pi: ExtensionAPI): void {
         };
       }
 
-      await ctx.ui.custom(
-        (_tui, _theme, _kb, done) => {
-          // Create component on first render
-          if (!component) {
-            component = new TasksBrowserComponent(buildProps(done), theme);
-          }
-
-          // Auto-refresh every 1s — push latest state + tasks
-          refreshTimer = setInterval(() => {
-            if (component) {
-              component.setProps(buildProps(done));
+      try {
+        await ctx.ui.custom(
+          (_tui, _theme, _kb, done) => {
+            // Create component on first render
+            if (!component) {
+              component = new TasksBrowserComponent(buildProps(done), theme);
             }
-            _tui?.invalidate?.();
-          }, 1000);
 
-          return {
-            render: (width: number) => component!.render(width),
-            invalidate: () => component?.invalidate(),
-            handleInput: (data: string) => {
-              if (data === "\x1b" || data.toLowerCase() === "q") {
-                if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-                component = null;  // Prevent last refresh from triggering setProps
-                done(undefined);
-                return;
+            // Auto-refresh every 1s — push latest state + tasks
+            refreshTimer = setInterval(() => {
+              if (component) {
+                component.setProps(buildProps(done));
               }
-              if (component) component.handleInput(data);
-            },
-          };
-        },
-        { overlay: true },
-      );
+              _tui?.invalidate?.();
+            }, 1000);
 
-      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+            return {
+              render: (width: number) => component!.render(width),
+              invalidate: () => component?.invalidate(),
+              handleInput: (data: string) => {
+                // Let the component consume input first while its output
+                // viewer is open or a stop confirmation is pending, so
+                // ESC/q close the viewer / cancel the confirmation instead
+                // of closing the whole overlay.
+                if (component?.wantsInput()) {
+                  component.handleInput(data);
+                  return;
+                }
+                if (data === "\x1b" || data.toLowerCase() === "q") {
+                  // done() → pi close() → wrapper.dispose() → cleanup()
+                  done(undefined);
+                  return;
+                }
+                if (component) component.handleInput(data);
+              },
+              // pi calls dispose() on every close path (resolve/reject of
+              // ctx.ui.custom), so this is the single reliable destroy hook.
+              dispose: () => { cleanup(); },
+            };
+          },
+          { overlay: true },
+        );
+      } finally {
+        // Backstop: factory threw or custom() rejected before dispose ran.
+        cleanup();
+      }
     },
   });
 

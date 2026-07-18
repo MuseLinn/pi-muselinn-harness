@@ -8,7 +8,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan 三模块架构。
 - **子代理执行** — `createAgentSession()` in-process 执行
 - **并发控制** — `runParallel()` + 指数退避重试
 - **智能模型路由** — 从 `ctx.modelRegistry` 自动发现，任务感知选择
-- **盲文进度条** — 80ms tick 驱动动画
+- **盲文进度条** — 真实工具调用进度驱动，250ms 指纹门控刷新
 - **三栏任务浏览器** — 键盘导航 + 分页
 - **取消/恢复** — UserCancellationError + AbortSignal 链
 

@@ -165,6 +165,25 @@ export class TasksBrowserComponent extends Container {
     this.theme = theme;
   }
 
+  /**
+   * True when the component wants to consume this input itself (output
+   * viewer is open, or a stop confirmation is pending) instead of letting
+   * the host treat ESC/q as "close overlay".
+   */
+  wantsInput(): boolean {
+    return this.viewerOpen || this.pendingStopTaskId !== undefined;
+  }
+
+  /**
+   * Release all pending timers. Called by pi's close() path
+   * (ctx.ui.custom disposes the component wrapper) and by the /tasks
+   * command's own cleanup, so the 5s stop-confirmation timer can never
+   * fire into a destroyed overlay.
+   */
+  dispose(): void {
+    this.clearPendingStop();
+  }
+
   private syncSelectionFromProps(): void {
     if (this.sortedVisible.length === 0) {
       this.selectedIndex = 0;
