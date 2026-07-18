@@ -461,6 +461,60 @@ export class GoalManager {
     return `${b}: ${g.objective.slice(0, 80)}${reason}${actor}  [turns:${g.turnsUsed} tokens:${g.tokensUsed}]`;
   }
 
+  /** Build a GoalPanel-style formatted report (Kimi Code-style) */
+  formatGoalPanel(): string {
+    const g = currentGoal;
+    if (!g) return "No goal set.";
+
+    const lines: string[] = [];
+
+    // Objective (blockquote style)
+    lines.push(`\u258C ${g.objective}`);
+    
+    // Completion criterion
+    if (g.completionCriterion) {
+      lines.push(`\u258C \u2713 ${g.completionCriterion}`);
+    }
+    
+    lines.push("");
+
+    // Status
+    const statusDot = g.status === "active" ? "\u25CF" : g.status === "blocked" ? "\u25CF" : "\u25CB";
+    lines.push(`${statusDot} Status     ${g.status}${g.terminalReason ? ` \u2014 ${g.terminalReason}` : ""}`);
+    
+    // Running duration
+    const durationMs = liveWallClockMs(g);
+    const mins = Math.floor(durationMs / 60000);
+    const secs = Math.floor((durationMs % 60000) / 1000);
+    const durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    lines.push(`  Running    ${durationStr}`);
+    
+    // Turns
+    const turnBudget = g.budgetLimits?.turnBudget;
+    const turnsStr = turnBudget ? `${g.turnsUsed}/${turnBudget}` : `${g.turnsUsed}`;
+    lines.push(`  Turns      ${turnsStr}`);
+    
+    // Tokens
+    if (g.tokensUsed > 0) {
+      const tokStr = g.tokensUsed < 1000 ? `${g.tokensUsed}` : g.tokensUsed < 10000 ? `${(g.tokensUsed / 1000).toFixed(1)}k` : `${Math.round(g.tokensUsed / 1000)}k`;
+      lines.push(`  Tokens     ${tokStr}`);
+    }
+    
+    // Stop condition
+    if (turnBudget) {
+      lines.push(`  Stop       after ${turnBudget} turns (${g.turnsUsed}/${turnBudget})`);
+    } else if (g.budgetLimits?.tokenBudget) {
+      lines.push(`  Stop       after ${g.budgetLimits.tokenBudget} tokens`);
+    } else if (g.budgetLimits?.wallClockBudgetMs) {
+      const wallMins = Math.floor(g.budgetLimits.wallClockBudgetMs / 60000);
+      lines.push(`  Stop       after ${wallMins} minutes`);
+    } else {
+      lines.push(`  Stop       (no stop condition)`);
+    }
+
+    return lines.join("\n");
+  }
+
   /**
    * Build Goal Badge for footer (Kimi Code-style).
    * Format: [goal ● active · 4m · 7/20 turns]

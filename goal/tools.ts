@@ -49,7 +49,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
         ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
       }
       return {
-        content: [{ type: "text", text: `Goal created: ${g.objective}\nStatus: ${g.status}` }],
+        content: [{ type: "text", text: `Goal created: ${g.objective}\nStatus: ${g.status}\n\n${goalManager.formatGoalPanel()}` }],
       };
     },
   });
@@ -72,8 +72,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       if (!goal) {
         return { content: [{ type: "text", text: "No active goal." }] };
       }
-      const summary = goalManager.formatSummary();
-      return { content: [{ type: "text", text: summary }] };
+      return { content: [{ type: "text", text: goalManager.formatGoalPanel() }] };
     },
   });
 
@@ -131,7 +130,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       }
 
       return {
-        content: [{ type: "text", text: `Goal updated: ${goalManager.formatSummary()}` }],
+        content: [{ type: "text", text: `Goal updated.\n\n${goalManager.formatGoalPanel()}` }],
       };
     },
   });

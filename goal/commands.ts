@@ -38,7 +38,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
           if (!goal) {
             ctx.ui.notify("No active goal. Use /goal <objective> to set one.", "info");
           } else {
-            ctx.ui.notify(goalManager.formatSummary(), "info");
+            ctx.ui.notify(goalManager.formatGoalPanel(), "info");
           }
           break;
 
@@ -150,7 +150,7 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
               ctx.ui.notify("Goal already active. Use /goal replace <new> to replace.", "info");
             } else {
               goalManager.createGoal(args.trim(), undefined, undefined, "user");
-              ctx.ui.notify(`Goal set: ${args.trim()}`, "info");
+              ctx.ui.notify(`Goal set:\n\n${goalManager.formatGoalPanel()}`, "info");
               // Update status bar (Kimi Code-style)
               if (ctx.ui?.setStatus && ctx.ui?.theme) {
                 ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
