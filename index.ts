@@ -213,6 +213,7 @@ export default function (pi: ExtensionAPI) {
 
   // ── Helper: update goal status bar ──
   function updateGoalStatusBar(ctx: any) {
+    goalManager.tryRestoreFromSession(ctx);
     const badge = goalManager.buildFooterBadge();
     if (badge) {
       const color = goalManager.getFooterBadgeColor();
