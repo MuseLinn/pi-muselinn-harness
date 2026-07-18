@@ -1,5 +1,5 @@
 // Final verification: cron subsystem unit tests (pure, no pi runtime needed)
-const { cronManager } = await import("./task/cron.ts");
+const { cronManager } = await import("../task/cron.ts");
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {
