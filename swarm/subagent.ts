@@ -17,6 +17,10 @@ import {
 import type { SubAgentType, SubAgentTask } from "./types";
 import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult } from "./types";
 
+// Timeout & output limit constants (Kimi Code-aligned)
+const SUBAGENT_TIMEOUT_MS = parseInt(process.env.KIMI_SUBAGENT_TIMEOUT_MS || "600000", 10); // 10 min default
+const MAX_OUTPUT_BYTES = 1 * 1024 * 1024; // 1 MiB (Kimi Code)
+
 // ============================================================
 // UserCancellationError — distinguishes user cancel from system errors
 // ============================================================
@@ -214,7 +218,21 @@ async function runWithModel(
   onProgress: () => void,
 ): Promise<void> {
   let session: any = null;
+  let outputBytes = 0;
+  let outputLimitExceeded = false;
+  let timeoutAborted = false;
   try {
+    // Combine cancel signal + timeout signal
+    const timeoutSignal = AbortSignal.timeout(SUBAGENT_TIMEOUT_MS);
+    const combinedSignal = AbortSignal.any?.([signal, timeoutSignal].filter(Boolean) as AbortSignal[]) ?? signal;
+
+    const onCombinedAbort = () => {
+      timeoutAborted = !signal.aborted;
+      session?.abort();
+    };
+    if (combinedSignal.aborted) onCombinedAbort();
+    else combinedSignal.addEventListener("abort", onCombinedAbort, { once: true });
+
     const result = await createAgentSession({
       sessionManager: SessionManager.inMemory(),
       model,
@@ -255,9 +273,18 @@ async function runWithModel(
         const texts = (msg.content || []).filter((p: any) => p.type === "text");
         if (texts.length > 0) {
           const fullText = texts.map((p: any) => p.text || "").join("\n");
-          task.outputLines.push(fullText);
-          task.currentAction = fullText.slice(0, 60) || "";
-        }
+          // Track output size (Kimi Code-style 1 MiB limit)
+          if (!outputLimitExceeded) {
+            const textBytes = Buffer.byteLength(fullText, "utf-8");
+            outputBytes += textBytes;
+            if (outputBytes > MAX_OUTPUT_BYTES) {
+              outputLimitExceeded = true;
+              task.currentAction = "[output limit exceeded]";
+            } else {
+              task.outputLines.push(fullText);
+              task.currentAction = fullText.slice(0, 60) || "";
+            }
+          }
         onProgress();
       }
     });
@@ -281,6 +308,23 @@ async function runWithModel(
         signal.aborted ||
         childController.signal.aborted ||
         swarmCancelled;
+      const wasTimeout = timeoutAborted || combinedSignal?.aborted;
+
+      if (wasTimeout) {
+        task.status = "failed";
+        task.error = "Subagent timed out after " + (SUBAGENT_TIMEOUT_MS / 1000) + "s";
+        task.endTime = Date.now();
+        task.completedAtMs = Date.now();
+        task.progressPercent = 100;
+        try { progressEstimator.markFailed(task.id, Date.now()); } catch {}
+        onProgress();
+        setResumeResult(task.id, { status: "failed", output: task.error });
+        childController.signal.removeEventListener("abort", onAbort);
+        unlink();
+        unsub();
+        activeSessions?.delete(task.id);
+        return;
+      }
 
       if (wasAborted) {
         task.status = "aborted";
