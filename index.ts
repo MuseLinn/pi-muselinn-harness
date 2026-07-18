@@ -379,18 +379,18 @@ export default function (pi: ExtensionAPI) {
         const custom = await ctx.ui.input("Enter model name:", scored[0].model.id, { timeout: 30000 });
         if (custom?.trim()) {
           const exact = scored.find((s: any) => s.model.id === custom.trim());
-          if (exact) return exact.model.id;
+          if (exact) return `${exact.model.provider}:${exact.model.id}`;
           const partial = available.find((m: any) => m.id.includes(custom.trim()));
-          if (partial) return partial.id;
+          if (partial) return `${partial.provider}:${partial.id}`;
           return custom.trim();
         }
       } else if (choice) {
         const idx = modelOptions.indexOf(choice);
-        if (idx >= 0 && idx < scored.length) return scored[idx].model.id;
+        if (idx >= 0 && idx < scored.length) return `${scored[idx].model.provider}:${scored[idx].model.id}`;
       }
-      return scored[0].model.id;
+      return `${scored[0].model.provider}:${scored[0].model.id}`;
     } else if (scored.length > 0) {
-      return scored[0].model.id;
+      return `${scored[0].model.provider}:${scored[0].model.id}`;
     } else {
       const fromDefaultProvider = available.find((m: any) => m.id === defaultModelId && m.provider === defaultProvider);
       const fromAny = available.find((m: any) => m.id === defaultModelId);

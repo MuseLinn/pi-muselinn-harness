@@ -176,10 +176,23 @@ export async function runSubAgent(
       ? ["read", "bash", "edit", "write", "grep", "find", "ls"]
       : ["read", "grep", "find", "ls"];
 
-  const model = models.find((m: any) => m.id === task.model);
+  // Parse provider:modelId or just modelId
+  let targetProvider = "";
+  let targetModelId = task.model;
+  if (task.model.includes(":")) {
+    const [p, m] = task.model.split(":");
+    targetProvider = p;
+    targetModelId = m;
+  }
+
+  const model = models.find((m: any) => {
+    const idMatch = m.id === targetModelId;
+    if (targetProvider) return idMatch && m.provider === targetProvider;
+    return idMatch;
+  });
   if (!model) {
     task.status = "failed";
-    task.error = `Model "${task.model}" not found in registry. Available: ${models.map((m: any) => m.id).join(", ")}`;
+    task.error = `Model "${task.model}" not found. Available: ${models.map((m: any) => `${m.provider}:${m.id}`).join(", ")}`;
     task.endTime = Date.now();
     task.completedAtMs = Date.now();
     task.progressPercent = 100;
