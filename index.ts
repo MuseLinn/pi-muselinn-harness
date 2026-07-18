@@ -166,6 +166,7 @@ export default function (pi: ExtensionAPI) {
         if (e.type === "custom" && e.customType === "muselinn_permission" && e.data?.mode) {
           if (["auto", "yolo", "manual"].includes(e.data.mode)) {
             permissionManager.setMode(e.data.mode);
+            ctx.ui.setStatus("permission-mode", ctx.ui.theme.fg("accent", e.data.mode));
           }
           break;
         }
