@@ -72,8 +72,8 @@ export class PlanManager {
   enterPlanMode(reason?: string): PlanData {
     const heroSlug = this.generateHeroSlug();
     const planPath = this.sessionDir
-      ? `${this.sessionDir}/plans/${heroSlug}.md`
-      : `plans/${heroSlug}.md`;
+      ? path.join(this.sessionDir, "plans", heroSlug) + ".md"
+      : path.join("plans", heroSlug) + ".md";
     const plan: PlanData = {
       id: generatePlanId(),
       content: '',
