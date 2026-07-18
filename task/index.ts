@@ -28,6 +28,28 @@ export interface BackgroundTaskEntry {
   usage: { input: number; output: number; cost: number };
 }
 
+const BG_ARRAY_ENTRY_TYPE = "muselinn_background_tasks"; // legacy full-snapshot entry
+const BG_TASK_ENTRY_TYPE = "muselinn_background_task";   // incremental single-task entry
+
+/** Strip a task down to its persisted shape (outputLines are not persisted). */
+function serializeTask(t: BackgroundTaskEntry): Record<string, any> {
+  return {
+    id: t.id,
+    prompt: t.prompt,
+    model: t.model,
+    subagentType: t.subagentType,
+    status: t.status,
+    error: t.error,
+    stopReason: t.stopReason,
+    startTime: t.startTime,
+    createdAt: t.createdAt,
+    endTime: t.endTime,
+    completedAtMs: t.completedAtMs,
+    turns: t.turns,
+    usage: t.usage,
+  };
+}
+
 // ============================================================
 // BackgroundTaskManager — singleton
 // ============================================================
@@ -51,7 +73,7 @@ class BackgroundTaskManager {
       throw new Error("Maximum concurrent background tasks (50) reached for this session.");
     }
     this.tasks.set(entry.id, entry);
-    this.persist();
+    this.persistTask(entry);
   }
 
   /** Store session handle for a running task */
@@ -82,13 +104,25 @@ class BackgroundTaskManager {
     }
   }
 
-  /** Get task output as string */
-  getOutput(taskId: string, tail?: number): string {
+  /** Get task output as string, with Read-style paging.
+   *  Priority: offset/limit > tail > full. Paged output carries a header with
+   *  the total line count so the caller can keep paging. */
+  getOutput(taskId: string, tail?: number, offset?: number, limit?: number): string {
     const task = this.tasks.get(taskId);
     if (!task) return "[task not found]";
     const lines = task.outputLines;
+    const totalLines = lines.length;
+
+    const hasPaging = (offset !== undefined && offset > 0) || (limit !== undefined && limit > 0);
+    if (hasPaging) {
+      const start = Math.max(0, (offset && offset > 0 ? offset : 1) - 1); // 1-based → 0-based
+      const end = limit && limit > 0 ? Math.min(totalLines, start + limit) : totalLines;
+      const shown = lines.slice(start, end);
+      return `[showing lines ${totalLines === 0 ? 0 : start + 1}-${end} of ${totalLines}]\n` + shown.join("\n");
+    }
     if (tail && tail > 0) {
-      return lines.slice(-tail).join("\n");
+      const shown = lines.slice(-tail);
+      return `[showing last ${shown.length} of ${totalLines} line(s)]\n` + shown.join("\n");
     }
     return lines.join("\n");
   }
@@ -156,7 +190,7 @@ class BackgroundTaskManager {
       this.sessions.delete(taskId);
     }
 
-    this.persist();
+    this.persistTask(task);
     this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} completed`, "success");
   }
@@ -177,7 +211,7 @@ class BackgroundTaskManager {
       this.sessions.delete(taskId);
     }
 
-    this.persist();
+    this.persistTask(task);
     this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} failed: ${error}`, "error");
   }
@@ -202,7 +236,7 @@ class BackgroundTaskManager {
     task.status = "aborted";
     task.endTime = Date.now();
     task.completedAtMs = task.endTime;
-    this.persist();
+    this.persistTask(task);
     this.notifyWaiters(taskId);
     this.notifyFn?.(`Background task ${taskId} stopped: ${normalized}`, "warning");
     return true;
@@ -220,70 +254,92 @@ class BackgroundTaskManager {
         this.tasks.delete(id);
       }
     }
-    this.persist();
+    // Deletions can't be expressed incrementally — write a full snapshot so
+    // restore drops the removed ids (snapshot resets the baseline).
+    this.persistSnapshot();
   }
 
-  /** Persist to session */
-  private persist(): void {
+  /** Persist a single task change incrementally (append-only per-task entry). */
+  private persistTask(task: BackgroundTaskEntry): void {
     if (!this.appendEntryFn) return;
-    const data = this.list().map(t => ({
-      id: t.id,
-      prompt: t.prompt,
-      model: t.model,
-      subagentType: t.subagentType,
-      status: t.status,
-      error: t.error,
-      stopReason: t.stopReason,
-      startTime: t.startTime,
-      createdAt: t.createdAt,
-      endTime: t.endTime,
-      completedAtMs: t.completedAtMs,
-      turns: t.turns,
-      usage: t.usage,
-    }));
-    this.appendEntryFn("muselinn_background_tasks", data);
+    this.appendEntryFn(BG_TASK_ENTRY_TYPE, serializeTask(task));
   }
 
-  /** Restore from persisted entries.
-   *  - Tasks older than 7 days are demoted to failed with stopReason="stale_7d".
-   *  - Orphan running tasks (left "running" across a process restart) are
-   *    demoted to "failed" with stopReason="process_restart" so the UI never
-   *    shows zombie forever-running tasks after a crash/restart. */
+  /** Persist a full snapshot of all tasks (legacy array entry type). */
+  private persistSnapshot(): void {
+    if (!this.appendEntryFn) return;
+    this.appendEntryFn(BG_ARRAY_ENTRY_TYPE, this.list().map(serializeTask));
+  }
+
+  /** Restore from persisted session entries.
+   *  Accepts either the raw session entry list (preferred) or a legacy plain
+   *  array of task objects. Handles both entry types:
+   *   - "muselinn_background_tasks" (array): full snapshot — resets the merge
+   *     baseline (used for deletions such as clearCompleted).
+   *   - "muselinn_background_task" (single object): upserts one task; for the
+   *     same id the later entry wins.
+   *  Post-merge demotions:
+   *   - Tasks older than 7 days are demoted to failed with stopReason="stale_7d".
+   *   - Orphan running tasks (left "running" across a process restart) are
+   *     demoted to "failed" with stopReason="process_restart" so the UI never
+   *     shows zombie forever-running tasks after a crash/restart. */
   restore(entries: any[]): void {
     const now = Date.now();
     const STALE_AGE_MS = 7 * 86400 * 1000;
-    for (const e of entries) {
-      if (e.id && !this.tasks.has(e.id)) {
-        const createdAt = e.createdAt || e.startTime || now;
-        const isStale = now - createdAt > STALE_AGE_MS;
-        const wasRunning = e.status === "running";
-        let status: BackgroundTaskEntry["status"] = e.status || "failed";
-        let stopReason = e.stopReason;
-        let endTime = e.endTime;
-        let completedAtMs = e.completedAtMs;
 
-        if (isStale) {
-          status = "failed";
-          stopReason = "stale_7d";
-          endTime = now;
-          completedAtMs = now;
-        } else if (wasRunning) {
-          status = "failed";
-          stopReason = "process_restart";
-          endTime = now;
-          completedAtMs = now;
+    // Merge phase: id → latest persisted data, in entry order.
+    const merged = new Map<string, any>();
+    let sawSessionEntries = false;
+    for (const e of entries || []) {
+      if (e && e.type === "custom") {
+        sawSessionEntries = true;
+        if (e.customType === BG_ARRAY_ENTRY_TYPE && Array.isArray(e.data)) {
+          merged.clear(); // snapshot is authoritative up to this point
+          for (const t of e.data) if (t && t.id) merged.set(t.id, t);
+        } else if (e.customType === BG_TASK_ENTRY_TYPE && e.data && e.data.id) {
+          merged.set(e.data.id, e.data);
         }
-
-        this.tasks.set(e.id, {
-          ...e,
-          status,
-          stopReason,
-          endTime,
-          completedAtMs,
-          createdAt,
-          outputLines: [],
-        });
       }
+    }
+    if (!sawSessionEntries) {
+      // Legacy call shape: plain array of task objects.
+      for (const t of entries || []) {
+        if (t && t.id) merged.set(t.id, t);
+      }
+    }
+
+    // Demotion + insert phase (applied once per task to the final merged data).
+    for (const e of merged.values()) {
+      if (this.tasks.has(e.id)) continue;
+      const createdAt = e.createdAt || e.startTime || now;
+      const isStale = now - createdAt > STALE_AGE_MS;
+      const wasRunning = e.status === "running";
+      let status: BackgroundTaskEntry["status"] = e.status || "failed";
+      let stopReason = e.stopReason;
+      let endTime = e.endTime;
+      let completedAtMs = e.completedAtMs;
+
+      if (isStale) {
+        status = "failed";
+        stopReason = "stale_7d";
+        endTime = now;
+        completedAtMs = now;
+      } else if (wasRunning) {
+        status = "failed";
+        stopReason = "process_restart";
+        endTime = now;
+        completedAtMs = now;
+      }
+
+      this.tasks.set(e.id, {
+        ...e,
+        status,
+        stopReason,
+        endTime,
+        completedAtMs,
+        createdAt,
+        outputLines: [],
+      });
     }
   }
 }
@@ -390,6 +446,8 @@ export function registerBackgroundTools(pi: any): void {
       properties: {
         task_id: { type: "string", description: "Task ID from run_background" },
         tail: { type: "number", description: "Only show last N lines (optional)" },
+        offset: { type: "number", description: "1-based start line for paging (optional; offset/limit take precedence over tail)" },
+        limit: { type: "number", description: "Max lines to return when paging (optional; offset/limit take precedence over tail)" },
         block: { type: "boolean", default: false, description: "Wait for the task to finish before returning output" },
         timeout: { type: "number", description: "Max seconds to wait when block=true (default 120, cap 600)" },
       },
@@ -400,7 +458,7 @@ export function registerBackgroundTools(pi: any): void {
         const waitMs = Math.min(Math.max(params.timeout || 120, 1), 600) * 1000;
         await backgroundManager.waitForDone(params.task_id, waitMs);
       }
-      const output = backgroundManager.getOutput(params.task_id, params.tail);
+      const output = backgroundManager.getOutput(params.task_id, params.tail, params.offset, params.limit);
       return { content: [{ type: "text", text: output }] };
     },
   });

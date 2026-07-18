@@ -15,7 +15,15 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import type { SubAgentType, SubAgentTask } from "./types";
-import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults } from "./types";
+import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "./types";
+
+// Append one output line with a hard array-length cap (oldest dropped first).
+function pushOutputLine(task: SubAgentTask, line: string): void {
+  task.outputLines.push(line);
+  if (task.outputLines.length > MAX_OUTPUT_LINES) {
+    task.outputLines.splice(0, task.outputLines.length - MAX_OUTPUT_LINES);
+  }
+}
 
 // Timeout & output limit constants (Kimi Code-aligned)
 const SUBAGENT_TIMEOUT_MS = parseInt(process.env.KIMI_SUBAGENT_TIMEOUT_MS || "1800000", 10); // 30 min default (Kimi Code-aligned)
@@ -131,31 +139,42 @@ export function createSubagentResourceLoader(ctx: {
 // Model Selection
 // ============================================================
 
-export function getDefaultModel(): string {
+// settings.json in-process cache, invalidated by mtime. Avoids a sync
+// existsSync+readFileSync+JSON.parse on every tool execute while still
+// picking up file changes immediately (mtime change forces a re-read).
+let settingsCache: { mtimeMs: number; settings: any } | null = null;
+
+function readSettingsCached(): any | null {
+  const settingsPath = path.join(getAgentDir(), "settings.json");
+  let mtimeMs: number;
   try {
-    const settingsPath = path.join(getAgentDir(), "settings.json");
-    if (fs.existsSync(settingsPath)) {
-      const raw = fs.readFileSync(settingsPath, "utf-8");
-      const settings = JSON.parse(raw);
-      if (settings.defaultModel) return settings.defaultModel;
-    }
-  } catch (settingsErr) {
-    log_swarm_warn('getDefaultModel settings.json', settingsErr);
+    mtimeMs = fs.statSync(settingsPath).mtimeMs;
+  } catch {
+    return null; // missing/unreadable — same as the old existsSync gate
   }
+  if (settingsCache && settingsCache.mtimeMs === mtimeMs) {
+    return settingsCache.settings;
+  }
+  try {
+    const raw = fs.readFileSync(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    settingsCache = { mtimeMs, settings };
+    return settings;
+  } catch (settingsErr) {
+    log_swarm_warn('readSettingsCached settings.json', settingsErr);
+    return null;
+  }
+}
+
+export function getDefaultModel(): string {
+  const settings = readSettingsCached();
+  if (settings?.defaultModel) return settings.defaultModel;
   return "";
 }
 
 export function getDefaultProvider(): string {
-  try {
-    const settingsPath = path.join(getAgentDir(), "settings.json");
-    if (fs.existsSync(settingsPath)) {
-      const raw = fs.readFileSync(settingsPath, "utf-8");
-      const settings = JSON.parse(raw);
-      if (settings.defaultProvider) return settings.defaultProvider;
-    }
-  } catch (settingsErr) {
-    log_swarm_warn('getDefaultProvider settings.json', settingsErr);
-  }
+  const settings = readSettingsCached();
+  if (settings?.defaultProvider) return settings.defaultProvider;
   return "";
 }
 
@@ -327,9 +346,12 @@ async function runWithModel(
             outputBytes += textBytes;
             if (outputBytes > MAX_OUTPUT_BYTES) {
               outputLimitExceeded = true;
+              // Keep a single marker so the model can see truncation happened;
+              // further text is dropped instead of appended.
+              pushOutputLine(task, OUTPUT_TRUNCATED_MARKER);
               task.currentAction = "[output limit exceeded]";
             } else {
-              task.outputLines.push(fullText);
+              pushOutputLine(task, fullText);
               task.currentAction = fullText.slice(0, 60) || "";
             }
           }
@@ -414,7 +436,11 @@ async function runWithModel(
       .flatMap((m: any) => (m.content || []).filter((p: any) => p.type === "text").map((p: any) => p.text))
       .filter(Boolean);
     if (allText.length > 0) {
-      task.outputLines = allText;
+      // Bound the final replacement too: keep the newest lines, drop oldest,
+      // and flag truncation so downstream consumers know output was cut.
+      task.outputLines = allText.length > MAX_OUTPUT_LINES
+        ? [OUTPUT_TRUNCATED_MARKER, ...allText.slice(-MAX_OUTPUT_LINES)]
+        : allText;
     }
 
     let hasNonToolTurn = false;

@@ -41,7 +41,7 @@ import {
   progressEstimator,
 } from "./swarm/types";
 import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkAbortSignal } from "./swarm/subagent";
-import { buildWidgetLines } from "./swarm/widget";
+import { buildWidgetLines, computeWidgetFingerprint } from "./swarm/widget";
 import { formatReport } from "./swarm/report";
 import { registerCommands } from "./swarm/commands";
 import { goalManager } from "./goal";
@@ -60,6 +60,25 @@ function parseModelSpec(spec: string): { provider?: string; modelId: string } {
   const colonIdx = spec.indexOf(":");
   if (colonIdx > 0) return { provider: spec.substring(0, colonIdx), modelId: spec.substring(colonIdx + 1) };
   return { modelId: spec };
+}
+
+// Shared: bounded copy of swarm state for onUpdate details — per-task
+// outputLines are replaced by a tail (last 5 lines) plus a total count so
+// each progress push stays small. The final tool result keeps the full state.
+function summarizeStateForUpdate(state: SwarmState): any {
+  return {
+    ...state,
+    tasks: state.tasks.map((t) => {
+      const lines = t.outputLines || [];
+      return {
+        ...t,
+        outputLineCount: lines.length,
+        outputLines: lines.length > 5
+          ? [`[… ${lines.length - 5} earlier line(s) omitted]`, ...lines.slice(-5)]
+          : lines,
+      };
+    }),
+  };
 }
 
 // ============================================================
@@ -218,16 +237,11 @@ export default function (pi: ExtensionAPI) {
       }
     } catch { /* not critical */ }
 
-    // Restore background tasks from persisted entries
+    // Restore background tasks from persisted entries. Pass the raw entry
+    // list: restore() understands both the legacy full-array entry type and
+    // the incremental per-task entry type (later entries win per task id).
     try {
-      const entries = ctx.sessionManager.getEntries();
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const e = entries[i] as any;
-        if (e.type === "custom" && e.customType === "muselinn_background_tasks" && Array.isArray(e.data)) {
-          backgroundManager.restore(e.data);
-          break;
-        }
-      }
+      backgroundManager.restore(ctx.sessionManager.getEntries());
     } catch { /* not critical */ }
 
     // Restore cron tasks from persisted entries (cronManager scans for its own entry type)
@@ -797,12 +811,19 @@ export default function (pi: ExtensionAPI) {
       updateWidget();
 
       // Periodic refresh (braille animation, 80ms tick-driven) ---------------
+      // Fingerprint gate: skip the full rebuild + invalidate on frames where
+      // nothing visible changed (animation phases are part of the fingerprint,
+      // so active animation still rebuilds every frame).
       let refreshTimer: ReturnType<typeof setInterval> | null = null;
+      let lastFingerprint: string | null = null;
       const startRefresh = () => {
         if (refreshTimer) return;
         refreshTimer = setInterval(() => {
+          const fp = computeWidgetFingerprint(currentSwarm, cancelPending);
+          if (fp !== null && fp === lastFingerprint) return;
           const result = buildWidgetLines(currentSwarm, theme, cancelPending);
           if (result && result.lines.length > 0) {
+            lastFingerprint = fp;
             tuiRef.lines = result.lines;
             tuiRef.tui?.invalidate?.();
             // Stop when animation finishes
@@ -819,6 +840,9 @@ export default function (pi: ExtensionAPI) {
       startRefresh();
 
       // Progress callback -----------------------------------------------------
+      // details is a truncated summary (per-task outputLines capped to a tail)
+      // so per-frame updates pushed to the parent agent stay small; the final
+      // tool result below still returns the full state.
       const updateProgress = () => {
         updateWidget();
         const d = tasks.filter((t) => t.status === "done").length;
@@ -826,7 +850,7 @@ export default function (pi: ExtensionAPI) {
           content: [
             { type: "text", text: `${state.name}: ${d}/${tasks.length} done` },
           ],
-          details: state,
+          details: summarizeStateForUpdate(state),
         });
       };
 
@@ -1082,12 +1106,17 @@ export default function (pi: ExtensionAPI) {
       updateWidget();
 
       // Periodic refresh (braille animation, 80ms tick-driven)
+      // Fingerprint gate: same skip-if-unchanged logic as agent_swarm.
       let refreshTimer: ReturnType<typeof setInterval> | null = null;
+      let lastFingerprint: string | null = null;
       const startRefresh = () => {
         if (refreshTimer) return;
         refreshTimer = setInterval(() => {
+          const fp = computeWidgetFingerprint(state, false);
+          if (fp !== null && fp === lastFingerprint) return;
           const result = buildWidgetLines(state, theme, false);
           if (result && result.lines.length > 0) {
+            lastFingerprint = fp;
             tuiRef.lines = result.lines;
             tuiRef.tui?.invalidate?.();
             if (result.refreshInterval <= 0 && refreshTimer) {

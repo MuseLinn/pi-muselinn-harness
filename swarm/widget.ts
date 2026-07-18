@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
-import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal } from "./types";
+import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS } from "./types";
 import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
 
 /**
@@ -33,10 +33,14 @@ export function buildWidgetLines(
 
   const ts = nowMs ?? Date.now();
   const total = state.tasks.length;
-  const done = state.tasks.filter((t) => t.status === "done").length;
-  const running = state.tasks.filter((t) => t.status === "running").length;
-  const failed = state.tasks.filter((t) => t.status === "failed").length;
-  const aborted = state.tasks.filter((t) => t.status === "aborted").length;
+  // Single-pass status counting (was 4× filter().length per frame).
+  let done = 0, running = 0, failed = 0, aborted = 0;
+  for (const t of state.tasks) {
+    if (t.status === "done") done++;
+    else if (t.status === "running") running++;
+    else if (t.status === "failed") failed++;
+    else if (t.status === "aborted") aborted++;
+  }
 
   // Increment ticks for all running/pending tasks (once per frame)
   const hasAnimation = needsAnimation(state.tasks, ts);
@@ -200,4 +204,52 @@ export function buildStatusLine(
     running > 0 ? "warning" : done === total ? "success" : "error",
     ` ${label}`,
   )} ${segments.join("")}`;
+}
+
+/**
+ * Cheap state fingerprint covering everything that can change the rendered
+ * widget lines. Callers (the per-frame refresh timers) compare consecutive
+ * fingerprints and skip the full buildWidgetLines rebuild + TUI invalidate
+ * when nothing visible changed.
+ *
+ * Includes animation phases so braille fill / moon spinner frames still
+ * trigger rebuilds while animating; once all tasks settle (refreshInterval
+ * would be 0) the fingerprint is stable, letting the existing timer-stop
+ * logic fire on the frame where the phase flips.
+ *
+ * Returns null exactly when buildWidgetLines would return null.
+ */
+export function computeWidgetFingerprint(
+  state: SwarmState | null,
+  cancelIsPending: boolean,
+  nowMs?: number,
+): string | null {
+  if (!state || state.tasks.length === 0 || state.status === "pending") return null;
+  const ts = nowMs ?? Date.now();
+  const termWidth = process?.stdout?.columns ?? 100;
+
+  let fp = `${state.name}|${state.status}|${cancelIsPending ? 1 : 0}|${termWidth}`;
+
+  let running = 0;
+  for (const t of state.tasks) {
+    if (t.status === "running") running++;
+    // Quantized fill-animation phase: changes while the completed-fill
+    // animation runs, then saturates to -1 (stable) once it finishes.
+    let fillPhase = -1;
+    if ((t.status === "done" || t.status === "failed") && t.completedAtMs !== undefined) {
+      const elapsed = ts - t.completedAtMs;
+      if (elapsed >= 0 && elapsed < COMPLETE_FILL_MS) fillPhase = Math.floor(elapsed / 40);
+    }
+    fp += `#${t.id}:${t.status}:${t.toolCalls}/${t.estimatedTotalCalls}:${t.currentAction ?? ""}:${t.error ?? ""}:${fillPhase}`;
+  }
+
+  // Moon spinner phase — only rendered while something is running.
+  if (running > 0) fp += `|moon:${Math.floor(ts / 120)}`;
+
+  // Goal badge/status lines (duration is floored to seconds/minutes).
+  if (currentGoal && currentGoal.status !== "complete") {
+    fp += `|goal:${currentGoal.status}:${Math.floor(currentGoal.wallClockMs / 1000)}:${currentGoal.turnsUsed}:${currentGoal.budgetLimits?.turnBudget ?? ""}:${currentGoal.objective}`;
+  }
+
+  return fp;
 }

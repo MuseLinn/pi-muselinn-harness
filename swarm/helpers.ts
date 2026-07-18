@@ -94,7 +94,20 @@ export function needsAnimation(tasks: { status: string; completedAtMs?: number }
 // Grid Layout Calculator (Kimi Code-style adaptive)
 // ============================================================
 
+// Single-entry memo: the widget rebuild calls this every frame with a stable
+// (count, width, height) triple, so caching the last result avoids recomputing
+// layout on frames where nothing structural changed.
+let gridLayoutCache: { key: string; value: GridLayout } | null = null;
+
 export function calculateGridLayout(count: number, availableWidth: number, availableHeight: number): GridLayout {
+  const key = `${count}|${availableWidth}|${availableHeight}`;
+  if (gridLayoutCache && gridLayoutCache.key === key) return gridLayoutCache.value;
+  const value = calculateGridLayoutUncached(count, availableWidth, availableHeight);
+  gridLayoutCache = { key, value };
+  return value;
+}
+
+function calculateGridLayoutUncached(count: number, availableWidth: number, availableHeight: number): GridLayout {
   if (count <= 0) return { columns: 1, rows: 0, cellWidth: 0, barCells: 1 };
 
   const gapWidth = visibleWidth(CELL_GAP);
@@ -160,7 +173,24 @@ export const AGENT_SWARM_TITLE_ACCENT_BIAS = 1.3;
  * Kimi Code-style gradient text: interpolates between two hex colors per character.
  * Uses raw ANSI 24-bit color codes since Pi's theme doesn't support hex colors.
  */
+// Single-entry memo: gradient output only depends on its args, and callers
+// (the widget title) use constant inputs, so frames after the first are free.
+let gradientCache: { key: string; value: string } | null = null;
+
 export function gradientText(
+  text: string,
+  fromHex: string,
+  toHex: string,
+  accentBias = 1,
+): string {
+  const key = `${text}|${fromHex}|${toHex}|${accentBias}`;
+  if (gradientCache && gradientCache.key === key) return gradientCache.value;
+  const value = gradientTextUncached(text, fromHex, toHex, accentBias);
+  gradientCache = { key, value };
+  return value;
+}
+
+function gradientTextUncached(
   text: string,
   fromHex: string,
   toHex: string,

@@ -90,6 +90,12 @@ export const AGENT_SWARM_LEFT_INDENT = " ";
 export const COMPLETE_FILL_MS = 360;
 export const FRAME_INTERVAL_MS = 250;
 
+// Output accumulation bounds (Phase 3): once a subagent's streamed output
+// exceeds the byte gate, appends stop and a single truncation marker is kept;
+// the lines array itself is capped, dropping the oldest lines.
+export const MAX_OUTPUT_LINES = 1000;
+export const OUTPUT_TRUNCATED_MARKER = "[output truncated]";
+
 // ============================================================
 // Goal Types — re-export from goal/types.ts (single source of truth)
 // ============================================================

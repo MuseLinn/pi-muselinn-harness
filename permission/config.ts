@@ -21,6 +21,38 @@ function parsePattern(raw: string): ToolPattern {
   return { raw, pathPattern: new RegExp(raw, 'i') };
 }
 
+// Per-file mtime cache: permission evaluation is a security hot path that
+// re-reads these files on every tool call. mtime change forces an immediate
+// re-read, so rule edits take effect on the very next evaluate; an unchanged
+// mtime skips both readFileSync and RegExp recompilation.
+interface ConfigFileCache {
+  mtimeMs: number; // -1 = file missing
+  deny: ToolPattern[];
+  ask: ToolPattern[];
+  allow: ToolPattern[];
+}
+const configFileCache = new Map<string, ConfigFileCache>();
+
+function loadConfigFile(configPath: string): ConfigFileCache {
+  let mtimeMs = -1;
+  try {
+    mtimeMs = fs.statSync(configPath).mtimeMs;
+  } catch { /* missing or unreadable → treated as absent */ }
+  const cached = configFileCache.get(configPath);
+  if (cached && cached.mtimeMs === mtimeMs) return cached;
+  const entry: ConfigFileCache = { mtimeMs, deny: [], ask: [], allow: [] };
+  if (mtimeMs >= 0) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (parsed.deny) entry.deny = (parsed.deny as string[]).map(parsePattern);
+      if (parsed.ask) entry.ask = (parsed.ask as string[]).map(parsePattern);
+      if (parsed.allow) entry.allow = (parsed.allow as string[]).map(parsePattern);
+    } catch { /* ignore */ }
+  }
+  configFileCache.set(configPath, entry);
+  return entry;
+}
+
 export function loadUserConfig(cwd: string): UserPermissionConfig {
   const config: UserPermissionConfig = {
     deny: [],
@@ -33,20 +65,15 @@ export function loadUserConfig(cwd: string): UserPermissionConfig {
     process.env.HOME || process.env.USERPROFILE || '.',
     '.pi', 'agent', 'permissions.json'
   );
-  
+
   // Load from .pi/permissions.json (project-level)
   const projectConfig = path.join(cwd, '.pi', 'permissions.json');
 
   for (const configPath of [globalConfig, projectConfig]) {
-    try {
-      if (fs.existsSync(configPath)) {
-        const raw = fs.readFileSync(configPath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        if (parsed.deny) config.deny.push(...(parsed.deny as string[]).map(parsePattern));
-        if (parsed.ask) config.ask.push(...(parsed.ask as string[]).map(parsePattern));
-        if (parsed.allow) config.allow.push(...(parsed.allow as string[]).map(parsePattern));
-      }
-    } catch { /* ignore */ }
+    const file = loadConfigFile(configPath);
+    config.deny.push(...file.deny);
+    config.ask.push(...file.ask);
+    config.allow.push(...file.allow);
   }
 
   return config;
