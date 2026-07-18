@@ -37,13 +37,17 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       },
       required: ["objective"],
     },
-    async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, _ctx: any) {
+    async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
       const g = goalManager.createGoal(
         params.objective,
         params.completion_criterion,
         params.budgetLimits,
         "model",
       );
+      // Update status bar after creating goal (Kimi Code-style)
+      if (ctx?.ui?.setStatus && ctx?.ui?.theme) {
+        ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
+      }
       return {
         content: [{ type: "text", text: `Goal created: ${g.objective}\nStatus: ${g.status}` }],
       };

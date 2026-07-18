@@ -151,6 +151,9 @@ export function registerGoalCommands(pi: any, goalManager: GoalManager): void {
             } else {
               goalManager.createGoal(args.trim(), undefined, undefined, "user");
               ctx.ui.notify(`Goal set: ${args.trim()}`, "info");
+              // Update status bar (Kimi Code-style)
+              if (ctx.ui?.setStatus && ctx.ui?.theme) {
+                ctx.ui.setStatus("goal", ctx.ui.theme.fg("accent", `[goal ● active · 0s · 0 turns]`));
             }
           } else {
             ctx.ui.notify("Usage: /goal <objective>", "error");
