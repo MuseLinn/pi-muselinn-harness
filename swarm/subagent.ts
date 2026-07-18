@@ -228,6 +228,11 @@ export async function runSubAgent(
 ): Promise<void> {
   const resourceLoader = createSubagentResourceLoader(ctx);
   const models = ctx.modelRegistry.getAvailable();
+  // Kimi Code-aligned built-in subagent tool sets:
+  //  - coder:  full read/write + shell (default general-purpose agent)
+  //  - explore: read-only (no edit/write/bash)
+  //  - plan:    read-only, no shell at all (planning/architecture only)
+  // Nested agent dispatch is intentionally not exposed to subagents.
   const allTools =
     task.type === "coder"
       ? ["read", "bash", "edit", "write", "grep", "find", "ls"]

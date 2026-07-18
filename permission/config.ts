@@ -80,25 +80,57 @@ export function loadUserConfig(cwd: string): UserPermissionConfig {
 }
 
 /**
- * Walk up from `cwd` looking for the nearest AGENTS.md.
- * Returns the file path, or null if none found.
+ * Kimi Code-style instruction-file hierarchy:
+ *  1. Project level (nearest directory wins): AGENTS.md and/or
+ *     .kimi-code/AGENTS.md, walking up from cwd.
+ *  2. Global Kimi-specific: $KIMI_CODE_HOME/AGENTS.md
+ *     (default ~/.kimi-code/AGENTS.md).
+ *  3. Cross-tool global: ~/.agents/AGENTS.md.
+ * Returns every layer that exists, project first.
  */
-export function findAgentsMd(cwd: string): string | null {
+export function findAgentsMdFiles(cwd: string): string[] {
+  const files: string[] = [];
+  const isFile = (p: string): boolean => {
+    try { return fs.existsSync(p) && fs.statSync(p).isFile(); } catch { return false; }
+  };
+
+  // 1. Project level: walk up; the nearest directory containing either form wins.
   let dir = path.resolve(cwd);
   const root = path.parse(dir).root;
   while (true) {
-    const candidate = path.join(dir, 'AGENTS.md');
-    try {
-      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-        return candidate;
-      }
-    } catch { /* ignore */ }
+    const direct = path.join(dir, 'AGENTS.md');
+    const nested = path.join(dir, '.kimi-code', 'AGENTS.md');
+    const foundHere = [direct, nested].filter(isFile);
+    if (foundHere.length > 0) {
+      files.push(...foundHere);
+      break;
+    }
     if (dir === root) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return null;
+
+  // 2. Global Kimi-specific instruction file (moves with KIMI_CODE_HOME).
+  const home = process.env.HOME || process.env.USERPROFILE || '.';
+  const kimiHome = process.env.KIMI_CODE_HOME || path.join(home, '.kimi-code');
+  const globalKimi = path.join(kimiHome, 'AGENTS.md');
+  if (isFile(globalKimi)) files.push(globalKimi);
+
+  // 3. Cross-tool global instruction file.
+  const crossTool = path.join(home, '.agents', 'AGENTS.md');
+  if (isFile(crossTool)) files.push(crossTool);
+
+  return files;
+}
+
+/**
+ * Walk up from `cwd` looking for the nearest AGENTS.md.
+ * Returns the file path, or null if none found.
+ * (Backward-compatible: first layer of findAgentsMdFiles.)
+ */
+export function findAgentsMd(cwd: string): string | null {
+  return findAgentsMdFiles(cwd)[0] ?? null;
 }
 
 /**
@@ -132,17 +164,20 @@ export function parseAgentsMd(content: string): Record<string, string> {
 }
 
 /**
- * Load the nearest AGENTS.md raw contents.
- * Safe to call even when no file exists.
+ * Load AGENTS.md contents across the Kimi Code instruction-file hierarchy
+ * (project -> $KIMI_CODE_HOME -> ~/.agents), aggregated so a directive
+ * declared at any layer takes effect. Safe to call when nothing exists.
  */
 export function loadAgentsMd(cwd: string): string | undefined {
-  const filePath = findAgentsMd(cwd);
-  if (!filePath) return undefined;
-  try {
-    return fs.readFileSync(filePath, 'utf-8');
-  } catch {
-    return undefined;
+  const files = findAgentsMdFiles(cwd);
+  if (files.length === 0) return undefined;
+  const parts: string[] = [];
+  for (const filePath of files) {
+    try {
+      parts.push(fs.readFileSync(filePath, 'utf-8'));
+    } catch { /* skip unreadable layer */ }
   }
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
 export function matchesPattern(

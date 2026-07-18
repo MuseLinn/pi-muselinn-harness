@@ -52,6 +52,14 @@ function check(name, cond, extra = "") {
 // Isolated cwd (no AGENTS.md / .pi/permissions.json anywhere up its tree).
 const cleanCwd = fs.mkdtempSync(path.join(os.tmpdir(), "perm-test-clean-"));
 
+// Isolate from the machine's real global instruction files: the policy chain
+// now honors $KIMI_CODE_HOME/AGENTS.md and ~/.agents/AGENTS.md
+// (Kimi Code instruction-file hierarchy), so point all three lookup roots at
+// the empty temp dir unless a test overrides one deliberately.
+process.env.KIMI_CODE_HOME = cleanCwd;
+process.env.HOME = cleanCwd;
+process.env.USERPROFILE = cleanCwd;
+
 // ctx stub: confirmAnswer controls the simulated user's choice on ask prompts.
 function makeCtx(confirmAnswer) {
   return {
@@ -118,6 +126,35 @@ permissionManager.resetHistory();
     blocked?.block === true && /destructive-ask-always/.test(blocked?.reason ?? ""),
     JSON.stringify(blocked));
   fs.rmSync(denyCwd, { recursive: true, force: true });
+}
+
+// ── 5b. 全局 $KIMI_CODE_HOME/AGENTS.md 的 destructive-ask-always 同样生效 ──
+{
+  const gHome = fs.mkdtempSync(path.join(os.tmpdir(), "perm-test-khome-"));
+  fs.writeFileSync(path.join(gHome, "AGENTS.md"), "destructive-ask-always\n");
+  const prev = process.env.KIMI_CODE_HOME;
+  process.env.KIMI_CODE_HOME = gHome;
+  try {
+    const blocked = await evalIn("bash", { command: "rm -rf /tmp/z" }, cleanCwd, true);
+    check("global KIMI_CODE_HOME AGENTS.md: destructive denied",
+      blocked?.block === true && /destructive-ask-always/.test(blocked?.reason ?? ""),
+      JSON.stringify(blocked));
+  } finally {
+    process.env.KIMI_CODE_HOME = prev;
+    fs.rmSync(gHome, { recursive: true, force: true });
+  }
+}
+
+// ── 5c. 项目子目录形式 .kimi-code/AGENTS.md 也被识别 ─────────────────────
+{
+  const projCwd = fs.mkdtempSync(path.join(os.tmpdir(), "perm-test-nested-"));
+  fs.mkdirSync(path.join(projCwd, ".kimi-code"));
+  fs.writeFileSync(path.join(projCwd, ".kimi-code", "AGENTS.md"), "destructive-ask-always\n");
+  const blocked = await evalIn("bash", { command: "rm -rf /tmp/z" }, projCwd, true);
+  check("project .kimi-code/AGENTS.md: destructive denied",
+    blocked?.block === true && /destructive-ask-always/.test(blocked?.reason ?? ""),
+    JSON.stringify(blocked));
+  fs.rmSync(projCwd, { recursive: true, force: true });
 }
 
 // ── 6. 模式切换语义: manual -> ask, yolo -> approve ───────────────────────

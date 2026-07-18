@@ -38,7 +38,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **Destructive 检测** — `rm -rf` / `git push --force` / `drop table` / `git reset --hard` 等正则识别，每次必问，不被会话批准短路
 - **敏感文件守卫** — `.env` / `id_rsa` / `*.key` 等读写拦截，auto 模式下也不放行
 - **会话批准指纹** — 按 sessionId + 输入指纹记忆批准，不蜕变为"永久许可"
-- **AGENTS.md 指令** — 解析最近 AGENTS.md,`destructive-ask-always` 可将 ask 升级为 deny
+- **AGENTS.md 指令** — 对齐 Kimi Code 指令文件层级,聚合生效:项目级(最近的 `AGENTS.md` 或 `.kimi-code/AGENTS.md`)→ 全局 `$KIMI_CODE_HOME/AGENTS.md`(默认 `~/.kimi-code/AGENTS.md`)→ 跨工具 `~/.agents/AGENTS.md`;`destructive-ask-always` 可将 ask 升级为 deny
 - **配置缓存** — 权限配置按文件 mtime 缓存，变更即时生效
 
 ### Task 模块(后台任务 + 定时任务)
@@ -48,6 +48,23 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **50 任务上限** + **7 天 stale 清理** + 重启孤儿任务降级 `process_restart`
 - **增量持久化** — 单任务变更只 append 单条 entry,restore 兼容旧快照
 - **Cron 定时任务** — 5 字段 cron(本地时区)+ 确定性 jitter(实测周期 10%,上限 15min)+ recurring/one-shot + 50 上限 + 7 天 stale 自动删
+
+## 与 Kimi Code 的对齐情况
+
+对照 [Kimi Code CLI 官方文档 — Agent 与子 Agent](https://www.kimi.com/code/docs/kimi-code-cli/customization/agents.html):
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| 三种内置子 Agent(coder/explore/plan) | ✅ | coder=读写+bash;explore=只读;plan=只读无 shell |
+| 上下文隔离 | ✅ | 子 Agent 独立 session,仅最终结果回流主上下文 |
+| 并行派发 + max_concurrency | ✅ | worker 池真实上限 + 渐进投放 |
+| 30 分钟超时 | ✅ | 每子 Agent 独立 AbortSignal.timeout |
+| 后台运行(run_in_background) | ✅ | 早返回 task ID,task_output 可 block 等待,报告落 output_path |
+| 唤回已有子 Agent(resume) | ⚠️ | 保守语义:同 id 重跑;真·会话恢复待 pi-coding-agent 暴露 resume API |
+| 嵌套子 Agent(coder 再派发) | ❌ | 有意不开放——防止递归派发失控,子 Agent 工具集不含 agent/agent_swarm |
+| 权限继承 | ⚠️ | 子 Agent 按创建时的工具白名单执行,不经主会话 18 级策略链逐次审批;收紧权限请用主会话策略或收窄 subagent_type |
+| 指令文件层级 | ✅ | 项目级 `AGENTS.md` / `.kimi-code/AGENTS.md` → `$KIMI_CODE_HOME/AGENTS.md` → `~/.agents/AGENTS.md`,聚合生效 |
+| 会话目录 wire.jsonl 持久化 | ❌ | 子 Agent 用 SessionManager.inMemory(),状态不落盘(进程内生命周期) |
 
 ## 安装
 
