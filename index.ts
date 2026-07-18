@@ -51,6 +51,7 @@ import { registerPermissionCommands } from "./permission/commands";
 import { backgroundManager, registerBackgroundTools } from "./task";
 import { cronManager, registerCronTools } from "./task/cron";
 import { registerHooks, hookEngine } from "./hooks/index";
+import { listExistingSkillDirs } from "./skills/index";
 import shared from "./state";
 
 // Interactive question tools (copied from Pi SDK examples)
@@ -158,6 +159,23 @@ export default function (pi: ExtensionAPI) {
   // ── Hooks engine: wire all pi events (input/tool_result/agent_settled/
   //    turn_end/session_*) before anything else so hooks observe every event ──
   try { registerHooks(pi); } catch { /* hooks must never break extension load */ }
+
+  // ── Main-session skills: expose Kimi Code-style skills directories
+  //    (.kimi-code/skills, .agents/skills, $KIMI_CODE_HOME/skills,
+  //    ~/.agents/skills) to pi's own resource loader via resources_discover.
+  //    pi scans them with its standard SKILL.md rules; extra Kimi frontmatter
+  //    fields (type/whenToUse/arguments) are ignored there but honored by the
+  //    subagent scanner (skills/scanner.ts). ──
+  try {
+    pi.on("resources_discover", (event: { cwd: string }) => {
+      try {
+        const skillPaths = listExistingSkillDirs(event.cwd || process.cwd());
+        return skillPaths.length > 0 ? { skillPaths } : undefined;
+      } catch {
+        return undefined;
+      }
+    });
+  } catch { /* older pi without resources_discover — subagent path still works */ }
 
   // ── Goal persistence: save on every change ──
   // Note: pi/ctx go stale after session replacement (newSession/fork/reload

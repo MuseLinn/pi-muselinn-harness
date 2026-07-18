@@ -17,6 +17,7 @@ import {
 import type { SubAgentType, SubAgentTask } from "./types";
 import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "./types";
 import { hookEngine } from "../hooks/index";
+import { loadSkillsForCwd } from "../skills/index";
 
 // Append one output line with a hard array-length cap (oldest dropped first).
 function pushOutputLine(task: SubAgentTask, line: string): void {
@@ -125,7 +126,8 @@ export function createSubagentResourceLoader(ctx: {
 
   return {
     getExtensions: () => extensionsResult,
-    getSkills: () => ({ skills: [], diagnostics: [] }),
+    // Kimi Code-style Agent Skills (project + user scopes) for subagent sessions.
+    getSkills: () => loadSkillsForCwd(ctx.cwd || process.cwd()) as { skills: any[]; diagnostics: any[] },
     getPrompts: () => ({ prompts: [], diagnostics: [] }),
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),

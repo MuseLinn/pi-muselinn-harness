@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { loadSkillsForCwd } from "../skills/index";
 
 export interface BackgroundTaskEntry {
   id: string;
@@ -599,7 +600,8 @@ async function runBackgroundSession(
 function createSubagentResourceLoader(ctx: any): any {
   return {
     getExtensions: () => ({ extensions: [], errors: [] }),
-    getSkills: () => ({ skills: [], diagnostics: [] }),
+    // Kimi Code-style Agent Skills (project + user scopes) for background tasks.
+    getSkills: () => loadSkillsForCwd(ctx?.cwd || process.cwd()) as { skills: any[]; diagnostics: any[] },
     getPrompts: () => ({ prompts: [], diagnostics: [] }),
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
