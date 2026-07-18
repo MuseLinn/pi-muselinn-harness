@@ -538,7 +538,7 @@ export default function (pi: ExtensionAPI) {
         return { modelId: spec };
       }
 
-      // Helper: resolve provider:model spec to actual model ID (without provider prefix)
+      // Helper: resolve provider:model spec to actual model ID
       function resolveModelSpec(spec: string): string {
         const parsed = parseModelSpec(spec);
         const mId = parsed.modelId;
@@ -546,15 +546,16 @@ export default function (pi: ExtensionAPI) {
         if (prov) {
           // Find model on specific provider
           const found = available.find((m: any) => m.id === mId && m.provider === prov);
-          if (found) return found.id; // Return just the model ID, not provider:model
+          if (found) return `${found.provider}:${found.id}`;
           // If not found on specified provider, try any provider
           const anyProv = available.find((m: any) => m.id === mId);
-          return anyProv?.id || mId;
+          return anyProv ? `${anyProv.provider}:${anyProv.id}` : mId;
         }
         // No provider specified: prefer default provider, then any
         const fromDefault = available.find((m: any) => m.id === mId && m.provider === defaultProvider);
         const fromAny = available.find((m: any) => m.id === mId);
-        return (fromDefault || fromAny)?.id || mId;
+        const found = fromDefault || fromAny;
+        return found ? `${found.provider}:${found.id}` : mId;
       }
 
             // ── Build tasks ──────────────────────────────────────────────────────
@@ -833,7 +834,7 @@ export default function (pi: ExtensionAPI) {
           score -= m.id.length;
           return { model: m, score };
         }).sort((a: any, b: any) => b.score - a.score);
-        modelId = scored[0].model.id;
+        modelId = `${scored[0].model.provider}:${scored[0].model.id}`;
       } else {
         // Auto-select based on task type
         modelId = await resolveModelForTask(
