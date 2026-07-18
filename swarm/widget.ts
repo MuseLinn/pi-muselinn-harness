@@ -7,7 +7,7 @@
 
 import { Container, truncateToWidth } from "@earendil-works/pi-tui";
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
-import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS } from "./types";
+import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS, MIN_LABEL_WIDTH } from "./types";
 import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
 
 /**
@@ -90,7 +90,15 @@ export function buildWidgetLines(
       const t = state.tasks[idx];
       const progress = computeProgress(t);
       const bar = accumulatedBrailleBar(progress, layout.barCells, t.status, t.completedAtMs, ts);
-      const label = cellLabel(t, layout.cellWidth, theme);
+      // Label budget = cell width minus the id + braille bar prefix and the
+      // two separating spaces actually emitted below. Sizing the label to the
+      // full cellWidth let extreme labels overflow into the neighbour cell
+      // (only the line-level truncateToWidth backstop caught it).
+      const labelMaxWidth = Math.max(
+        MIN_LABEL_WIDTH,
+        layout.cellWidth - visibleWidth(t.id) - visibleWidth(bar) - 2,
+      );
+      const label = cellLabel(t, labelMaxWidth, theme);
       const cell = `${theme.fg("muted", t.id)} ${colorBar(bar, t.status, theme)} ${label}`;
       cells.push(cell);
     }
@@ -119,7 +127,15 @@ export function buildWidgetLines(
     lines.push(theme.fg("error", " /cancel again to cancel the swarm"));
   }
 
-  const refreshInterval = hasAnimation ? FRAME_INTERVAL_MS : 0;
+  // Keep the frame timer alive while the swarm is still running: the moon
+  // spinner in the status line advances purely from the frame timestamp
+  // (already covered by the widget fingerprint), so a live timer at
+  // FRAME_INTERVAL_MS is all that is needed to keep it turning. Once the
+  // swarm leaves "running" (or nothing is running) and the completed-fill
+  // animation has settled, refreshInterval drops to 0 and the caller's
+  // timer self-stops as before.
+  const swarmInFlight = state.status === "running" && running > 0;
+  const refreshInterval = hasAnimation || swarmInFlight ? FRAME_INTERVAL_MS : 0;
   return { lines, refreshInterval };
 }
 
