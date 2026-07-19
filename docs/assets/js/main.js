@@ -85,20 +85,18 @@
     }
     var flipTo = function (dock) {
       if (split.classList.contains("docked") === dock) return;
-      // FLIP: measure, toggle layout, invert the delta, then animate to
-      // identity — the strip expands/slides into the docked terminal
-      // instead of popping.
+      // FLIP translate only — the shape change (clipped -> tall window)
+      // is a CSS max-height transition, so nothing distorts; we only
+      // animate the position delta between centered and docked.
       var first = term.getBoundingClientRect();
       split.classList.toggle("docked", dock);
       var last = term.getBoundingClientRect();
-      if (first.width === last.width && first.left === last.left && first.top === last.top) return;
       var dx = first.left - last.left;
       var dy = first.top - last.top;
-      var sx = first.width / last.width;
-      var sy = first.height / last.height;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
       term.style.transition = "none";
       term.style.transformOrigin = "top left";
-      term.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")";
+      term.style.transform = "translate(" + dx + "px," + dy + "px)";
       requestAnimationFrame(function () {
         term.style.transition = "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)";
         term.style.transform = "";

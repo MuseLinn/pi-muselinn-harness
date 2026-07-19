@@ -305,9 +305,11 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   margin: 2rem 0 1rem;
 }
 
-/* undocked (top of page): collapsed strip centered below the hero —
-   title bar + scroll hint only, pi.dev-style. Docks into the sticky
-   left column on scroll (geometry + hysteresis in main.js). */
+/* undocked (top of page): a SHORT terminal WINDOW centered below the
+   hero — title bar + a few live body lines, pi.dev-style. It is a
+   window from the very start, never a bare command strip. On scroll it
+   grows taller in place (max-height transition) and docks into the
+   sticky left column (translate-only FLIP in main.js). */
 .split:not(.docked) {
   grid-template-columns: 1fr;
 }
@@ -315,27 +317,32 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 .split:not(.docked) .split-term {
   position: static;
   width: 100%;
-  max-width: 620px;
+  max-width: 480px;
   margin: 0 auto;
 }
 
-.split:not(.docked) #demo-body {
-  display: none;
-}
-
-.scroll-hint {
-  display: none;
-  padding: 0.5rem 1.1rem 0.65rem;
+#demo-body {
+  padding: 1rem 1.2rem;
+  min-height: 26rem;
+  max-height: 40rem;
+  overflow: hidden;
   font-family: var(--mono);
-  font-size: 0.82rem;
-  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  transition: max-height 0.35s ease, opacity 0.16s ease;
 }
 
-.split:not(.docked) .scroll-hint {
+.split:not(.docked) #demo-body {
   display: block;
+  min-height: 0;
+  max-height: 9.5rem; /* clipped live lines peek out, pi.dev-style */
+  mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
 }
 
 .demo-term {
+  position: relative;
+  z-index: 5; /* passes over prose while docking */
   transition: opacity 0.16s ease;
 }
 
@@ -374,15 +381,6 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   letter-spacing: 0.08em;
   color: var(--text-dim);
   text-transform: uppercase;
-}
-
-#demo-body {
-  padding: 1rem 1.2rem;
-  min-height: 26rem;
-  font-family: var(--mono);
-  font-size: 0.9rem;
-  line-height: 1.55;
-  transition: opacity 0.16s ease;
 }
 
 #demo-body.fading {

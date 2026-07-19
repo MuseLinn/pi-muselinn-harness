@@ -18,7 +18,6 @@ title: pi-muselinn-harness
     <div class="demo-term" id="demo-term">
       <div class="termtitle" id="demo-title">swarm · live</div>
       <div id="demo-body"></div>
-      <div class="scroll-hint">$ scroll to continue</div>
     </div>
   </div>
   <div class="split-sections">
