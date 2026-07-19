@@ -87,15 +87,14 @@
       if (split.classList.contains("docked") === dock) return;
       split.classList.toggle("docked", dock);
     };
-    // Geometry-driven with hysteresis (instant jumps must not skip the
-    // crossing): dock once the first section's top passes 50% vh, undock
-    // when it is back near the hero (top > 90% vh) so returning to the
-    // top always restores the centered terminal.
+    // Dock once the first section's top passes 50% vh; undock simply by
+    // scroll position (back at the hero) — layout-independent, so the
+    // centered strip always restores.
     var pending = false;
     var onScroll = function () {
       var top = firstSection.getBoundingClientRect().top;
-      if (top < window.innerHeight * 0.5) flipTo(true);
-      else if (top > window.innerHeight * 0.9) flipTo(false);
+      if (window.scrollY < 200) flipTo(false);
+      else if (top < window.innerHeight * 0.5) flipTo(true);
     };
     window.addEventListener("scroll", function () {
       if (pending) return;
