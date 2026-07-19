@@ -390,3 +390,59 @@ export function loadSkillsForCwd(cwd: string): LoadSkillsResult {
   }
   return { skills: out.skills, diagnostics: out.diagnostics };
 }
+
+// ------------------------------------------------------------
+// resources_discover support — pi-native dedupe
+// ------------------------------------------------------------
+
+/**
+ * Skill files for pi's resources_discover hook.
+ *
+ * pi already scans these dirs itself (core/package-manager):
+ *   - <project>/.pi/skills      (trust-gated)
+ *   - <project>/.agents/skills  (trust-gated, ancestors)
+ *   - ~/.pi/agent/skills
+ *   - ~/.agents/skills
+ * Returning them again would double-register; and because pi loads its
+ * own dirs before extension-provided paths, any same-named skill in our
+ * compat dirs (.kimi-code/skills, ~/.pi/skills) loses pi's first-wins
+ * dedupe and surfaces as a collision diagnostic. So we:
+ *   1. seed the seen-set with skill names from pi-native dirs,
+ *   2. return SKILL.md file paths (pi accepts files, not just dirs)
+ *      from the compat dirs pi does NOT scan, skipping names already
+ *      claimed — pi 原生目录优先.
+ * Caveat: the project-dir seeding ignores pi's trust gate; when the
+ * project is untrusted pi skips those dirs while we still seed from
+ * them, which can hide a same-named compat skill (conservative).
+ */
+export function listDiscoverableSkillFiles(cwd: string): string[] {
+  const projectRoot = findProjectRoot(cwd);
+  const home = process.env.HOME || process.env.USERPROFILE || ".";
+  const kimiHome = process.env.KIMI_CODE_HOME || path.join(home, ".kimi-code");
+
+  const piNativeDirs: SkillRootDir[] = [
+    { dir: path.join(projectRoot, ".pi", "skills"), source: "project" },
+    { dir: path.join(projectRoot, ".agents", "skills"), source: "project" },
+    { dir: path.join(home, ".pi", "agent", "skills"), source: "user" },
+    { dir: path.join(home, ".agents", "skills"), source: "user" },
+  ];
+  const compatDirs: SkillRootDir[] = [
+    { dir: path.join(projectRoot, ".kimi-code", "skills"), source: "project" },
+    { dir: path.join(home, ".pi", "skills"), source: "user" },
+    { dir: path.join(kimiHome, "skills"), source: "user" },
+  ];
+
+  const seen = new Set<string>();
+  for (const root of piNativeDirs) {
+    for (const skill of scanRootCached(root).skills) seen.add(skill.name);
+  }
+  const out: string[] = [];
+  for (const root of compatDirs) {
+    for (const skill of scanRootCached(root).skills) {
+      if (seen.has(skill.name)) continue;
+      seen.add(skill.name);
+      out.push(skill.filePath);
+    }
+  }
+  return out;
+}

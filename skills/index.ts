@@ -10,6 +10,7 @@ export {
   loadSkillsForCwd,
   listSkillRootDirs,
   listExistingSkillDirs,
+  listDiscoverableSkillFiles,
   findProjectRoot,
   clearSkillsCache,
 } from "./scanner";

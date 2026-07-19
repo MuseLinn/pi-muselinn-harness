@@ -318,6 +318,53 @@ const afterClear = loadSkillsForCwd(cacheProject);
 check("cache: clearSkillsCache forces rescan",
   afterClear.skills.some((s) => s.name === "two"));
 
+// ── listDiscoverableSkillFiles: pi-native dirs win, compat dirs deduped ──
+// Separate env root so the shared fixture's scope counts are untouched.
+{
+  const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), "skills-discover-"));
+  const home2 = path.join(tmp2, "home");
+  const kimiHome2 = path.join(tmp2, "kimi-home");
+  const project2 = path.join(tmp2, "project2");
+  fs.mkdirSync(path.join(project2, ".git"), { recursive: true });
+
+  write(path.join(home2, ".agents", "skills", "webbridge", "SKILL.md"),
+    "---\nname: kimi-webbridge\ndescription: agents copy\n---\n");
+  write(path.join(kimiHome2, "skills", "webbridge", "SKILL.md"),
+    "---\nname: kimi-webbridge\ndescription: kimi copy (should lose)\n---\n");
+  write(path.join(kimiHome2, "skills", "unique-tool", "SKILL.md"),
+    "---\nname: unique-tool\ndescription: only in kimi home\n---\n");
+  write(path.join(project2, ".kimi-code", "skills", "proj-skill.md"), "Project-only skill.\n");
+  write(path.join(home2, ".pi", "skills", "pi-extra.md"), "User .pi skills dir.\n");
+
+  const savedEnv = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, KIMI_CODE_HOME: process.env.KIMI_CODE_HOME };
+  process.env.HOME = home2;
+  process.env.USERPROFILE = home2;
+  process.env.KIMI_CODE_HOME = kimiHome2;
+
+  const { listDiscoverableSkillFiles } = loadTs(`${EXT}/skills/index.ts`);
+  const files = listDiscoverableSkillFiles(project2);
+
+  check("discover: pi-native ~/.agents name beats ~/.kimi-code same-named skill",
+    !files.some((f) => f.includes("kimi-home") && f.includes("webbridge")), JSON.stringify(files));
+  check("discover: unique kimi-home skill included",
+    files.some((f) => f.endsWith(path.join("unique-tool", "SKILL.md"))), JSON.stringify(files));
+  check("discover: project .kimi-code skill included",
+    files.some((f) => f.includes("project2") && f.endsWith("proj-skill.md")), JSON.stringify(files));
+  check("discover: ~/.pi/skills included",
+    files.some((f) => f.endsWith("pi-extra.md")), JSON.stringify(files));
+  check("discover: project scope comes before user scope",
+    files.length > 0 && files[0].includes("project2"), JSON.stringify(files));
+  check("discover: returns .md file paths, not dirs",
+    files.every((f) => f.endsWith(".md")), JSON.stringify(files));
+  check("discover: no pi-native dir files returned",
+    !files.some((f) => f.includes(path.join(".agents", "skills"))), JSON.stringify(files));
+
+  process.env.HOME = savedEnv.HOME;
+  process.env.USERPROFILE = savedEnv.USERPROFILE;
+  process.env.KIMI_CODE_HOME = savedEnv.KIMI_CODE_HOME;
+  try { fs.rmSync(tmp2, { recursive: true, force: true }); } catch { /* ok */ }
+}
+
 // ── Cleanup ──────────────────────────────────────────────────────────
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* ok */ }
 
