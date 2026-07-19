@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="MuseLinn logo animation">
+  <defs>
+    <linearGradient id="mla-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4FA8FF"/>
+      <stop offset="1" stop-color="#5BC0BE"/>
+    </linearGradient>
+    <style>
+      .mla-dot {
+        opacity: 0;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: mla-ignite 6.5s ease-in-out infinite;
+      }
+      .mla-spark {
+        animation: mla-ignite 6.5s ease-in-out infinite, mla-pulse 1.6s ease-in-out 1.6s infinite alternate;
+      }
+      @keyframes mla-ignite {
+        0% { opacity: 0; transform: scale(0.2); }
+        10% { opacity: 1; transform: scale(1); }
+        78% { opacity: 1; transform: scale(1); }
+        92%, 100% { opacity: 0; transform: scale(0.9); }
+      }
+      @keyframes mla-pulse {
+        from { transform: scale(1); }
+        to { transform: scale(1.35); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mla-dot, .mla-spark { animation: none; opacity: 1; }
+      }
+    </style>
+  </defs>
+  <g fill="#4FA8FF" opacity="0.14">
+    <circle cx="36" cy="12" r="7"/><circle cx="60" cy="12" r="7"/><circle cx="84" cy="12" r="7"/>
+    <circle cx="60" cy="36" r="7"/>
+    <circle cx="36" cy="60" r="7"/><circle cx="84" cy="60" r="7"/>
+    <circle cx="36" cy="84" r="7"/><circle cx="60" cy="84" r="7"/><circle cx="84" cy="84" r="7"/>
+    <circle cx="36" cy="108" r="7"/><circle cx="60" cy="108" r="7"/><circle cx="84" cy="108" r="7"/>
+  </g>
+  <g fill="url(#mla-g)">
+    <circle class="mla-dot" style="animation-delay:0ms"    cx="12"  cy="12"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:120ms"  cx="12"  cy="36"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:240ms"  cx="12"  cy="60"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:360ms"  cx="12"  cy="84"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:480ms"  cx="12"  cy="108" r="7"/>
+    <circle class="mla-dot" style="animation-delay:600ms"  cx="36"  cy="36"  r="7"/>
+    <circle class="mla-dot mla-spark" style="animation-delay:720ms" cx="60" cy="60" r="7" fill="#5BC0BE"/>
+    <circle class="mla-dot" style="animation-delay:840ms"  cx="84"  cy="36"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:960ms"  cx="108" cy="12"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:1080ms" cx="108" cy="36"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:1200ms" cx="108" cy="60"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:1320ms" cx="108" cy="84"  r="7"/>
+    <circle class="mla-dot" style="animation-delay:1440ms" cx="108" cy="108" r="7"/>
+  </g>
+</svg>

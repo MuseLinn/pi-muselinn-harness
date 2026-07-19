@@ -62,11 +62,52 @@
     }
 
     initScenes();
+    initDock();
   });
 
   // ── Demo scenes (sticky terminal) ──
   var bodyEl, titleEl, active = null;
   var swarm = null, swarmRestart = null, typeTimer = null;
+
+  // Hero terminal docking (FLIP): centered below the hero at the top of
+  // the page, docks into the sticky left column once the sections scroll in.
+  function initDock() {
+    var split = document.getElementById("split");
+    var term = document.getElementById("demo-term");
+    var firstSection = document.querySelector(".split-section[data-scene]");
+    if (!split || !term || !firstSection || !("IntersectionObserver" in window)) {
+      if (split) split.classList.add("docked");
+      return;
+    }
+    if (!window.matchMedia("(min-width: 761px)").matches) {
+      split.classList.add("docked");
+      return;
+    }
+    var flipTo = function (dock) {
+      if (split.classList.contains("docked") === dock) return;
+      var first = term.getBoundingClientRect();
+      split.classList.toggle("docked", dock);
+      var last = term.getBoundingClientRect();
+      if (first.width === last.width && first.height === last.height &&
+          first.left === last.left && first.top === last.top) return;
+      var dx = first.left - last.left;
+      var dy = first.top - last.top;
+      var sx = first.width / last.width;
+      var sy = first.height / last.height;
+      term.style.transition = "none";
+      term.style.transformOrigin = "top left";
+      term.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")";
+      requestAnimationFrame(function () {
+        term.style.transition = "transform 0.45s cubic-bezier(0.2,0.8,0.2,1)";
+        term.style.transform = "";
+        setTimeout(function () { term.style.transition = "none"; }, 500);
+      });
+    };
+    var dockObs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { flipTo(e.isIntersecting); });
+    }, { rootMargin: "-40% 0px -40% 0px", threshold: 0 });
+    dockObs.observe(firstSection);
+  }
 
   function stopScene() {
     if (swarm) { swarm.stop(); swarm = null; }

@@ -305,9 +305,34 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   margin: 2rem 0 1rem;
 }
 
+/* undocked (top of page): terminal centered full-width below the hero,
+   like pi.dev; docks to the sticky left column on scroll (FLIP in main.js) */
+.split:not(.docked) {
+  grid-template-columns: 1fr;
+}
+
+.split:not(.docked) .split-term {
+  position: static;
+  width: 100%;
+  max-width: 660px;
+  margin: 0 auto;
+}
+
 .split-term {
   position: sticky;
   top: 4.5rem;
+}
+
+.hero-logo {
+  width: 104px;
+  height: 104px;
+}
+
+.brand-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  vertical-align: -4px;
 }
 
 .demo-term {

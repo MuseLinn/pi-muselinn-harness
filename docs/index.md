@@ -4,6 +4,7 @@ title: pi-muselinn-harness
 ---
 
 <div class="hero reveal">
+  <img class="hero-logo" src="assets/img/logo-animated.svg" alt="MuseLinn logo — dots igniting into an M">
   <h1><span data-l="en">Pi skips sub-agents and plan mode.<br><em>This harness builds them.</em></span><span data-l="zh">Pi 刻意不做子代理和计划模式。<br><em>这个 harness 把它们全部补上。</em></span></h1>
   <p class="sub"><span data-l="en">Kimi Code-style agent orchestration for the <a href="https://pi.dev">Pi coding agent</a> —<br>swarm, goal, plan, permission, task, hooks, skills, and a boxed-editor TUI, in one coherent package.</span><span data-l="zh">为 <a href="https://pi.dev">Pi coding agent</a> 打造的 Kimi Code 风格编排套件 —<br>Swarm、Goal、Plan、Permission、Task、Hooks、Skills 与闭合框编辑器,一个包全部集成。</span></p>
   <p class="badges">
@@ -17,9 +18,9 @@ title: pi-muselinn-harness
   </div>
 </div>
 
-<div class="split">
+<div class="split" id="split">
   <div class="split-term">
-    <div class="demo-term">
+    <div class="demo-term" id="demo-term">
       <div class="termtitle" id="demo-title">swarm · live</div>
       <div id="demo-body"></div>
     </div>
