@@ -11,6 +11,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **run_in_background** — swarm 整体转后台任务，早返回 task ID，报告可落 `output_path`
 - **智能模型路由** — 从 `ctx.modelRegistry` 自动发现，任务感知选择
 - **盲文进度条** — 真实工具调用进度驱动，250ms 帧 + 状态指纹门控(未变帧零成本跳过)
+- **自有 spinner** — 状态栏动画默认单宽度盲文旋转(与进度条同一设计语言，窄终端不抖动),`PI_MUSELINN_SPINNER=braille|pulse|bounce|moon` 可切换(含 Kimi 月相兼容)
 - **自适应布局** — pi-tui Component 协议渲染，状态栏宽度随终端自适应(10–60)，窄终端不错位
 - **三栏任务浏览器** — 状态字形(○ pending / ◐ running / ✓ done / ✗ failed / ▲ aborted)+ 完成行删除线、溢出折叠(`+N more`,优先保留 running)、命名键位路由(跟随用户自定义键位)、`ctrl+shift+t` 快捷键
 - **取消/恢复** — UserCancellationError + AbortSignal 链，`/cancel` 两步确认
@@ -57,9 +58,9 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **安全网** — Stop 连续阻断 3 次自动停止注入(防死循环);所有触发镜像到 `pi.events` 供其他扩展订阅
 
 ### Skills 模块
-- **Kimi Code 四级作用域扫描** — 项目级 `.kimi-code/skills`、`.agents/skills` → 用户级 `$KIMI_CODE_HOME/skills`、`~/.agents/skills`,项目优先按 name 去重
+- **pi 原生七级作用域扫描** — 项目级 `.pi/skills`、`.kimi-code/skills`(Kimi 兼容)、`.agents/skills` → 用户级 `~/.pi/agent/skills`、`~/.pi/skills`、`$KIMI_CODE_HOME/skills`、`~/.agents/skills`;pi 原生目录优先，Kimi Code 目录作兼容层，按 name 去重(先到先得，冲突记 diagnostic)
 - **目录型 + 扁平型** — `SKILL.md` 子目录(可带辅助文件)与单 `.md` 文件,frontmatter 全字段(name/description/type/whenToUse/disableModelInvocation/arguments,含横杠/下划线变体)
-- **子代理可用** — swarm 与后台任务的子代理 session 经 resourceLoader 拿到 skills;主会话经 `resources_discover` 注入同一批目录
+- **子代理可用** — swarm 与后台任务的子代理 session 经 resourceLoader 拿到 skills(与主会话同一批 pi 原生技能);主会话经 `resources_discover` 注入
 - **零依赖 frontmatter 解析器** + mtime 目录树缓存
 
 ## 与 Kimi Code 的对齐情况
@@ -79,7 +80,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 | 指令文件层级 | ✅ | 项目级 `AGENTS.md` / `.kimi-code/AGENTS.md` → `$KIMI_CODE_HOME/AGENTS.md` → `~/.agents/AGENTS.md`,聚合生效 |
 | 会话目录 wire.jsonl 持久化 | ❌ | 子 Agent 用 SessionManager.inMemory(),状态不落盘(进程内生命周期) |
 | Hooks(`[[hooks]]` 生命周期钩子) | ✅ | 16 个事件全覆盖,退出码/stdout JSON 阻断语义,fail-open |
-| Agent Skills(四级作用域) | ✅ | 项目/用户四级目录,目录型+扁平型,子代理与主会话双通道 |
+| Agent Skills(四级作用域) | ✅+ | 完整覆盖 Kimi 四级目录,并扩展为 pi 原生七级(`.pi/skills`、`~/.pi/agent/skills` 等优先,Kimi 目录兼容);目录型+扁平型,子代理与主会话双通道 |
 
 ## 安装
 
@@ -130,7 +131,7 @@ pi-muselinn-harness/
 │   ├── task-browser.ts 三栏浏览器(状态字形/折叠/命名键位)
 │   ├── task-list-utils.ts 折叠与键位路由(纯函数)
 │   ├── estimator.ts  进度估算(几何平均)
-│   └── helpers.ts    盲文进度条/布局(memo 缓存)
+│   └── helpers.ts    盲文进度条/布局/spinner 风格(memo 缓存)
 ├── goal/             Goal 模块
 │   ├── index.ts      GoalManager(状态机 + 3 轮阈值 + 判据门禁)
 │   ├── commands.ts   /goal 命令
@@ -164,15 +165,15 @@ pi-muselinn-harness/
 
 ## 测试
 
-无需模型额度的 node 级单元测试(共 168 项断言):
+无需模型额度的 node 级单元测试(共 177 项断言):
 
 ```bash
 node tests/permission.test.mjs                    # Permission 策略链 14 项
 node tests/goal.test.mjs                          # Goal 状态机 17 项
 node --experimental-strip-types tests/cron.test.mjs  # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
-node tests/skills.test.mjs                        # Skills 扫描/解析 28 项
-node tests/tui.test.mjs                           # TUI 折叠/键位/补全 50 项
+node tests/skills.test.mjs                        # Skills 扫描/解析/作用域 31 项
+node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 56 项
 ```
 
 ## 依赖

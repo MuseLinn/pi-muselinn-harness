@@ -8,7 +8,7 @@
 import { Container, truncateToWidth } from "@earendil-works/pi-tui";
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
 import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS, MIN_LABEL_WIDTH } from "./types";
-import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS } from "./helpers";
+import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS, getSpinnerFrames } from "./helpers";
 
 /**
  * Build goal status line for widget display.
@@ -127,7 +127,7 @@ export function buildWidgetLines(
     lines.push(theme.fg("error", " /cancel again to cancel the swarm"));
   }
 
-  // Keep the frame timer alive while the swarm is still running: the moon
+  // Keep the frame timer alive while the swarm is still running: the
   // spinner in the status line advances purely from the frame timestamp
   // (already covered by the widget fingerprint), so a live timer at
   // FRAME_INTERVAL_MS is all that is needed to keep it turning. Once the
@@ -214,13 +214,14 @@ export function buildStatusLine(
 
   if (phases.length === 0) return "";
 
-  // Moon spinner (Kimi Code-style). Uses the caller-supplied frame timestamp
-  // so re-renders between timer ticks never advance the phase; once nothing
-  // is running the moon disappears and the label settles on its final text.
-  const MOON_PHASES = ["\uD83C\uDF11", "\uD83C\uDF12", "\uD83C\uDF13", "\uD83C\uDF14", "\uD83C\uDF15", "\uD83C\uDF16", "\uD83C\uDF17", "\uD83C\uDF18"];
-  const moonFrame = running > 0 ? MOON_PHASES[Math.floor((nowMs ?? Date.now()) / 120) % MOON_PHASES.length] + " " : "";
+  // Spinner (harness-branded, PI_MUSELINN_SPINNER=braille|pulse|bounce|moon).
+  // Uses the caller-supplied frame timestamp so re-renders between timer
+  // ticks never advance the phase; once nothing is running the spinner
+  // disappears and the label settles on its final text.
+  const frames = getSpinnerFrames();
+  const spinFrame = running > 0 ? frames[Math.floor((nowMs ?? Date.now()) / 120) % frames.length] + " " : "";
 
-  const label = moonFrame + (running > 0 ? "Working..." : done === total ? "Completed." : "Failed.");
+  const label = spinFrame + (running > 0 ? "Working..." : done === total ? "Completed." : "Failed.");
 
   const totalCount = phases.reduce((s, p) => s + p.count, 0);
   const segments = phases.map((p) => {
@@ -240,7 +241,7 @@ export function buildStatusLine(
  * fingerprints and skip the full buildWidgetLines rebuild + TUI invalidate
  * when nothing visible changed.
  *
- * Includes animation phases so braille fill / moon spinner frames still
+ * Includes animation phases so braille fill / spinner frames still
  * trigger rebuilds while animating; once all tasks settle (refreshInterval
  * would be 0) the fingerprint is stable, letting the existing timer-stop
  * logic fire on the frame where the phase flips.
@@ -272,8 +273,8 @@ export function computeWidgetFingerprint(
     fp += `#${t.id}:${t.status}:${t.toolCalls}/${t.estimatedTotalCalls}:${t.currentAction ?? ""}:${t.error ?? ""}:${fillPhase}`;
   }
 
-  // Moon spinner phase — only rendered while something is running.
-  if (running > 0) fp += `|moon:${Math.floor(ts / 120)}`;
+  // Spinner phase — only rendered while something is running.
+  if (running > 0) fp += `|spin:${Math.floor(ts / 120)}`;
 
   // Goal badge/status lines (duration is floored to seconds/minutes).
   if (currentGoal && currentGoal.status !== "complete") {
@@ -306,7 +307,7 @@ export type SwarmWidgetUpdate = "changed" | "unchanged" | "empty";
  * and progress callbacks) or by a viewport width change, and width-change
  * rebuilds reuse the timestamp of the last update. Once the swarm settles
  * (refreshIntervalMs === 0) and the timer stops, re-renders triggered by
- * unrelated UI activity repaint the cached frame verbatim — the moon
+ * unrelated UI activity repaint the cached frame verbatim — the
  * spinner / fill animation stay frozen on their last frame.
  */
 export class SwarmWidgetComponent extends Container {
@@ -365,7 +366,7 @@ export class SwarmWidgetComponent extends Container {
       this.renderWidth = width;
       if (this.lines.length > 0) {
         // Rebuild the layout for the new width with the ORIGINAL build
-        // timestamp so time-driven frames (moon spinner, fill animation)
+        // timestamp so time-driven frames (spinner, fill animation)
         // stay frozen between updates.
         const state = this.getState();
         const result = buildWidgetLines(state, this.theme, this.isCancelPending(), this.lastBuildMs, width);

@@ -1,12 +1,22 @@
 // ============================================================
-// Skills — Kimi Code-style Agent Skills scanner
+// Skills — pi-native Agent Skills scanner with Kimi Code compat
 // ============================================================
-// Four-scope layout (project wins over user):
+// Seven-scope layout (project wins over user; pi-native dirs win over
+// Kimi Code compat dirs at the same level):
 //   project root (nearest ancestor of cwd containing .git, else cwd):
-//     .kimi-code/skills/   .agents/skills/
+//     .pi/skills/            (pi native — package-manager.js projectDirs.skills)
+//     .kimi-code/skills/     (Kimi Code compat)
+//     .agents/skills/        (cross-tool)
 //   user:
-//     $KIMI_CODE_HOME/skills/ (default ~/.kimi-code/skills/)
-//     ~/.agents/skills/
+//     ~/.pi/agent/skills/    (pi native — user skills, package-manager.js userDirs.skills)
+//     ~/.pi/skills/          (pi top-level, used by some installs)
+//     $KIMI_CODE_HOME/skills/ (default ~/.kimi-code/skills/ — Kimi Code compat)
+//     ~/.agents/skills/      (cross-tool)
+//
+// Rationale: subagents run under pi, so pi's own skill dirs are the
+// canonical source; the Kimi Code dirs are scanned as a compatibility
+// layer so existing Kimi-style skill collections keep working unchanged.
+// Dedupe by name: first scope in this order wins.
 //
 // Scan rules (aligned with pi's loadSkillsFromDir):
 //   - a directory containing SKILL.md is a skill root; do not recurse further
@@ -90,8 +100,13 @@ export function listSkillRootDirs(cwd: string): SkillRootDir[] {
   const home = process.env.HOME || process.env.USERPROFILE || ".";
   const kimiHome = process.env.KIMI_CODE_HOME || path.join(home, ".kimi-code");
   return [
+    // project scope — pi native first, then Kimi Code compat, then cross-tool
+    { dir: path.join(projectRoot, ".pi", "skills"), source: "project" },
     { dir: path.join(projectRoot, ".kimi-code", "skills"), source: "project" },
     { dir: path.join(projectRoot, ".agents", "skills"), source: "project" },
+    // user scope — same ordering
+    { dir: path.join(home, ".pi", "agent", "skills"), source: "user" },
+    { dir: path.join(home, ".pi", "skills"), source: "user" },
     { dir: path.join(kimiHome, "skills"), source: "user" },
     { dir: path.join(home, ".agents", "skills"), source: "user" },
   ];

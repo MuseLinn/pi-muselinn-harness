@@ -868,7 +868,7 @@ export default function (pi: ExtensionAPI) {
       updateWidget();
 
       // Periodic refresh at FRAME_INTERVAL_MS (250ms) — drives the braille
-      // fill animation and moon spinner. The fingerprint gate inside
+      // fill animation and status-line spinner. The fingerprint gate inside
       // widget.update() skips the rebuild + repaint on frames where nothing
       // visible changed, and the timer stops itself once the build reports
       // refreshIntervalMs === 0 (animation settled).

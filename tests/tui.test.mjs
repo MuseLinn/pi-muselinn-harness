@@ -297,5 +297,35 @@ check("glyphs: pending ○ / running ◐ / done ✓ / failed ✗ / aborted ▲",
   && utils.statusGlyph("failed") === "✗"
   && utils.statusGlyph("aborted") === "▲");
 
+// ══════════════════════════════════════════════════════════════
+// 7. Spinner styles (harness-branded, PI_MUSELINN_SPINNER)
+// ══════════════════════════════════════════════════════════════
+const helpers = loadTs(`${EXT}/swarm/helpers.ts`);
+const { getSpinnerFrames, SPINNER_STYLES, DEFAULT_SPINNER_STYLE } = helpers;
+
+delete process.env.PI_MUSELINN_SPINNER;
+check("spinner: default style is braille",
+  DEFAULT_SPINNER_STYLE === "braille"
+  && getSpinnerFrames() === SPINNER_STYLES.braille);
+check("spinner: braille frames are single-width (no emoji)",
+  SPINNER_STYLES.braille.every((f) => [...f].length === 1 && f.charCodeAt(0) >= 0x2800 && f.charCodeAt(0) <= 0x28ff));
+
+process.env.PI_MUSELINN_SPINNER = "pulse";
+check("spinner: env override selects pulse",
+  getSpinnerFrames() === SPINNER_STYLES.pulse);
+
+process.env.PI_MUSELINN_SPINNER = "BOUNCE";
+check("spinner: env override is case-insensitive",
+  getSpinnerFrames() === SPINNER_STYLES.bounce);
+
+process.env.PI_MUSELINN_SPINNER = "moon";
+check("spinner: legacy moon style still available",
+  getSpinnerFrames() === SPINNER_STYLES.moon && SPINNER_STYLES.moon.length === 8);
+
+process.env.PI_MUSELINN_SPINNER = "nonexistent";
+check("spinner: unknown style falls back to braille",
+  getSpinnerFrames() === SPINNER_STYLES.braille);
+delete process.env.PI_MUSELINN_SPINNER;
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

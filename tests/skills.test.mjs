@@ -188,14 +188,17 @@ const nogit = path.join(tmp, "nogit");
 fs.mkdirSync(path.join(nogit, ".kimi-code", "skills"), { recursive: true });
 check("findProjectRoot: no .git → cwd itself", findProjectRoot(nogit) === nogit);
 
-// Scope ordering
+// Scope ordering (pi-native dirs first at each level, Kimi Code compat after)
 const roots = listSkillRootDirs(path.join(project, "nested"));
-check("four scopes listed, project first",
-  roots.length === 4 &&
-  roots[0].dir === projKimiSkills && roots[0].source === "project" &&
-  roots[1].dir === projAgentsSkills && roots[1].source === "project" &&
-  roots[2].dir === userKimiSkills && roots[2].source === "user" &&
-  roots[3].dir === userAgentsSkills && roots[3].source === "user");
+check("seven scopes listed, project first, pi-native before kimi compat",
+  roots.length === 7 &&
+  roots[0].dir === path.join(project, ".pi", "skills") && roots[0].source === "project" &&
+  roots[1].dir === projKimiSkills && roots[1].source === "project" &&
+  roots[2].dir === projAgentsSkills && roots[2].source === "project" &&
+  roots[3].dir === path.join(userHome, ".pi", "agent", "skills") && roots[3].source === "user" &&
+  roots[4].dir === path.join(userHome, ".pi", "skills") && roots[4].source === "user" &&
+  roots[5].dir === userKimiSkills && roots[5].source === "user" &&
+  roots[6].dir === userAgentsSkills && roots[6].source === "user");
 
 const result = loadSkillsForCwd(path.join(project, "nested", "deep"));
 const byName = new Map(result.skills.map((s) => [s.name, s]));
@@ -275,7 +278,27 @@ const nogitResult = loadSkillsForCwd(nogit);
 check("no .git → cwd used as project root, project skills load",
   nogitResult.skills.some((s) => s.name === "local" && s.sourceInfo.source === "project"));
 
-// 13. cache: second call returns identical content (cache hit), and
+// 13. pi-native scopes: project .pi/skills wins over project .kimi-code,
+// and user ~/.pi/agent/skills loads.
+const piProject = path.join(tmp, "pi-proj");
+fs.mkdirSync(path.join(piProject, ".git"), { recursive: true });
+write(path.join(piProject, ".pi", "skills", "dual.md"), "From pi-native project scope.\n");
+write(path.join(piProject, ".kimi-code", "skills", "dual.md"), "From kimi compat scope.\n");
+write(path.join(userHome, ".pi", "agent", "skills", "pi-user.md"), "Pi-native user skill.\n");
+const piResult = loadSkillsForCwd(piProject);
+const piByName = new Map(piResult.skills.map((s) => [s.name, s]));
+check("pi scope: project .pi/skills wins over .kimi-code compat",
+  piByName.get("dual")?.description === "From pi-native project scope." &&
+  piByName.get("dual")?.filePath === path.join(piProject, ".pi", "skills", "dual.md"));
+check("pi scope: compat collision diagnostic recorded",
+  piResult.diagnostics.some((d) => d.type === "collision" && d.collision?.name === "dual"));
+check("pi scope: user ~/.pi/agent/skills loaded",
+  piByName.get("pi-user")?.sourceInfo?.source === "user");
+// Clean up the shared user-scope fixture so later assertions are unaffected.
+fs.rmSync(path.join(userHome, ".pi"), { recursive: true, force: true });
+clearSkillsCache();
+
+// 14. cache: second call returns identical content (cache hit), and
 // adding a skill file invalidates via directory mtime change.
 const cacheProject = path.join(tmp, "cache-proj");
 fs.mkdirSync(path.join(cacheProject, ".git"), { recursive: true });
