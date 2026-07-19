@@ -8,9 +8,9 @@ title: pi-muselinn-harness
   <p class="sub">Kimi Code-style agent orchestration for the <a href="https://pi.dev">Pi coding agent</a> —<br>
   swarm, goal, plan, permission, task, hooks, skills, and a boxed-editor TUI, in one coherent package.</p>
   <p class="badges">
-    <a href="https://www.npmjs.com/package/pi-muselinn-harness"><img src="https://img.shields.io/npm/v/pi-muselinn-harness?color=5bc0be" alt="npm version"></a>
-    <a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/pi-muselinn-harness?color=7aa2f7" alt="license"></a>
-    <a href="https://github.com/MuseLinn/pi-muselinn-harness#tests"><img src="https://img.shields.io/badge/tests-269%20assertions-5bc0be" alt="tests"></a>
+    <a href="https://www.npmjs.com/package/pi-muselinn-harness"><img src="assets/img/badge-npm.svg" alt="npm version"></a>
+    <a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE"><img src="assets/img/badge-license.svg" alt="license: MIT"></a>
+    <a href="https://github.com/MuseLinn/pi-muselinn-harness#tests"><img src="assets/img/badge-tests.svg" alt="tests: 269 assertions"></a>
   </p>
   <div class="installbar">
     <span><span class="prompt">$</span>pi install npm:pi-muselinn-harness</span>

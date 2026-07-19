@@ -1,7 +1,7 @@
 # pi-muselinn-harness
 
-[![npm version](https://img.shields.io/npm/v/pi-muselinn-harness)](https://www.npmjs.com/package/pi-muselinn-harness)
-[![license](https://img.shields.io/npm/l/pi-muselinn-harness)](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE)
+[![npm version](docs/assets/img/badge-npm.svg)](https://www.npmjs.com/package/pi-muselinn-harness)
+[![license: MIT](docs/assets/img/badge-license.svg)](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE)
 
 Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills 七模块架构，全面对齐 Kimi Code 的子系统行为。
 
