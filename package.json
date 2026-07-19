@@ -6,9 +6,34 @@
   "main": "index.ts",
   "author": "MuseLinn",
   "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "files": [
+    "index.ts",
+    "state.ts",
+    "completions.ts",
+    "swarm/",
+    "goal/",
+    "plan/",
+    "permission/",
+    "task/",
+    "hooks/",
+    "skills/",
+    "tui/",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.80.0",
+    "@earendil-works/pi-coding-agent": ">=0.80.0",
+    "@earendil-works/pi-tui": ">=0.80.0"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/MuseLinn/pi-muselinn-harness"
+    "url": "git+https://github.com/MuseLinn/pi-muselinn-harness.git"
   },
   "keywords": [
     "pi-package",
