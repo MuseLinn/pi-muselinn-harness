@@ -60,8 +60,15 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 ### Skills 模块
 - **pi 原生七级作用域扫描** — 项目级 `.pi/skills`、`.kimi-code/skills`(Kimi 兼容)、`.agents/skills` → 用户级 `~/.pi/agent/skills`、`~/.pi/skills`、`$KIMI_CODE_HOME/skills`、`~/.agents/skills`;pi 原生目录优先，Kimi Code 目录作兼容层，按 name 去重(先到先得，冲突记 diagnostic)
 - **目录型 + 扁平型** — `SKILL.md` 子目录(可带辅助文件)与单 `.md` 文件,frontmatter 全字段(name/description/type/whenToUse/disableModelInvocation/arguments,含横杠/下划线变体)
-- **子代理可用** — swarm 与后台任务的子代理 session 经 resourceLoader 拿到 skills(与主会话同一批 pi 原生技能);主会话经 `resources_discover` 注入
+- **子代理可用** — swarm 与后台任务的子代理 session 经 resourceLoader 拿到 skills(与主会话同一批 pi 原生技能);主会话经 `resources_discover` 注入(只返回 pi 不扫的兼容目录 `.kimi-code/skills`、`~/.pi/skills` 中的 SKILL.md 文件,并按名排除 pi 原生目录已提供的技能——pi 原生目录优先,不再产生 collision 诊断)
 - **零依赖 frontmatter 解析器** + mtime 目录树缓存
+
+### TUI 模块
+- **闭合框编辑器** — 移植 Kimi Code 的 `wrapWithSideBorders`:pi-tui 默认只有上下横线,后处理为 `╭╮│╰╯` 闭合框;上边框嵌入 spinner + 工作状态(Thinking/Streaming/Running tools),`plain | boxed | compact` 三种样式(pi-spark 式信息上边框为 compact),默认 boxed;模型名默认不进边框(pi 状态行已有),需要时配置 `"modelInBorder": true`
+- **`/tui` 命令** — `/tui style plain|boxed|compact` 热切换编辑器样式(不重启,pi 热交换编辑器时保留文本/焦点/键位),`/tui timing` 查看渲染耗时;配置持久化到 `~/.pi/agent/muselinn-tui.json`(项目级 `.pi/muselinn-tui.json` 覆盖)
+- **性能探针** — `PI_MUSELINN_HARNESS_TUI_TIMING=1` 时统计 editor `render()` 耗时的 P50/P99;spinner 仅在工作时以 250ms 帧率驱动
+
+> 注:曾移植 pi-spark 的 BottomFiller 伪全屏(钉底布局),因其只在短会话有视觉效果(长会话填充量恒为 0)已移除;真正的编辑器钉底需要 alternate screen,属 pi-core 范畴。
 
 ## 与 Kimi Code 的对齐情况
 
@@ -102,9 +109,10 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `/goal queue` / `/goal add\|prioritize\|drop\|skip` | 队列操作 |
 | `/plan` / `/plan on\|off\|clear` | Plan Mode 控制 |
 | `/mode` | 切换权限模式(auto/yolo/manual) |
+| `/tui` | 切换编辑器样式(plain/boxed/compact) |
 | `/swarm-status` | 查看状态 |
 
-> `/goal` `/swarm` `/plan` `/mode` 均支持 Tab 子命令/参数补全。
+> `/goal` `/swarm` `/plan` `/mode` `/tui` 均支持 Tab 子命令/参数补全。
 
 ## 工具
 
@@ -160,20 +168,29 @@ pi-muselinn-harness/
 │   ├── frontmatter.ts YAML frontmatter 迷你解析
 │   ├── scanner.ts    四级扫描 + 去重 + 缓存
 │   └── index.ts      loadSkillsForCwd / resources_discover 接线
+├── tui/              TUI 模块(闭合框编辑器)
+│   ├── box.ts        wrapWithSideBorders / composeTopBorder(纯函数)
+│   ├── editor.ts     MuselinnEditor(继承 CustomEditor,三样式)
+│   ├── switch.ts     样式切换决策(纯函数)
+│   ├── config.ts     muselinn-tui.json 双层配置
+│   ├── timing.ts     render() 耗时探针(P50/P99)
+│   ├── parse.ts      /tui 参数解析
+│   └── index.ts      事件接线 + /tui 命令 + spinner 生命周期
 └── tests/            node 级单元测试(见下)
 ```
 
 ## 测试
 
-无需模型额度的 node 级单元测试(共 177 项断言):
+无需模型额度的 node 级单元测试(共 245 项断言):
 
 ```bash
 node tests/permission.test.mjs                    # Permission 策略链 14 项
 node tests/goal.test.mjs                          # Goal 状态机 17 项
 node --experimental-strip-types tests/cron.test.mjs  # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
-node tests/skills.test.mjs                        # Skills 扫描/解析/作用域 31 项
+node tests/skills.test.mjs                        # Skills 扫描/解析/作用域/discover 38 项
 node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 56 项
+node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/切换 61 项
 ```
 
 ## 依赖
@@ -194,8 +211,12 @@ node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spi
 - Plan Mode 生命周期(enter/exit/approve/reject、ExitPlanMode 读盘)
 - Permission 策略链(auto/yolo/manual、destructive 必问、AGENTS.md 优先级)
 - Cron 定时任务(5 字段 + jitter + 7 天 stale + 50 上限)
-- TUI 组件设计(盲文进度条、三栏任务浏览器)
+- TUI 组件设计(盲文进度条、三栏任务浏览器、`wrapWithSideBorders` 闭合框编辑器)
 - 取消/恢复机制(AbortSignal 链、UserCancellationError)
+
+### [pi-spark](https://github.com/zlliang/pi-spark) (zlliang)
+- 编辑器上边框信息位设计(spinner + 工作状态 + 模型名嵌入边框)
+- 组件替换式 TUI 改造路径(`setEditorComponent` / `setFooter` / `setWidget`)
 
 ### [@narumitw/pi-goal](https://www.npmjs.com/package/@narumitw/pi-goal) (narumitw)
 - Goal Queue FIFO + Auto-switch 机制
@@ -212,7 +233,7 @@ node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spi
 
 ---
 
-**注意**：本扩展是独立实现，未直接引用上述项目的代码。设计灵感来源于这些项目，但所有代码均为原创。
+**注意**：本扩展大部分为独立实现。例外：`tui/box.ts` 的 `wrapWithSideBorders` 移植自 Kimi Code(MIT),已保留出处注释并按 MIT 条款使用。
 
 ## License
 

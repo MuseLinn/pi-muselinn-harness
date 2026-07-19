@@ -129,6 +129,49 @@ export function planArgumentCompletions(prefix: string): CompletionItem[] | null
   return filterCompletions(PLAN_SUBCOMMANDS, text);
 }
 
+// ── /tui ──────────────────────────────────────────────────────
+
+const TUI_SUBCOMMANDS: CompletionItem[] = [
+  { value: "style", label: "style <plain|boxed|compact>", description: "Editor chrome style" },
+  { value: "timing", label: "timing", description: "Render timing stats (PI_MUSELINN_HARNESS_TUI_TIMING=1)" },
+];
+
+const TUI_STYLES: CompletionItem[] = [
+  { value: "plain", label: "plain", description: "Pi default borders" },
+  { value: "boxed", label: "boxed", description: "Kimi-style closed box (╭╮│╰╯)" },
+  { value: "compact", label: "compact", description: "pi-spark-style info top border" },
+];
+
+/**
+ * Argument completions for /tui.
+ * - First token: subcommand list (prefix-filtered).
+ * - `style <name>`: second token completes style names; the returned
+ *   value is the FULL argument string (pi replaces the whole
+ *   argumentText with item.value).
+ */
+export function tuiArgumentCompletions(prefix: string): CompletionItem[] | null {
+  const text = prefix || "";
+  const endsWithSpace = /\s$/.test(text);
+  const tokens = text.trim().split(/\s+/).filter((t) => t.length > 0);
+
+  if (tokens.length === 0 || (tokens.length === 1 && !endsWithSpace)) {
+    return filterCompletions(TUI_SUBCOMMANDS, tokens[0] ?? "");
+  }
+
+  if (tokens[0].toLowerCase() === "style") {
+    if (tokens.length >= 2 && endsWithSpace) return null; // style already done
+    const stylePrefix = tokens[1] ?? "";
+    const styleItems = TUI_STYLES.map((s) => ({
+      value: `style ${s.value}`,
+      label: s.label,
+      description: s.description,
+    }));
+    return filterCompletions(styleItems, stylePrefix);
+  }
+
+  return null;
+}
+
 // ── /mode ─────────────────────────────────────────────────────
 
 const MODE_SUBCOMMANDS: CompletionItem[] = [

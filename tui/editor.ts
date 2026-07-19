@@ -1,0 +1,79 @@
+// ============================================================
+// TUI — MuselinnEditor: custom pi editor with switchable chrome.
+//
+//   boxed   — Kimi Code-style closed box (╭╮│╰╯) with spinner/model
+//             embedded in the top border.
+//   compact — pi-spark-style: plain side-less editor, top border carries
+//             spinner left + model right.
+//   plain   — not handled here: the runtime unregisters the custom
+//             editor entirely and pi's default editor comes back.
+//
+// Editor instances are immutable w.r.t. style: switching styles
+// re-registers the factory via ctx.ui.setEditorComponent, and pi
+// hot-swaps the editor (preserving text, focus, autocomplete and
+// keybinding handlers — see pi's setCustomEditorComponent).
+// ============================================================
+
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
+
+import { composeTopBorder, wrapWithSideBorders, type EditorStyle } from "./box";
+import type { RenderTiming } from "./timing";
+
+import type { TUI, EditorTheme } from "@earendil-works/pi-tui";
+import type { KeybindingsManager } from "@earendil-works/pi-coding-agent";
+
+/** Pre-styled border slots, evaluated per render (cheap string joins only). */
+export interface EditorSlots {
+  left(): string;
+  right(): string;
+}
+
+export class MuselinnEditor extends CustomEditor {
+  private readonly chromeStyle: EditorStyle;
+  private readonly slots: EditorSlots;
+  private readonly timing: RenderTiming | null;
+
+  constructor(
+    tui: TUI,
+    theme: EditorTheme,
+    keybindings: KeybindingsManager,
+    style: EditorStyle,
+    slots: EditorSlots,
+    timing: RenderTiming | null = null,
+  ) {
+    // boxed needs column 0 reserved for the left │ bar (pi-tui pads rows
+    // with spaces up to paddingX; wrapWithSideBorders overlays them).
+    super(tui, theme, keybindings, { paddingX: style === "boxed" ? 1 : 0 });
+    this.chromeStyle = style;
+    this.slots = slots;
+    this.timing = timing;
+  }
+
+  /**
+   * pi copies the default editor's paddingX into custom editors right
+   * after construction (setCustomEditorComponent). Enforce the boxed
+   * minimum here so the side bars always have a space column to land on.
+   */
+  override setPaddingX(padding: number): void {
+    super.setPaddingX(this.chromeStyle === "boxed" ? Math.max(1, padding) : padding);
+  }
+
+  override render(width: number): string[] {
+    const t0 = this.timing ? performance.now() : 0;
+    const lines = super.render(width);
+    let out = lines;
+    if (lines.length > 0) {
+      const paint = (s: string) => this.borderColor(s);
+      if (this.chromeStyle === "compact") {
+        out = [...lines];
+        out[0] = composeTopBorder(width, this.slots.left(), this.slots.right(), paint, false);
+      } else if (this.chromeStyle === "boxed") {
+        out = wrapWithSideBorders(lines, paint, {
+          topBorder: composeTopBorder(width, this.slots.left(), this.slots.right(), paint, true),
+        });
+      }
+    }
+    if (this.timing) this.timing.record("editor", performance.now() - t0);
+    return out;
+  }
+}
