@@ -1,126 +1,251 @@
 ---
 ---
 
-@import "{{ site.theme }}";
+/* ── pi-muselinn-harness — pi.dev-inspired theme ──
+   Dark navy + dotted grid, monospace nav, italic serif hero,
+   thin-bordered cards, terminal-style code frames. */
 
-/* ── pi-muselinn-harness dark theme (Kimi blue/teal accent) ── */
+:root {
+  --bg: #0a0f1c;
+  --bg-soft: #0f1626;
+  --bg-card: #111a2e;
+  --border: #24304a;
+  --text: #c4cede;
+  --text-dim: #7d8aa3;
+  --text-bright: #eef3fb;
+  --accent: #7aa2f7;
+  --accent2: #5bc0be;
+  --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --serif: Georgia, "Times New Roman", "Songti SC", serif;
+}
+
+* { box-sizing: border-box; }
 
 body {
-  background: #0d1117;
-  color: #c9d1d9;
+  margin: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, #1c2740 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
-.page-header {
-  background: linear-gradient(120deg, #155e75 0%, #1e3a5f 55%, #155e75 100%);
-  padding: 2.5rem 1rem;
+/* ── Top nav (pi.dev-style monospace bar) ── */
+
+.topnav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1.6rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 15, 28, 0.92);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.project-name,
-.project-tagline {
-  color: #f0f6fc;
+.topnav .brand { color: var(--text-bright); }
+.topnav .brand b { color: var(--accent); font-weight: 600; }
+
+.topnav a {
+  color: var(--text-dim);
+  text-decoration: none;
+  margin-left: 1.4rem;
 }
 
-.main-content {
-  color: #c9d1d9;
+.topnav a:hover { color: var(--accent); }
 
-  h1, h2, h3, h4, h5, h6 {
-    color: #f0f6fc;
-  }
+/* ── Layout ── */
 
-  a {
-    color: #5bc0be;
-  }
-
-  code {
-    background: #161b22;
-    color: #a5d6ff;
-  }
-
-  pre {
-    background: #161b22;
-    border: 1px solid #30363d;
-
-    code {
-      background: transparent;
-      color: #c9d1d9;
-    }
-  }
-
-  hr {
-    background-color: #30363d;
-  }
-
-  table {
-    th, td {
-      border-color: #30363d;
-    }
-    tr:nth-child(2n) {
-      background: #161b22;
-    }
-  }
-
-  blockquote {
-    color: #8b949e;
-    border-left-color: #5bc0be;
-  }
+main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 3rem 1.4rem 4rem;
 }
+
+h1, h2, h3, h4 { color: var(--text-bright); }
+
+h2 {
+  margin-top: 3rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.35rem;
+}
+
+a { color: var(--accent); }
+
+blockquote {
+  margin: 1rem 0;
+  padding: 0.4rem 1rem;
+  border-left: 3px solid var(--accent2);
+  color: var(--text-dim);
+}
+
+img { max-width: 100%; }
 
 /* ── Hero ── */
 
-.hero {
-  text-align: center;
-  padding: 1rem 0 1.5rem;
+.hero { text-align: center; margin-bottom: 2.5rem; }
 
-  h1 {
-    background: linear-gradient(90deg, #4fa8ff, #5bc0be);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 2.6rem;
-    margin-bottom: 0.4rem;
-  }
+.hero h1 {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 2.3rem;
+  line-height: 1.3;
+  margin: 0.6rem 0 1rem;
+}
 
-  pre {
-    max-width: 34rem;
-    margin: 1.2rem auto 0;
-    text-align: left;
-  }
+.hero h1 em {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.hero .sub {
+  color: var(--text-dim);
+  font-size: 1.02rem;
+  margin: 0.4rem 0 1.2rem;
+}
+
+.hero .badges img { margin: 0 0.2rem; }
+
+/* ── Install bar (pi.dev-style framed command) ── */
+
+.installbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 620px;
+  margin: 1.4rem auto 0;
+  padding: 0.75rem 1.1rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: var(--text-bright);
+}
+
+.installbar .prompt { color: var(--accent2); margin-right: 0.5rem; }
+.installbar .hint { color: var(--text-dim); font-size: 0.75rem; letter-spacing: 0.08em; }
+
+/* ── Terminal frame (screenshot + code blocks) ── */
+
+.termframe {
+  margin: 2rem auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+
+.termframe .termtitle {
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.termframe img { display: block; width: 100%; }
+
+.termframe pre { margin: 0; border: 0; border-radius: 0; }
+
+pre {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+}
+
+pre, code { font-family: var(--mono); }
+
+code {
+  background: var(--bg-soft);
+  color: #a5d6ff;
+  font-size: 0.88em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+pre code {
+  background: transparent;
+  color: var(--text);
+  padding: 0;
 }
 
 /* ── Feature cards ── */
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1rem;
-  margin: 2rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.9rem;
+  margin: 1.6rem 0;
 }
 
 .card {
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 1rem 1.2rem;
+  padding: 1rem 1.15rem;
   transition: border-color 0.15s ease;
-
-  &:hover {
-    border-color: #5bc0be;
-  }
-
-  h3 {
-    margin-top: 0;
-    color: #5bc0be;
-    font-size: 1.1rem;
-  }
-
-  p:last-child {
-    margin-bottom: 0;
-    color: #8b949e;
-    font-size: 0.92rem;
-  }
 }
 
-.site-footer {
-  border-top-color: #30363d;
-  color: #8b949e;
+.card:hover { border-color: var(--accent2); }
+
+.card h3 {
+  margin: 0 0 0.45rem;
+  color: var(--accent2);
+  font-size: 1.02rem;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.card p:last-child {
+  margin-bottom: 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+/* ── Tables ── */
+
+table { border-collapse: collapse; width: 100%; }
+
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.92rem;
+}
+
+th { background: var(--bg-card); color: var(--text-bright); }
+tr:nth-child(2n) { background: var(--bg-soft); }
+
+/* ── Footer ── */
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.4rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 640px) {
+  .hero h1 { font-size: 1.7rem; }
+  .topnav { font-size: 0.7rem; }
+  footer { flex-direction: column; gap: 0.4rem; }
 }

@@ -7,6 +7,8 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 [English](README.md) · [项目主页](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev 包目录](https://pi.dev/packages)
 
+![闭合框编辑器,上边框嵌入工作状态](docs/assets/img/pi-boxed-editor.png)
+
 ## 功能
 
 ### Swarm 模块

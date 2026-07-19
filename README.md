@@ -7,6 +7,8 @@
 
 [中文文档](README.zh-CN.md) · [Project page](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev catalog](https://pi.dev/packages)
 
+![Closed-box editor with streaming state in the top border](docs/assets/img/pi-boxed-editor.png)
+
 ## Install
 
 ```bash

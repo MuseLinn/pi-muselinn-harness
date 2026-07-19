@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.title %}{{ page.title }} · {% endif %}pi-muselinn-harness</title>
+  <meta name="description" content="Kimi Code-style agent orchestration harness for the Pi coding agent — swarm, goal, plan, permission, task, hooks, skills, boxed-editor TUI.">
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+</head>
+<body>
+  <nav class="topnav">
+    <span class="brand">π <b>muselinn-harness</b></span>
+    <span class="navlinks">
+      <a href="https://muselinn.github.io/pi-muselinn-harness/">Home</a>
+      <a href="https://github.com/MuseLinn/pi-muselinn-harness">GitHub</a>
+      <a href="https://www.npmjs.com/package/pi-muselinn-harness">npm</a>
+      <a href="https://pi.dev/packages">pi.dev</a>
+    </span>
+  </nav>
+  <main>
+    {{ content }}
+  </main>
+  <footer>
+    <span>pi-muselinn-harness · MIT License</span>
+    <span>built for <a href="https://pi.dev">pi</a></span>
+  </footer>
+</body>
+</html>
