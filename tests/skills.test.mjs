@@ -46,7 +46,7 @@ process.env.HOME = userHome;
 process.env.USERPROFILE = userHome;
 process.env.KIMI_CODE_HOME = kimiHome;
 
-const EXT = "C:/Users/unive/.pi/agent/extensions/pi-muselinn-harness";
+const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const { loadSkillsForCwd, findProjectRoot, listSkillRootDirs, clearSkillsCache } = loadTs(`${EXT}/skills/index.ts`);
 
 let pass = 0, fail = 0;

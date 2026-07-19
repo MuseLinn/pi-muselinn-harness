@@ -38,7 +38,7 @@ function loadTs(file) {
   return module.exports;
 }
 
-const EXT = "C:/Users/unive/.pi/agent/extensions/pi-muselinn-harness";
+const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const completions = loadTs(`${EXT}/completions.ts`);
 const utils = loadTs(`${EXT}/swarm/task-list-utils.ts`);
 

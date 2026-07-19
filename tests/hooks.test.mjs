@@ -40,7 +40,7 @@ function loadTs(file) {
   return module.exports;
 }
 
-const EXT = "C:/Users/unive/.pi/agent/extensions/pi-muselinn-harness";
+const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const { parseHooksToml, getHookRules, resetHookConfigCache } = loadTs(`${EXT}/hooks/config.ts`);
 const { runHookCommand, interpretResult } = loadTs(`${EXT}/hooks/executor.ts`);
 const { hookEngine } = loadTs(`${EXT}/hooks/index.ts`);
