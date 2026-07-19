@@ -133,6 +133,7 @@ export function planArgumentCompletions(prefix: string): CompletionItem[] | null
 
 const TUI_SUBCOMMANDS: CompletionItem[] = [
   { value: "style", label: "style <plain|boxed|compact>", description: "Editor chrome style" },
+  { value: "math", label: "math <on|off>", description: "Render $$...$$ math via txm" },
   { value: "timing", label: "timing", description: "Render timing stats (PI_MUSELINN_HARNESS_TUI_TIMING=1)" },
 ];
 
@@ -167,6 +168,16 @@ export function tuiArgumentCompletions(prefix: string): CompletionItem[] | null 
       description: s.description,
     }));
     return filterCompletions(styleItems, stylePrefix);
+  }
+
+  if (tokens[0].toLowerCase() === "math") {
+    if (tokens.length >= 2 && endsWithSpace) return null; // on/off already done
+    const valuePrefix = tokens[1] ?? "";
+    const valueItems = [
+      { value: "math on", label: "on", description: "Render math via txm" },
+      { value: "math off", label: "off", description: "Keep raw LaTeX" },
+    ];
+    return filterCompletions(valueItems, valuePrefix);
   }
 
   return null;

@@ -160,16 +160,16 @@ process.env.USERPROFILE = tmpHome;
 
 const def = config.loadTuiConfig(tmpCwd);
 check("config: missing files → defaults (boxed)",
-  def.style === "boxed" && def.modelInBorder === false, JSON.stringify(def));
+  def.style === "boxed" && def.modelInBorder === false && def.math === true, JSON.stringify(def));
 
 check("config: save writes global file",
-  config.saveTuiConfig({ style: "compact", modelInBorder: false }) === true);
+  config.saveTuiConfig({ style: "compact", modelInBorder: false, math: true }) === true);
 const reloaded = config.loadTuiConfig(tmpCwd);
 check("config: saved values reload",
   reloaded.style === "compact", JSON.stringify(reloaded));
 
 // modelInBorder opt-in flag
-config.saveTuiConfig({ style: "boxed", modelInBorder: true });
+config.saveTuiConfig({ style: "boxed", modelInBorder: true, math: true });
 check("config: modelInBorder true persists",
   config.loadTuiConfig(tmpCwd).modelInBorder === true);
 fs.writeFileSync(path.join(tmpHome, ".pi", "agent", "muselinn-tui.json"),
@@ -177,7 +177,7 @@ fs.writeFileSync(path.join(tmpHome, ".pi", "agent", "muselinn-tui.json"),
 check("config: non-boolean modelInBorder → default false",
   config.loadTuiConfig(fs.mkdtempSync(path.join(os.tmpdir(), "muselinn-tui-cwd3-"))).modelInBorder === false);
 // restore the style used by the project-override checks below
-config.saveTuiConfig({ style: "compact", modelInBorder: false });
+config.saveTuiConfig({ style: "compact", modelInBorder: false, math: true });
 
 // project overrides global
 fs.mkdirSync(path.join(tmpCwd, ".pi"), { recursive: true });
@@ -194,7 +194,7 @@ fs.writeFileSync(path.join(tmpHome, ".pi", "agent", "muselinn-tui.json"),
   JSON.stringify({ style: "weird", layout: 42 }), "utf-8");
 const sane = config.loadTuiConfig(fs.mkdtempSync(path.join(os.tmpdir(), "muselinn-tui-cwd2-")));
 check("config: invalid global values → defaults",
-  sane.style === "boxed" && sane.modelInBorder === false, JSON.stringify(sane));
+  sane.style === "boxed" && sane.modelInBorder === false && sane.math === true, JSON.stringify(sane));
 
 process.env.HOME = savedHome;
 process.env.USERPROFILE = savedProfile;
@@ -239,7 +239,7 @@ check("parse: timing", parse.parseTuiArgs("timing").kind === "timing");
 // ══════════════════════════════════════════════════════════════
 const tcomp = completions.tuiArgumentCompletions;
 check("completions: empty → all subcommands",
-  tcomp("").length === 2, String(tcomp("").length));
+  tcomp("").length === 3, String(tcomp("").length));
 check("completions: prefix filters",
   tcomp("t").length === 1 && tcomp("t")[0].value === "timing", JSON.stringify(tcomp("t")));
 check("completions: style prefix → full-string values",

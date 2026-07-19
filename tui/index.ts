@@ -13,6 +13,7 @@ import { MuselinnEditor } from "./editor";
 import { parseTuiArgs } from "./parse";
 import { planStyleSwitch } from "./switch";
 import { renderTiming, isTimingEnabled } from "./timing";
+import { setMathEnabled, isMathEnabled } from "../math/index";
 import { tuiArgumentCompletions } from "../completions";
 import { getSpinnerFrames } from "../swarm/helpers";
 import { FRAME_INTERVAL_MS } from "../swarm/types";
@@ -50,16 +51,33 @@ const rt: TuiRuntime = {
 
 // ── Border slots ──────────────────────────────────────────────
 
+/**
+ * Optional badge for the top border's left slot (e.g. plan mode).
+ * Injected by the host (index.ts) so the tui module stays decoupled
+ * from plan/permission internals. Evaluated lazily per render — the
+ * provider must be a cheap in-memory check.
+ */
+let badgeProvider: (() => string | undefined) | null = null;
+
+export function setTuiBadgeProvider(fn: (() => string | undefined) | null): void {
+  badgeProvider = fn;
+}
+
 function slotLeft(): string {
   const ctx = rt.ctx;
   if (!ctx) return "";
   const theme = ctx.ui.theme;
-  if (!rt.working) return "";
-  const frames = getSpinnerFrames();
-  const frame = frames[rt.spinnerIndex % frames.length];
-  return [theme.fg("accent", frame), rt.workingMessage ? theme.fg("dim", rt.workingMessage) : undefined]
-    .filter(Boolean)
-    .join(" ");
+  const parts: string[] = [];
+  let badge: string | undefined;
+  try { badge = badgeProvider?.() ?? undefined; } catch { badge = undefined; }
+  if (badge) parts.push(theme.fg("warning", badge));
+  if (rt.working) {
+    const frames = getSpinnerFrames();
+    const frame = frames[rt.spinnerIndex % frames.length];
+    parts.push(theme.fg("accent", frame));
+    if (rt.workingMessage) parts.push(theme.fg("dim", rt.workingMessage));
+  }
+  return parts.join(" ");
 }
 
 function slotRight(): string {
@@ -139,7 +157,7 @@ function setWorking(working: boolean, message?: string): void {
 // ── Config helpers ────────────────────────────────────────────
 
 function persistConfig(): void {
-  const config: TuiConfig = { style: rt.style, modelInBorder: rt.modelInBorder };
+  const config: TuiConfig = { style: rt.style, modelInBorder: rt.modelInBorder, math: isMathEnabled() };
   saveTuiConfig(config);
 }
 
@@ -156,7 +174,7 @@ export function registerTui(pi: ExtensionAPI): void {
     try {
       config = loadTuiConfig(ctx.sessionManager.getCwd());
     } catch {
-      config = { style: "boxed", modelInBorder: false };
+      config = { style: "boxed", modelInBorder: false, math: true };
     }
 
     // Reset per-session working state before re-applying chrome.
@@ -165,6 +183,7 @@ export function registerTui(pi: ExtensionAPI): void {
     rt.runningTools.clear();
     rt.spinnerIndex = 0;
     rt.modelInBorder = config.modelInBorder;
+    setMathEnabled(config.math);
 
     applyStyleToUi(ctx.ui, config.style);
   });
@@ -229,8 +248,8 @@ export function registerTui(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("tui", {
-    description: "Switch editor chrome (Kimi Code-style boxed editor)",
-    usage: "/tui style <plain|boxed|compact> | /tui timing",
+    description: "Switch editor chrome (Kimi Code-style boxed editor) and math rendering",
+    usage: "/tui style <plain|boxed|compact> | /tui math <on|off> | /tui timing",
     getArgumentCompletions: (prefix: string) => tuiArgumentCompletions(prefix),
     handler: async (args: string, ctx: any) => {
       if (!ctx?.hasUI) return;
@@ -238,7 +257,7 @@ export function registerTui(pi: ExtensionAPI): void {
 
       switch (cmd.kind) {
         case "status": {
-          const lines = [`tui: style=${rt.style} · modelInBorder=${rt.modelInBorder}`];
+          const lines = [`tui: style=${rt.style} · modelInBorder=${rt.modelInBorder} · math=${isMathEnabled()}`];
           if (isTimingEnabled()) lines.push(renderTiming.format());
           ctx.ui.notify(lines.join("\n"), "info");
           break;
@@ -247,6 +266,12 @@ export function registerTui(pi: ExtensionAPI): void {
           applyStyleToUi(ctx.ui, cmd.style);
           persistConfig();
           ctx.ui.notify(`tui style: ${cmd.style}`, "info");
+          break;
+        }
+        case "math": {
+          setMathEnabled(cmd.enabled);
+          persistConfig();
+          ctx.ui.notify(`tui math: ${cmd.enabled ? "on" : "off"}`, "info");
           break;
         }
         case "timing": {

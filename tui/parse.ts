@@ -11,6 +11,7 @@ import { EDITOR_STYLES, type EditorStyle } from "./box";
 export type TuiCommand =
   | { kind: "status" }
   | { kind: "style"; style: EditorStyle }
+  | { kind: "math"; enabled: boolean }
   | { kind: "timing" }
   | { kind: "error"; message: string };
 
@@ -26,6 +27,12 @@ export function parseTuiArgs(args: string): TuiCommand {
     }
     return { kind: "error", message: `Usage: /tui style <${EDITOR_STYLES.join("|")}>` };
   }
+  if (sub === "math") {
+    const value = (tokens[1] || "").toLowerCase();
+    if (value === "on") return { kind: "math", enabled: true };
+    if (value === "off") return { kind: "math", enabled: false };
+    return { kind: "error", message: "Usage: /tui math <on|off>" };
+  }
   if (sub === "timing") {
     return { kind: "timing" };
   }
@@ -34,6 +41,6 @@ export function parseTuiArgs(args: string): TuiCommand {
   }
   return {
     kind: "error",
-    message: "Usage: /tui style <plain|boxed|compact> | /tui timing",
+    message: "Usage: /tui style <plain|boxed|compact> | /tui math <on|off> | /tui timing",
   };
 }

@@ -16,9 +16,11 @@ export interface TuiConfig {
   /** Show the model name on the editor's top border. Default off — pi's
    *  built-in status line already shows it (opt-in to avoid duplication). */
   modelInBorder: boolean;
+  /** Render $$...$$ display math via txm (fail-open when txm is missing). */
+  math: boolean;
 }
 
-export const DEFAULT_TUI_CONFIG: TuiConfig = { style: "boxed", modelInBorder: false };
+export const DEFAULT_TUI_CONFIG: TuiConfig = { style: "boxed", modelInBorder: false, math: true };
 
 const CONFIG_FILENAME = "muselinn-tui.json";
 
@@ -38,6 +40,7 @@ function sanitize(raw: any): Partial<TuiConfig> {
       out.style = raw.style as EditorStyle;
     }
     if (typeof raw.modelInBorder === "boolean") out.modelInBorder = raw.modelInBorder;
+    if (typeof raw.math === "boolean") out.math = raw.math;
   }
   return out;
 }

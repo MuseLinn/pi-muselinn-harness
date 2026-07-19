@@ -70,6 +70,12 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > 注:曾移植 pi-spark 的 BottomFiller 伪全屏(钉底布局),因其只在短会话有视觉效果(长会话填充量恒为 0)已移除;真正的编辑器钉底需要 alternate screen,属 pi-core 范畴。
 
+### Math 模块(终端公式渲染)
+- **`$$...$$` 展示公式渲染** — 经 [txm](https://github.com/thatmagicalcat/txm)(Rust 单元格排版引擎,Unicode + truecolor ANSI,无图片协议)把 assistant 消息里的展示公式渲染成终端可读形式;Windows Terminal/ConPTY 可用
+- **上下文零污染** — 原始 Markdown 在每次 LLM 调用前经 `context` 事件还原(机制借鉴 pi-rich-renderer),渲染只影响显示;v1 只做 `$$...$$`,行内 `$...$` 保留原样
+- **fail-open** — txm 未安装/渲染失败/超时一律回退原始 LaTeX,一次性 notify 提示 `cargo install txm`;SHA-256 磁盘缓存(`~/.pi/cache/muselinn-math/`),代码块内公式不渲染
+- **开关** — `/tui math on|off`,配置随 `muselinn-tui.json` 持久化,默认开
+
 ## 与 Kimi Code 的对齐情况
 
 对照 [Kimi Code CLI 官方文档 — Agent 与子 Agent](https://www.kimi.com/code/docs/kimi-code-cli/customization/agents.html):
@@ -109,7 +115,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `/goal queue` / `/goal add\|prioritize\|drop\|skip` | 队列操作 |
 | `/plan` / `/plan on\|off\|clear` | Plan Mode 控制 |
 | `/mode` | 切换权限模式(auto/yolo/manual) |
-| `/tui` | 切换编辑器样式(plain/boxed/compact) |
+| `/tui` | 切换编辑器样式(plain/boxed/compact)、`math on\|off` 公式渲染 |
 | `/swarm-status` | 查看状态 |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` 均支持 Tab 子命令/参数补全。
@@ -170,24 +176,29 @@ pi-muselinn-harness/
 │   └── index.ts      loadSkillsForCwd / resources_discover 接线
 ├── tui/              TUI 模块(闭合框编辑器)
 │   ├── box.ts        wrapWithSideBorders / composeTopBorder(纯函数)
-│   ├── editor.ts     MuselinnEditor(继承 CustomEditor,三样式)
+│   ├── editor.ts     MuselinnEditor(继承 CustomEditor,三样式 + plan 徽标槽)
 │   ├── switch.ts     样式切换决策(纯函数)
-│   ├── config.ts     muselinn-tui.json 双层配置
+│   ├── config.ts     muselinn-tui.json 双层配置(style/modelInBorder/math)
 │   ├── timing.ts     render() 耗时探针(P50/P99)
 │   ├── parse.ts      /tui 参数解析
 │   └── index.ts      事件接线 + /tui 命令 + spinner 生命周期
+├── math/             Math 模块(终端公式渲染)
+│   ├── split.ts      $$ 块切分/重组(纯函数,代码块豁免)
+│   ├── txm.ts        txm 子进程后端(SHA-256 磁盘缓存,fail-open)
+│   └── index.ts      message_end 显示替换 + context 原文还原
 └── tests/            node 级单元测试(见下)
 ```
 
 ## 测试
 
-无需模型额度的 node 级单元测试(共 245 项断言):
+无需模型额度的 node 级单元测试(共 269 项断言):
 
 ```bash
 node tests/permission.test.mjs                    # Permission 策略链 14 项
 node tests/goal.test.mjs                          # Goal 状态机 17 项
 node --experimental-strip-types tests/cron.test.mjs  # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
+node tests/math.test.mjs                          # Math 公式切分/fail-open/配置 24 项
 node tests/skills.test.mjs                        # Skills 扫描/解析/作用域/discover 38 项
 node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 56 项
 node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/切换 61 项

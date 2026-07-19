@@ -52,7 +52,8 @@ import { backgroundManager, registerBackgroundTools } from "./task";
 import { cronManager, registerCronTools } from "./task/cron";
 import { registerHooks, hookEngine } from "./hooks/index";
 import { listDiscoverableSkillFiles } from "./skills/index";
-import { registerTui } from "./tui/index";
+import { registerTui, setTuiBadgeProvider } from "./tui/index";
+import { registerMath } from "./math/index";
 import shared from "./state";
 
 // Interactive question tools (copied from Pi SDK examples)
@@ -1240,6 +1241,16 @@ export default function (pi: ExtensionAPI) {
 
   // ── TUI: boxed/compact editor chrome + /tui ──
   try { registerTui(pi); } catch { /* TUI chrome must never break extension load */ }
+
+  // ── Math: render $$...$$ display math via txm (display-only swap,
+  //    original Markdown restored before every LLM call) ──
+  try { registerMath(pi); } catch { /* math rendering must never break extension load */ }
+
+  // Plan-mode badge on the editor's top border (lazy, cheap in-memory
+  // check; reads planManager's state without coupling tui → plan).
+  try {
+    setTuiBadgeProvider(() => (planManager.isPlanModeActive() ? " plan " : undefined));
+  } catch { /* badge is cosmetic */ }
 
   // ============================================================
   // Interactive Tools (rpiv-ask-user-question provides ask_user_question)
