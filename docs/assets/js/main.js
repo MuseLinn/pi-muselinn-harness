@@ -104,7 +104,12 @@
       });
     };
     var dockObs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) { flipTo(e.isIntersecting); });
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { flipTo(true); return; }
+        // Undock only when the section is back below the center band
+        // (scrolled back to the top); stay docked once past it.
+        if (e.boundingClientRect.top > window.innerHeight * 0.6) flipTo(false);
+      });
     }, { rootMargin: "-40% 0px -40% 0px", threshold: 0 });
     dockObs.observe(firstSection);
   }
