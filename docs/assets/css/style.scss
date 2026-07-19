@@ -356,7 +356,6 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 .brand-logo {
   width: 18px;
   height: 18px;
-  border-radius: 4px;
   vertical-align: -4px;
 }
 
@@ -402,7 +401,7 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 }
 
 .split-section {
-  min-height: 62vh;
+  min-height: 46vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
