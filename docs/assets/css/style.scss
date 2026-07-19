@@ -2,10 +2,10 @@
 ---
 
 /* ── pi-muselinn-harness — pi.dev-inspired theme ──
-   Dark navy + dotted grid, monospace nav, italic serif hero,
-   thin-bordered cards, terminal-style code frames. */
+   Dotted grid, monospace nav, italic serif hero, thin-bordered
+   cards, terminal frames. Light/dark via [data-theme]. */
 
-:root {
+:root, [data-theme="dark"] {
   --bg: #0a0f1c;
   --bg-soft: #0f1626;
   --bg-card: #111a2e;
@@ -15,6 +15,27 @@
   --text-bright: #eef3fb;
   --accent: #7aa2f7;
   --accent2: #5bc0be;
+  --dot: #1c2740;
+  --code-inline: #a5d6ff;
+  --nav-bg: rgba(10, 15, 28, 0.92);
+}
+
+[data-theme="light"] {
+  --bg: #f7f8fa;
+  --bg-soft: #eef1f5;
+  --bg-card: #ffffff;
+  --border: #d4dbe6;
+  --text: #3d4757;
+  --text-dim: #6b7688;
+  --text-bright: #17202e;
+  --accent: #3b6fd4;
+  --accent2: #1f8a87;
+  --dot: #dde3ec;
+  --code-inline: #1c5cb8;
+  --nav-bg: rgba(247, 248, 250, 0.92);
+}
+
+:root {
   --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   --serif: Georgia, "Times New Roman", "Songti SC", serif;
 }
@@ -24,15 +45,16 @@
 body {
   margin: 0;
   background-color: var(--bg);
-  background-image: radial-gradient(circle, #1c2740 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--dot) 1px, transparent 1px);
   background-size: 22px 22px;
   color: var(--text);
   font-family: -apple-system, "Segoe UI", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   font-size: 16px;
   line-height: 1.65;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* ── Top nav (pi.dev-style monospace bar) ── */
+/* ── Top nav ── */
 
 .topnav {
   display: flex;
@@ -40,11 +62,15 @@ body {
   align-items: center;
   padding: 0.9rem 1.6rem;
   border-bottom: 1px solid var(--border);
-  background: rgba(10, 15, 28, 0.92);
+  background: var(--nav-bg);
   font-family: var(--mono);
   font-size: 0.8rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(6px);
 }
 
 .topnav .brand { color: var(--text-bright); }
@@ -57,6 +83,21 @@ body {
 }
 
 .topnav a:hover { color: var(--accent); }
+
+.theme-toggle {
+  margin-left: 1.4rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
 
 /* ── Layout ── */
 
@@ -99,10 +140,7 @@ img { max-width: 100%; }
   margin: 0.6rem 0 1rem;
 }
 
-.hero h1 em {
-  color: var(--accent);
-  font-style: italic;
-}
+.hero h1 em { color: var(--accent); font-style: italic; }
 
 .hero .sub {
   color: var(--text-dim);
@@ -112,7 +150,7 @@ img { max-width: 100%; }
 
 .hero .badges img { margin: 0 0.2rem; }
 
-/* ── Install bar (pi.dev-style framed command) ── */
+/* ── Install bar ── */
 
 .installbar {
   display: flex;
@@ -132,7 +170,7 @@ img { max-width: 100%; }
 .installbar .prompt { color: var(--accent2); margin-right: 0.5rem; }
 .installbar .hint { color: var(--text-dim); font-size: 0.75rem; letter-spacing: 0.08em; }
 
-/* ── Terminal frame (screenshot + code blocks) ── */
+/* ── Terminal frame ── */
 
 .termframe {
   margin: 2rem auto;
@@ -153,7 +191,6 @@ img { max-width: 100%; }
 }
 
 .termframe img { display: block; width: 100%; }
-
 .termframe pre { margin: 0; border: 0; border-radius: 0; }
 
 pre {
@@ -168,17 +205,13 @@ pre, code { font-family: var(--mono); }
 
 code {
   background: var(--bg-soft);
-  color: #a5d6ff;
+  color: var(--code-inline);
   font-size: 0.88em;
   padding: 0.1em 0.35em;
   border-radius: 4px;
 }
 
-pre code {
-  background: transparent;
-  color: var(--text);
-  padding: 0;
-}
+pre code { background: transparent; color: var(--text); padding: 0; }
 
 /* ── Feature cards ── */
 
@@ -208,24 +241,38 @@ pre code {
   letter-spacing: 0.03em;
 }
 
-.card p:last-child {
-  margin-bottom: 0;
-  color: var(--text-dim);
-  font-size: 0.9rem;
-}
+.card p:last-child { margin-bottom: 0; color: var(--text-dim); font-size: 0.9rem; }
 
 /* ── Tables ── */
 
 table { border-collapse: collapse; width: 100%; }
 
-th, td {
-  border: 1px solid var(--border);
-  padding: 0.45rem 0.7rem;
-  font-size: 0.92rem;
-}
-
+th, td { border: 1px solid var(--border); padding: 0.45rem 0.7rem; font-size: 0.92rem; }
 th { background: var(--bg-card); color: var(--text-bright); }
 tr:nth-child(2n) { background: var(--bg-soft); }
+
+/* ── Scroll reveal ── */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.reveal.visible { opacity: 1; transform: none; }
+
+/* staggered cards */
+.card-grid .card:nth-child(2) { transition-delay: 0.06s; }
+.card-grid .card:nth-child(3) { transition-delay: 0.12s; }
+.card-grid .card:nth-child(4) { transition-delay: 0.18s; }
+.card-grid .card:nth-child(5) { transition-delay: 0.06s; }
+.card-grid .card:nth-child(6) { transition-delay: 0.12s; }
+.card-grid .card:nth-child(7) { transition-delay: 0.18s; }
+.card-grid .card:nth-child(8) { transition-delay: 0.24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
 
 /* ── Footer ── */
 

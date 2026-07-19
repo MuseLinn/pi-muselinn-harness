@@ -3,7 +3,7 @@ layout: default
 title: pi-muselinn-harness
 ---
 
-<div class="hero">
+<div class="hero reveal">
   <h1>Pi skips sub-agents and plan mode.<br><em>This harness builds them.</em></h1>
   <p class="sub">Kimi Code-style agent orchestration for the <a href="https://pi.dev">Pi coding agent</a> —<br>
   swarm, goal, plan, permission, task, hooks, skills, and a boxed-editor TUI, in one coherent package.</p>
@@ -18,41 +18,41 @@ title: pi-muselinn-harness
   </div>
 </div>
 
-<div class="termframe">
+<div class="termframe reveal">
   <div class="termtitle">boxed editor · live</div>
   <img src="assets/img/pi-boxed-editor.png" alt="Closed-box editor with the working state embedded in the top border">
 </div>
 
 <div class="card-grid">
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ⬒ swarm
 Concurrent subagents with a live braille-grid TUI. Real `max_concurrency` worker pool, 30-min timeouts, two-step `/cancel`, `/resume`, three-pane task browser (`ctrl+shift+t`).
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ◎ goal
 `/goal` lifecycle with budgets (turns / tokens / wall-clock), 3-turn blocked circuit breaker, completion-criterion gate, FIFO queue, session persistence.
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ✎ plan
 Plan mode with read-only tool restrictions and plan-file guard. The LLM explores and writes a plan; execution waits for your approval.
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ⛨ permission
 18-level policy chain across `auto` / `yolo` / `manual`. Destructive commands always ask; `.env` / `id_rsa` never pass — even in auto mode.
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ⏱ task
 Background subagents with early task-ID return, paged output, 50-task cap, 7-day stale cleanup — plus 5-field cron with jitter and one-shots.
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ⚡ hooks
 Kimi Code-aligned `[[hooks]]` engine. 16 events, blockable `PreToolUse` / `Stop` / `UserPromptSubmit`, exit-code semantics, fail-open.
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ✦ skills
 Seven-scope scanner — pi-native dirs first, Kimi Code dirs as compat. Collision-free discovery, available in main session and subagents alike.
 </div>
-<div class="card" markdown="1">
+<div class="card reveal" markdown="1">
 ### ▭ tui
 Kimi-style closed-box editor (`╭─╮ │ ╰─╯`) with spinner + working state in the top border, plan-mode badge, `/tui` hot style switching, timing probe.
 </div>
