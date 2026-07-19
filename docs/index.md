@@ -79,7 +79,9 @@ One extension, one config surface, zero cross-extension conflicts — the module
 share state by design: the goal badge lives in the swarm widget, the plan-mode
 badge sits on the editor border, the permission mode shows in the status bar.
 And **269 pure-node assertions** regression-test every module without burning
-model quota.
+model quota. No companion extensions required — it is fully functional standalone
+(optional: `rpiv-ask-user-question` for interactive model picking, `rpiv-todo`
+for a live todo overlay).
 
 ## Commands
 

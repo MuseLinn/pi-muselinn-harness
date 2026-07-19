@@ -214,6 +214,11 @@ node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/
 - `@earendil-works/pi-tui`
 - `typebox`
 
+**无需伴随扩展** — 单独安装即可满血使用。以下可选扩展能提升体验：
+
+- [`@juicesharp/rpiv-ask-user-question`](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) — 让 swarm 的模型路由交互式问你而不是自动决定(工具描述里引用了 `ask_user_question`;没装则模型自行选择)
+- [`@juicesharp/rpiv-todo`](https://www.npmjs.com/package/@juicesharp/rpiv-todo) — 实时 todo 浮层;任务浏览器借鉴了它的状态字形/溢出语义,但不依赖它
+
 ## 致谢
 
 本扩展的设计和实现参考了以下开源项目，在此表示感谢：
