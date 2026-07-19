@@ -1,0 +1,126 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+/* ── pi-muselinn-harness dark theme (Kimi blue/teal accent) ── */
+
+body {
+  background: #0d1117;
+  color: #c9d1d9;
+}
+
+.page-header {
+  background: linear-gradient(120deg, #155e75 0%, #1e3a5f 55%, #155e75 100%);
+  padding: 2.5rem 1rem;
+}
+
+.project-name,
+.project-tagline {
+  color: #f0f6fc;
+}
+
+.main-content {
+  color: #c9d1d9;
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #f0f6fc;
+  }
+
+  a {
+    color: #5bc0be;
+  }
+
+  code {
+    background: #161b22;
+    color: #a5d6ff;
+  }
+
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+
+    code {
+      background: transparent;
+      color: #c9d1d9;
+    }
+  }
+
+  hr {
+    background-color: #30363d;
+  }
+
+  table {
+    th, td {
+      border-color: #30363d;
+    }
+    tr:nth-child(2n) {
+      background: #161b22;
+    }
+  }
+
+  blockquote {
+    color: #8b949e;
+    border-left-color: #5bc0be;
+  }
+}
+
+/* ── Hero ── */
+
+.hero {
+  text-align: center;
+  padding: 1rem 0 1.5rem;
+
+  h1 {
+    background: linear-gradient(90deg, #4fa8ff, #5bc0be);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 2.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  pre {
+    max-width: 34rem;
+    margin: 1.2rem auto 0;
+    text-align: left;
+  }
+}
+
+/* ── Feature cards ── */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: #5bc0be;
+  }
+
+  h3 {
+    margin-top: 0;
+    color: #5bc0be;
+    font-size: 1.1rem;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+    color: #8b949e;
+    font-size: 0.92rem;
+  }
+}
+
+.site-footer {
+  border-top-color: #30363d;
+  color: #8b949e;
+}
