@@ -62,62 +62,58 @@
     }
 
     initScenes();
-    initDock();
+    initScrollProgress();
   });
 
   // ── Demo scenes (sticky terminal) ──
   var bodyEl, titleEl, active = null;
   var swarm = null, swarmRestart = null, typeTimer = null;
 
-  // Hero terminal docking (FLIP): centered below the hero at the top of
-  // the page, docks into the sticky left column once the sections scroll in.
-  function initDock() {
-    var split = document.getElementById("split");
+  // Scroll-progress driven terminal (pi.dev architecture): a single
+  // progress var --p (0 at top -> 1 after 0.7 viewport of scroll) and a
+  // sections-reveal var --sp are written to the shell; every geometric
+  // change is CSS calc() interpolation. --dx is the horizontal shift
+  // that centers the terminal in the viewport at p=0.
+  function initScrollProgress() {
+    var shell = document.getElementById("split");
     var term = document.getElementById("demo-term");
-    var firstSection = document.querySelector(".split-section[data-scene]");
-    if (!split || !term || !firstSection || !("IntersectionObserver" in window)) {
-      if (split) split.classList.add("docked");
-      return;
-    }
-    if (!window.matchMedia("(min-width: 761px)").matches) {
-      split.classList.add("docked");
-      return;
-    }
-    var flipTo = function (dock) {
-      if (split.classList.contains("docked") === dock) return;
-      // FLIP translate only — the shape change (clipped -> tall window)
-      // is a CSS max-height transition, so nothing distorts; we only
-      // animate the position delta between centered and docked.
-      var first = term.getBoundingClientRect();
-      split.classList.toggle("docked", dock);
-      var last = term.getBoundingClientRect();
-      var dx = first.left - last.left;
-      var dy = first.top - last.top;
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-      term.style.transition = "none";
-      term.style.transformOrigin = "top left";
-      term.style.transform = "translate(" + dx + "px," + dy + "px)";
-      requestAnimationFrame(function () {
-        term.style.transition = "transform 0.4s cubic-bezier(0.2,0.8,0.2,1)";
-        term.style.transform = "";
-        setTimeout(function () { term.style.transition = "none"; }, 450);
-      });
-    };
-    // Dock once the first section's top passes 50% vh; undock simply by
-    // scroll position (back at the hero) — layout-independent, so the
-    // centered strip always restores.
+    var sections = document.querySelector(".split-sections");
+    if (!shell || !term) return;
+
+    var wide = window.matchMedia("(min-width: 761px)");
     var pending = false;
-    var onScroll = function () {
-      var top = firstSection.getBoundingClientRect().top;
-      if (window.scrollY < 200) flipTo(false);
-      else if (top < window.innerHeight * 0.5) flipTo(true);
-    };
-    window.addEventListener("scroll", function () {
+
+    function updateGeometry() {
+      if (!wide.matches) { shell.style.setProperty("--dx", "0px"); return; }
+      // Parent (.split-term) is sticky and untransformed — its rect is
+      // the docked position; shift from there to viewport center.
+      var pr = term.parentElement.getBoundingClientRect();
+      var cx = pr.left + pr.width / 2;
+      shell.style.setProperty("--dx", Math.round(window.innerWidth / 2 - cx) + "px");
+    }
+
+    function updateProgress() {
+      var p = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 0.7)));
+      var sp = Math.min(1, Math.max(0, (p - 0.75) / 0.25));
+      if (!wide.matches) { p = 1; sp = 1; }
+      shell.style.setProperty("--p", p.toFixed(4));
+      shell.style.setProperty("--sp", sp.toFixed(4));
+      if (sections) sections.classList.toggle("is-visible", sp > 0.001);
+    }
+
+    function onScroll() {
       if (pending) return;
       pending = true;
-      requestAnimationFrame(function () { pending = false; onScroll(); });
-    }, { passive: true });
-    onScroll();
+      requestAnimationFrame(function () { pending = false; updateProgress(); });
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", function () { updateGeometry(); updateProgress(); });
+    if (wide.addEventListener) {
+      wide.addEventListener("change", function () { updateGeometry(); updateProgress(); });
+    }
+    updateGeometry();
+    updateProgress();
   }
 
   function stopScene() {

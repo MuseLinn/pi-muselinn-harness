@@ -295,7 +295,13 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 
 .lang-toggle:hover { color: var(--accent); border-color: var(--accent); }
 
-/* ── Sticky split (pi.dev scroll pattern) ── */
+/* ── Sticky split (pi.dev scroll pattern) ──
+   Architecture mirrors pi.dev: the stage is sticky from the start and
+   ALL motion is interpolated by a single scroll-progress CSS variable
+   (--p, 0 at top -> 1 after ~0.7 viewport of scroll) written by a rAF
+   scroll listener. The demo window relaxes from its centered, slightly
+   scaled intro pose into the sticky column; its body grows via calc()
+   on --p; prose sections fade in on --sp. No class toggles, no FLIP. */
 
 .split {
   display: grid;
@@ -305,44 +311,17 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   margin: 2rem 0 1rem;
 }
 
-/* undocked (top of page): a SHORT terminal WINDOW centered below the
-   hero — title bar + a few live body lines, pi.dev-style. It is a
-   window from the very start, never a bare command strip. On scroll it
-   grows taller in place (max-height transition) and docks into the
-   sticky left column (translate-only FLIP in main.js). */
-.split:not(.docked) {
-  grid-template-columns: 1fr;
-}
-
-.split:not(.docked) .split-term {
-  position: static;
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-#demo-body {
-  padding: 1rem 1.2rem;
-  min-height: 26rem;
-  max-height: 40rem;
-  overflow: hidden;
-  font-family: var(--mono);
-  font-size: 0.9rem;
-  line-height: 1.55;
-  transition: max-height 0.35s ease, opacity 0.16s ease;
-}
-
-.split:not(.docked) #demo-body {
-  display: block;
-  min-height: 0;
-  max-height: 9.5rem; /* clipped live lines peek out, pi.dev-style */
-  mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+.split-term {
+  position: sticky;
+  top: 4.5rem;
+  z-index: 5; /* intro pose overlaps the hero area */
 }
 
 .demo-term {
-  position: relative;
-  z-index: 5; /* passes over prose while docking */
+  transform: translate3d(calc((1 - var(--p, 0)) * var(--dx, 0px)), 0, 0)
+    scale(calc(1 + (1 - var(--p, 0)) * 0.05));
+  transform-origin: top center;
+  will-change: transform;
   transition: opacity 0.16s ease;
 }
 
@@ -350,9 +329,28 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   opacity: 0;
 }
 
-.split-term {
-  position: sticky;
-  top: 4.5rem;
+#demo-body {
+  padding: 1rem 1.2rem;
+  /* short live window at p=0 (clipped lines peek out), tall at p=1 */
+  min-height: calc(var(--p, 0) * 26rem);
+  max-height: calc(9.5rem + var(--p, 0) * 30.5rem);
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  mask-image: linear-gradient(to bottom, black calc(55% + var(--p, 0) * 45%), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(55% + var(--p, 0) * 45%), transparent 100%);
+  transition: opacity 0.16s ease;
+}
+
+.split-sections {
+  opacity: var(--sp, 0);
+  transform: translateY(calc((1 - var(--sp, 0)) * 2rem));
+  pointer-events: none;
+}
+
+.split-sections.is-visible {
+  pointer-events: auto;
 }
 
 .hero-logo {
