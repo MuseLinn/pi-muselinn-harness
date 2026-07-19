@@ -8,9 +8,9 @@ title: pi-muselinn-harness
   <h1><span data-l="en">Pi skips sub-agents and plan mode.<br><em>This harness builds them.</em></span><span data-l="zh">Pi 刻意不做子代理和计划模式。<br><em>这个 harness 把它们全部补上。</em></span></h1>
   <p class="sub"><span data-l="en">Kimi Code-style agent orchestration for the <a href="https://pi.dev">Pi coding agent</a> —<br>swarm, goal, plan, permission, task, hooks, skills, and a boxed-editor TUI, in one coherent package.</span><span data-l="zh">为 <a href="https://pi.dev">Pi coding agent</a> 打造的 Kimi Code 风格编排套件 —<br>Swarm、Goal、Plan、Permission、Task、Hooks、Skills 与闭合框编辑器,一个包全部集成。</span></p>
   <p class="badges">
-    <a href="https://www.npmjs.com/package/pi-muselinn-harness"><img src="assets/img/badge-npm.svg" alt="npm version"></a>
-    <a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE"><img src="assets/img/badge-license.svg" alt="license: MIT"></a>
-    <a href="https://github.com/MuseLinn/pi-muselinn-harness#tests"><img src="assets/img/badge-tests.svg" alt="tests: 269 assertions"></a>
+    <a href="https://www.npmjs.com/package/pi-muselinn-harness"><img src="assets/img/badge-npm.png" alt="npm version"></a>
+    <a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE"><img src="assets/img/badge-license.png" alt="license: MIT"></a>
+    <a href="https://github.com/MuseLinn/pi-muselinn-harness#tests"><img src="assets/img/badge-tests.png" alt="tests: 269 assertions"></a>
   </p>
   <div class="installbar">
     <span><span class="prompt">$</span>pi install npm:pi-muselinn-harness</span>

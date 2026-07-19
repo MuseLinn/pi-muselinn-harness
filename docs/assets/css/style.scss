@@ -314,7 +314,7 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 .split:not(.docked) .split-term {
   position: static;
   width: 100%;
-  max-width: 660px;
+  max-width: 780px;
   margin: 0 auto;
 }
 
@@ -353,11 +353,11 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 }
 
 #demo-body {
-  padding: 0.9rem 1.1rem;
-  min-height: 22rem;
+  padding: 1rem 1.2rem;
+  min-height: 25rem;
   font-family: var(--mono);
-  font-size: 0.82rem;
-  line-height: 1.5;
+  font-size: 0.88rem;
+  line-height: 1.55;
 }
 
 #demo-body pre { margin: 0; border: 0; padding: 0; background: transparent; }

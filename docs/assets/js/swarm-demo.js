@@ -316,7 +316,7 @@ class SwarmSimulator {
   }
 
   render() {
-    const w = 70;
+    const w = 84;
     const idW = agentSwarmGridIdWidth(this.agentCount);
     const grid = calculateAgentSwarmGridLayout(this.agentCount, w, 20);
     const { renderText, barCells: bc, columns: cols, rows, cellWidth: cw, columnGap: gapW } = grid;
@@ -441,7 +441,7 @@ class SwarmSimulator {
 
     const contextText = `context: ${this.contextPct.toFixed(1)}% (${(this.contextPct * 2).toFixed(0)}k/200k)`;
     const ctxWidth = contextText.length;
-    const line2 = `<span style="color:${COLORS.text}">${' '.repeat(Math.max(0, 70 - ctxWidth))}${contextText}</span>`;
+    const line2 = `<span style="color:${COLORS.text}">${' '.repeat(Math.max(0, 84 - ctxWidth))}${contextText}</span>`;
 
     this.footerEl.innerHTML =
       `<div class="footer-line">${goalBadge}  ${modelLabel}  ${gitBadge}  ${taskBadge}  ${tipText}</div>` +
