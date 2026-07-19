@@ -66,6 +66,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 ### TUI 模块
 - **闭合框编辑器** — 移植 Kimi Code 的 `wrapWithSideBorders`:pi-tui 默认只有上下横线,后处理为 `╭╮│╰╯` 闭合框;上边框嵌入 spinner + 工作状态(Thinking/Streaming/Running tools),`plain | boxed | compact` 三种样式(pi-spark 式信息上边框为 compact),默认 boxed;模型名默认不进边框(pi 状态行已有),需要时配置 `"modelInBorder": true`
 - **`/tui` 命令** — `/tui style plain|boxed|compact` 热切换编辑器样式(不重启,pi 热交换编辑器时保留文本/焦点/键位),`/tui timing` 查看渲染耗时;配置持久化到 `~/.pi/agent/muselinn-tui.json`(项目级 `.pi/muselinn-tui.json` 覆盖)
+- **plan 徽标** — plan mode 激活时上边框左侧显示 `plan` 文本徽标(不染边框色,与 pi 思考模式换色零冲突)
 - **性能探针** — `PI_MUSELINN_HARNESS_TUI_TIMING=1` 时统计 editor `render()` 耗时的 P50/P99;spinner 仅在工作时以 250ms 帧率驱动
 
 > 注:曾移植 pi-spark 的 BottomFiller 伪全屏(钉底布局),因其只在短会话有视觉效果(长会话填充量恒为 0)已移除;真正的编辑器钉底需要 alternate screen,属 pi-core 范畴。
