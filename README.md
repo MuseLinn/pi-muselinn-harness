@@ -1,7 +1,5 @@
 # pi-muselinn-harness
 
-[![npm version](docs/assets/img/badge-npm.png)](https://www.npmjs.com/package/pi-muselinn-harness)
-[![license: MIT](docs/assets/img/badge-license.png)](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE)
 
 **Kimi Code-style agent orchestration harness for the [Pi coding agent](https://pi.dev)** — Swarm + Goal + Plan + Permission + Task + Hooks + Skills + TUI, an eight-module architecture that builds the features Pi deliberately skips (sub-agents, plan mode, …) and aligns them with Kimi Code's subsystem behavior.
 

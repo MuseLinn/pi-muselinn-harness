@@ -85,23 +85,7 @@
     }
     var flipTo = function (dock) {
       if (split.classList.contains("docked") === dock) return;
-      var first = term.getBoundingClientRect();
       split.classList.toggle("docked", dock);
-      var last = term.getBoundingClientRect();
-      if (first.width === last.width && first.height === last.height &&
-          first.left === last.left && first.top === last.top) return;
-      var dx = first.left - last.left;
-      var dy = first.top - last.top;
-      var sx = first.width / last.width;
-      var sy = first.height / last.height;
-      term.style.transition = "none";
-      term.style.transformOrigin = "top left";
-      term.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")";
-      requestAnimationFrame(function () {
-        term.style.transition = "transform 0.45s cubic-bezier(0.2,0.8,0.2,1)";
-        term.style.transform = "";
-        setTimeout(function () { term.style.transition = "none"; }, 500);
-      });
     };
     // Geometry-driven with hysteresis (instant jumps must not skip the
     // crossing): dock once the first section's top passes 50% vh, undock
@@ -248,9 +232,15 @@
   function setScene(name) {
     if (active === name || !bodyEl) return;
     active = name;
-    stopScene();
-    if (name === "swarm") startSwarmScene();
-    else startTypeScene(name);
+    // Crossfade between scenes (pi.dev-style) instead of a hard swap.
+    bodyEl.classList.add("fading");
+    setTimeout(function () {
+      stopScene();
+      bodyEl.innerHTML = "";
+      bodyEl.classList.remove("fading");
+      if (name === "swarm") startSwarmScene();
+      else startTypeScene(name);
+    }, 170);
   }
 
   function initScenes() {

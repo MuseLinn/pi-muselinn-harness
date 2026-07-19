@@ -305,8 +305,9 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   margin: 2rem 0 1rem;
 }
 
-/* undocked (top of page): terminal centered full-width below the hero,
-   like pi.dev; docks to the sticky left column on scroll (FLIP in main.js) */
+/* undocked (top of page): collapsed strip centered below the hero —
+   title bar + scroll hint only, pi.dev-style. Docks into the sticky
+   left column on scroll (geometry + hysteresis in main.js). */
 .split:not(.docked) {
   grid-template-columns: 1fr;
 }
@@ -314,8 +315,32 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 .split:not(.docked) .split-term {
   position: static;
   width: 100%;
-  max-width: 780px;
+  max-width: 620px;
   margin: 0 auto;
+}
+
+.split:not(.docked) #demo-body {
+  display: none;
+}
+
+.scroll-hint {
+  display: none;
+  padding: 0.5rem 1.1rem 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.split:not(.docked) .scroll-hint {
+  display: block;
+}
+
+.demo-term {
+  transition: opacity 0.16s ease;
+}
+
+.demo-term.fading {
+  opacity: 0;
 }
 
 .split-term {
@@ -354,10 +379,15 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 
 #demo-body {
   padding: 1rem 1.2rem;
-  min-height: 25rem;
+  min-height: 26rem;
   font-family: var(--mono);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1.55;
+  transition: opacity 0.16s ease;
+}
+
+#demo-body.fading {
+  opacity: 0;
 }
 
 #demo-body pre { margin: 0; border: 0; padding: 0; background: transparent; }
