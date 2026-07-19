@@ -91,12 +91,24 @@ export async function openTaskBrowser(ctx: ExtensionContext): Promise<void> {
         }
         component.setKeybindings(kb);
 
-        // Auto-refresh every 1s — push latest state + tasks
+        // Auto-refresh every 1s — push latest state + tasks, but only when
+        // something visible actually changed (fingerprint gate, same design
+        // as the swarm widget). Unchanged ticks skip setProps entirely and
+        // never touch the TUI; changed ticks use requestRender (diffed
+        // repaint) instead of invalidate (full repaint), so the overlay
+        // rides pi's differential renderer.
+        let lastTickFp: string | null = null;
         refreshTimer = setInterval(() => {
-          if (component) {
-            component.setProps(buildProps(done));
+          if (!component) return;
+          const tasks = currentSwarm?.tasks || [];
+          let fp = `${filter}:${selectedTaskId ?? ""}:${outputPreview?.length ?? 0}:${flashMessage ?? ""}`;
+          for (const t of tasks) {
+            fp += `#${t.id}:${t.status}:${t.toolCalls}/${t.estimatedTotalCalls}:${t.currentAction ?? ""}:${(t.outputLines || []).length}`;
           }
-          _tui?.invalidate?.();
+          if (fp === lastTickFp) return;
+          lastTickFp = fp;
+          component.setProps(buildProps(done));
+          _tui?.requestRender?.();
         }, 1000);
 
         return {
