@@ -103,15 +103,21 @@
         setTimeout(function () { term.style.transition = "none"; }, 500);
       });
     };
-    var dockObs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { flipTo(true); return; }
-        // Undock only when the section is back below the center band
-        // (scrolled back to the top); stay docked once past it.
-        if (e.boundingClientRect.top > window.innerHeight * 0.6) flipTo(false);
-      });
-    }, { rootMargin: "-40% 0px -40% 0px", threshold: 0 });
-    dockObs.observe(firstSection);
+    // Geometry-driven with hysteresis (instant jumps must not skip the
+    // crossing): dock once the first section's top passes 50% vh, undock
+    // only when it is back below 65% vh.
+    var pending = false;
+    var onScroll = function () {
+      var top = firstSection.getBoundingClientRect().top;
+      if (top < window.innerHeight * 0.5) flipTo(true);
+      else if (top > window.innerHeight * 0.65) flipTo(false);
+    };
+    window.addEventListener("scroll", function () {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () { pending = false; onScroll(); });
+    }, { passive: true });
+    onScroll();
   }
 
   function stopScene() {
