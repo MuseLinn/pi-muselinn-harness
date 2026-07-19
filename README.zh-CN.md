@@ -208,6 +208,13 @@ node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spi
 node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/切换 61 项
 ```
 
+## 下一步(Roadmap)
+
+- **自有伴随工具** — 把 todo 浮层(rpiv-todo 式)与交互式问卷(ask_user_question 式)复现为 harness 原生版本,与 goal / permission / swarm widget 深度集成,不再依赖外部包
+- **i18n** — harness 界面文案与通知双语化(文档已拆分中英;项目页已有 EN/中 切换)
+- **公式渲染转正** — 待压缩路径的上下文安全性确认后,合入 `feature/math-renderer`
+- **真全屏** — pi-core 支持 alternate screen 后实现编辑器钉底
+
 ## 依赖
 
 - Pi >= 0.80.0

@@ -274,6 +274,114 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   .reveal { opacity: 1; transform: none; transition: none; }
 }
 
+/* ── Language toggle ── */
+
+[data-lang="en"] [data-l="zh"] { display: none; }
+[data-lang="zh"] [data-l="en"] { display: none; }
+
+.lang-toggle {
+  margin-left: 1.4rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.32rem 0.55rem;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+}
+
+.lang-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Sticky split (pi.dev scroll pattern) ── */
+
+.split {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 2.5rem;
+  align-items: start;
+  margin: 2rem 0 1rem;
+}
+
+.split-term {
+  position: sticky;
+  top: 4.5rem;
+}
+
+.demo-term {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+
+.demo-term .termtitle {
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+#demo-body {
+  padding: 0.9rem 1.1rem;
+  min-height: 22rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+#demo-body pre { margin: 0; border: 0; padding: 0; background: transparent; }
+
+.demo-pre { white-space: pre-wrap; }
+
+.demo-footer {
+  margin-top: 0.8rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.split-section {
+  min-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.split-section h3 {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.6rem;
+  margin: 0 0 0.6rem;
+}
+
+.split-section h3 em { color: var(--accent); }
+
+.split-section p { color: var(--text-dim); margin: 0.25rem 0; }
+.split-section p code { font-size: 0.82em; }
+
+/* ── Roadmap ── */
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.9rem;
+  margin: 1.6rem 0;
+}
+
+@media (max-width: 760px) {
+  .split { grid-template-columns: 1fr; }
+  .split-term { position: static; }
+  .split-section { min-height: 0; padding: 1.2rem 0; }
+  #demo-body { min-height: 18rem; }
+}
+
 /* ── Footer ── */
 
 footer {

@@ -191,6 +191,13 @@ node tests/math.test.mjs                          # Math split/fail-open/config 
 
 - [`feature/math-renderer`](https://github.com/MuseLinn/pi-muselinn-harness/tree/feature/math-renderer) — renders `$$...$$` display math in assistant messages via [txm](https://github.com/thatmagicalcat/txm) (cell-based 2D typesetting, works in Windows Terminal; no image protocol). Context-safe: the original Markdown is restored before every LLM call. Enable with `/tui math on` after `cargo install txm`.
 
+## Roadmap
+
+- **Own companion tools** — reimplement the todo overlay (`rpiv-todo`-style) and the interactive question tool (`ask_user_question`-style) as harness-native versions, integrated with goal / permission / swarm widget instead of external packages
+- **i18n** — bilingual harness UI text and notifications (docs are already split en/zh-CN; the project page has an EN/中 toggle)
+- **Math renderer graduation** — merge `feature/math-renderer` once compaction-path context safety is confirmed
+- **True fullscreen** — editor pinning when pi-core lands alternate-screen support
+
 ## Dependencies
 
 - Pi >= 0.80.0

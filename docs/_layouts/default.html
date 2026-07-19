@@ -6,12 +6,14 @@
   <title>{% if page.title %}{{ page.title }} · {% endif %}pi-muselinn-harness</title>
   <meta name="description" content="Kimi Code-style agent orchestration harness for the Pi coding agent — swarm, goal, plan, permission, task, hooks, skills, boxed-editor TUI.">
   <script>
-    // Theme init before first paint (no FOUC): stored choice, else OS preference.
+    // Theme + lang init before first paint (no FOUC).
     (function () {
-      var t = null;
-      try { t = localStorage.getItem("theme"); } catch (e) { /* private mode */ }
+      var t = null, l = null;
+      try { t = localStorage.getItem("theme"); l = localStorage.getItem("lang"); } catch (e) { /* private mode */ }
       if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      if (!l) l = (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
       document.documentElement.setAttribute("data-theme", t);
+      document.documentElement.setAttribute("data-lang", l);
     })();
   </script>
   <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
@@ -24,6 +26,7 @@
       <a href="https://github.com/MuseLinn/pi-muselinn-harness">GitHub</a>
       <a href="https://www.npmjs.com/package/pi-muselinn-harness">npm</a>
       <a href="https://pi.dev/packages">pi.dev</a>
+      <button id="lang-toggle" class="lang-toggle" type="button">中</button>
       <button id="theme-toggle" class="theme-toggle" type="button">☀</button>
     </span>
   </nav>
@@ -34,6 +37,7 @@
     <span>pi-muselinn-harness · MIT License</span>
     <span>built for <a href="https://pi.dev">pi</a></span>
   </footer>
+  <script src="{{ '/assets/js/swarm-demo.js' | relative_url }}"></script>
   <script src="{{ '/assets/js/main.js' | relative_url }}"></script>
 </body>
 </html>
