@@ -28,6 +28,28 @@ const COLORS = {
   shellMode: '#BD93F9',
 };
 
+// Light-theme counterpart — picked per render so theme toggles apply live.
+const LIGHT_COLORS = {
+  primary:   '#3b6fd4',
+  accent:    '#1f8a87',
+  text:      '#394352',
+  textStrong:'#17202e',
+  textDim:   '#6b7688',
+  textMuted: '#8a94a6',
+  border:    '#d4dbe6',
+  success:   '#1e9e57',
+  warning:   '#b57d1f',
+  error:     '#d33f3f',
+  roleUser:  '#b57d1f',
+  shellMode: '#7c4dbd',
+};
+
+function themedColors() {
+  const root = typeof document !== 'undefined' ? document.documentElement : null;
+  const light = root && root.getAttribute('data-theme') === 'light';
+  return light ? LIGHT_COLORS : COLORS;
+}
+
 // ── Grid layout constants (from source calculateAgentSwarmGridLayout) ──
 const TEXT_CELL_PREFERRED_WIDTH = 30;
 const TEXT_BRAILLE_BAR_MIN_WIDTH = 6;
@@ -316,6 +338,7 @@ class SwarmSimulator {
   }
 
   render() {
+    const COLORS = themedColors();
     const w = 84;
     const idW = agentSwarmGridIdWidth(this.agentCount);
     const grid = calculateAgentSwarmGridLayout(this.agentCount, w, 20);
@@ -393,11 +416,12 @@ class SwarmSimulator {
     this.renderFooter();
 
     // Assemble
-    this.container.innerHTML = `<pre style="margin:0;white-space:pre-wrap;line-height:1.5">${header}\n\n${gridHtml}\n${statusLine}\n</pre>`;
+    this.container.innerHTML = `<pre style="margin:0;white-space:pre;line-height:1.5">${header}\n\n${gridHtml}\n${statusLine}\n</pre>`;
   }
 
   renderFooter() {
     if (!this.footerEl) return;
+    const COLORS = themedColors();
     const elapsed = Math.floor(this.elapsedMs / 1000);
     const mins = Math.floor(elapsed / 60);
     const secs = elapsed % 60;
@@ -437,14 +461,16 @@ class SwarmSimulator {
     const modelLabel = `<span style="color:${COLORS.text}">${this.model} thinking</span>`;
     const gitBadge = `<span style="color:${COLORS.textDim}">main</span>`;
     const taskBadge = active > 0 ? `<span style="color:${COLORS.primary}">[${active} agents running]</span>` : '';
-    const tipText = `<span style="color:${COLORS.textMuted}">Ctrl+B run in background</span>`;
 
+    // Line 2: background tip on the left, context meter right-aligned —
+    // keeps both lines within 84ch so nothing wraps in the demo frame.
+    const tipText = 'ctrl+b run in background';
     const contextText = `context: ${this.contextPct.toFixed(1)}% (${(this.contextPct * 2).toFixed(0)}k/200k)`;
-    const ctxWidth = contextText.length;
-    const line2 = `<span style="color:${COLORS.text}">${' '.repeat(Math.max(0, 84 - ctxWidth))}${contextText}</span>`;
+    const pad = Math.max(1, 84 - tipText.length - contextText.length);
+    const line2 = `<span style="color:${COLORS.textMuted}">${tipText}${' '.repeat(pad)}</span><span style="color:${COLORS.text}">${contextText}</span>`;
 
     this.footerEl.innerHTML =
-      `<div class="footer-line">${goalBadge}  ${modelLabel}  ${gitBadge}  ${taskBadge}  ${tipText}</div>` +
+      `<div class="footer-line">${goalBadge}  ${modelLabel}  ${gitBadge}  ${taskBadge}</div>` +
       `<div class="footer-line">${line2}</div>`;
   }
 }

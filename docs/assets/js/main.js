@@ -66,42 +66,89 @@
   });
 
   // ── Demo scenes (sticky terminal) ──
-  var bodyEl, titleEl, active = null;
+  // Architecture follows pi.dev's home-inline.js:
+  //  - One scroll progress --p (0 -> 1 over ~300px) written by a rAF
+  //    scroll listener; all geometry interpolates via CSS calc().
+  //  - The terminal shows a "$ scroll to continue" cue until the first
+  //    scroll (pi.dev's shouldAutoplayMainDemo: scrollY > 1).
+  //  - Prose reveals on --sp = (--p - 0.8) / 0.2 — only once the
+  //    terminal is ~80% docked.
+  //  - The active section owns the scene; it is the last section whose
+  //    title anchor (50% of its height) has passed the activation line
+  //    (70% of the terminal frame height), else the first visible one.
+  var bodyEl, titleEl, shell, term, sectionsWrap;
+  var sectionEls = [];
   var swarm = null, swarmRestart = null, typeTimer = null;
+  var currentScene = null, runningScene = null;
+  var unlocked = false, lastP = 0;
+  var wide = window.matchMedia("(min-width: 761px)");
 
-  // Scroll-progress driven terminal (pi.dev architecture): a single
-  // progress var --p (0 at top -> 1 after 0.7 viewport of scroll) and a
-  // sections-reveal var --sp are written to the shell; every geometric
-  // change is CSS calc() interpolation. --dx is the horizontal shift
-  // that centers the terminal in the viewport at p=0.
+  var CUE_HTML =
+    '<span class="scroll-cue"><span class="prompt">$</span>scroll to continue' +
+    '<span class="cue-caret">▍</span></span>';
+
+  function clamp01(v) { return Math.min(1, Math.max(0, v)); }
+
+  function getScrollRange() {
+    var w = window.innerWidth;
+    if (w <= 767) return 220;
+    if (w <= 1023) return 260;
+    return 300;
+  }
+
+  function stopScene() {
+    if (swarm) { swarm.stop(); swarm = null; }
+    if (swarmRestart) { clearTimeout(swarmRestart); swarmRestart = null; }
+    if (typeTimer) { clearTimeout(typeTimer); typeTimer = null; }
+  }
+
+  function setTitle(t) { if (titleEl) titleEl.textContent = t; }
+
+  // ── Scroll progress (pi.dev intro controller) ──
+  function updateGeometry() {
+    if (!shell || !term) return;
+    if (!wide.matches) {
+      shell.style.setProperty("--dx", "0px");
+      return;
+    }
+    var nav = document.querySelector(".topnav");
+    var navH = nav ? nav.getBoundingClientRect().height : 0;
+    // Parent (.split-term) is sticky and untransformed — its rect is the
+    // docked position; shift from there to the viewport center.
+    var pr = term.parentElement.getBoundingClientRect();
+    var cx = pr.left + pr.width / 2;
+    shell.style.setProperty("--dx", Math.round(window.innerWidth / 2 - cx) + "px");
+    // Sticky top that parks the terminal vertically centered in the
+    // viewport (pi.dev's --home-stage-sticky-top-target).
+    var figH = term.offsetHeight || 0;
+    var centerY = navH + (window.innerHeight - navH) / 2;
+    var stickyTop = Math.max(navH + 8, Math.round(centerY - figH / 2));
+    shell.style.setProperty("--sticky-top", stickyTop + "px");
+  }
+
+  function updateProgress() {
+    if (!shell) return;
+    var p = wide.matches ? clamp01(window.scrollY / getScrollRange()) : 1;
+    var sp = wide.matches ? clamp01((p - 0.8) / 0.2) : 1;
+    lastP = p;
+    shell.style.setProperty("--p", p.toFixed(4));
+    shell.style.setProperty("--sp", sp.toFixed(4));
+    if (sectionsWrap) sectionsWrap.classList.toggle("is-visible", sp > 0.001);
+    updateUnlock();
+    updateActiveSection();
+  }
+
   function initScrollProgress() {
-    var shell = document.getElementById("split");
-    var term = document.getElementById("demo-term");
-    var sections = document.querySelector(".split-sections");
+    shell = document.getElementById("split");
+    term = document.getElementById("demo-term");
+    sectionsWrap = document.querySelector(".split-sections");
     if (!shell || !term) return;
 
-    var wide = window.matchMedia("(min-width: 761px)");
     var pending = false;
-
-    function updateGeometry() {
-      if (!wide.matches) { shell.style.setProperty("--dx", "0px"); return; }
-      // Parent (.split-term) is sticky and untransformed — its rect is
-      // the docked position; shift from there to viewport center.
-      var pr = term.parentElement.getBoundingClientRect();
-      var cx = pr.left + pr.width / 2;
-      shell.style.setProperty("--dx", Math.round(window.innerWidth / 2 - cx) + "px");
-    }
-
-    function updateProgress() {
-      var p = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 0.7)));
-      var sp = Math.min(1, Math.max(0, (p - 0.75) / 0.25));
-      if (!wide.matches) { p = 1; sp = 1; }
-      shell.style.setProperty("--p", p.toFixed(4));
-      shell.style.setProperty("--sp", sp.toFixed(4));
-      if (sections) sections.classList.toggle("is-visible", sp > 0.001);
-    }
-
     function onScroll() {
+      // rAF is paused in hidden tabs — run synchronously there so the
+      // progress vars never go stale (also covers headless testing).
+      if (document.hidden) { updateProgress(); return; }
       if (pending) return;
       pending = true;
       requestAnimationFrame(function () { pending = false; updateProgress(); });
@@ -116,13 +163,84 @@
     updateProgress();
   }
 
-  function stopScene() {
-    if (swarm) { swarm.stop(); swarm = null; }
-    if (swarmRestart) { clearTimeout(swarmRestart); swarmRestart = null; }
-    if (typeTimer) { clearTimeout(typeTimer); typeTimer = null; }
+  // ── Terminal unlock: cue first, demo after the first scroll ──
+  function updateUnlock() {
+    var should = !wide.matches || window.scrollY > 1;
+    if (should === unlocked) return;
+    unlocked = should;
+    if (!bodyEl) return;
+    if (unlocked) {
+      startScene(currentScene || "swarm", true);
+    } else {
+      stopScene();
+      runningScene = null;
+      setTitle("swarm · live");
+      bodyEl.innerHTML = CUE_HTML;
+    }
   }
 
-  function setTitle(t) { if (titleEl) titleEl.textContent = t; }
+  // ── Active section (pi.dev's activation-line algorithm) ──
+  function updateActiveSection() {
+    if (!sectionEls.length || !term) return;
+    var frameTop, frameH;
+    if (wide.matches) {
+      // Resolve the frame to its sticky resting line, not its transient
+      // transform position (scale error is negligible once --p > 0.8,
+      // which is the only time sections are visible).
+      var stickyTop = parseFloat(shell.style.getPropertyValue("--sticky-top")) || 72;
+      frameTop = stickyTop + (1 - lastP) * 16;
+      frameH = term.offsetHeight || 400;
+    } else {
+      var tr = term.getBoundingClientRect();
+      frameTop = tr.top;
+      frameH = tr.height;
+    }
+    var line = frameTop + frameH * 0.35;
+    var active = null, firstVisible = null;
+    for (var i = 0; i < sectionEls.length; i++) {
+      var s = sectionEls[i];
+      var r = s.getBoundingClientRect();
+      if (!firstVisible && r.bottom > 0 && r.top < window.innerHeight) firstVisible = s;
+      var h = s.querySelector("h3") || s;
+      var hr = h.getBoundingClientRect();
+      if (hr.top + hr.height * 0.5 <= line) active = s;
+      else if (active) break;
+    }
+    var target = active || firstVisible || sectionEls[0];
+    for (var j = 0; j < sectionEls.length; j++) {
+      sectionEls[j].classList.toggle("is-active", sectionEls[j] === target);
+    }
+    if (target) setScene(target.getAttribute("data-scene"));
+  }
+
+  // ── Scene lifecycle ──
+  function setScene(name) {
+    currentScene = name;
+    if (!unlocked || !bodyEl || runningScene === name) return;
+    startScene(name, false);
+  }
+
+  function startScene(name, instant) {
+    if (!bodyEl) return;
+    runningScene = name;
+    if (instant) {
+      stopScene();
+      bodyEl.innerHTML = "";
+      if (name === "swarm") startSwarmScene();
+      else startTypeScene(name);
+      return;
+    }
+    // Crossfade between scenes instead of a hard swap.
+    bodyEl.classList.add("fading");
+    setTimeout(function () {
+      if (runningScene !== name) return;
+      stopScene();
+      bodyEl.innerHTML = "";
+      bodyEl.classList.remove("fading");
+      if (name === "swarm") startSwarmScene();
+      else startTypeScene(name);
+    }, 170);
+  }
 
   function startSwarmScene() {
     setTitle("swarm · live");
@@ -203,9 +321,20 @@
   };
 
   var TYPE_COLORS = {
-    cmd: "#7aa2f7", ok: "#4ec87e", dim: "#7d8aa3",
-    warn: "#e8a838", err: "#e85454", box: "#5bc0be",
+    dark: {
+      cmd: "#7aa2f7", ok: "#4ec87e", dim: "#7d8aa3",
+      warn: "#e8a838", err: "#e85454", box: "#5bc0be",
+    },
+    light: {
+      cmd: "#3b6fd4", ok: "#1e9e57", dim: "#6b7688",
+      warn: "#b57d1f", err: "#d33f3f", box: "#1f8a87",
+    },
   };
+
+  function typeColor(kind) {
+    var set = root.getAttribute("data-theme") === "light" ? TYPE_COLORS.light : TYPE_COLORS.dark;
+    return set[kind] || "#c4cede";
+  }
 
   function startTypeScene(name) {
     var scene = TYPE_SCENES[name];
@@ -218,12 +347,14 @@
     var li = 0, ci = 0, cur = null;
     function step() {
       if (li >= scene.lines.length) {
-        typeTimer = setTimeout(function () { startTypeScene(name); }, 7000); // loop
+        typeTimer = setTimeout(function () {
+          if (runningScene === name) startTypeScene(name);
+        }, 7000); // loop
         return;
       }
       if (!cur) {
         cur = document.createElement("span");
-        cur.style.color = TYPE_COLORS[scene.lines[li][0]] || "#c4cede";
+        cur.style.color = typeColor(scene.lines[li][0]);
         pre.appendChild(cur);
         ci = 0;
       }
@@ -240,36 +371,12 @@
     step();
   }
 
-  function setScene(name) {
-    if (active === name || !bodyEl) return;
-    active = name;
-    // Crossfade between scenes (pi.dev-style) instead of a hard swap.
-    bodyEl.classList.add("fading");
-    setTimeout(function () {
-      stopScene();
-      bodyEl.innerHTML = "";
-      bodyEl.classList.remove("fading");
-      if (name === "swarm") startSwarmScene();
-      else startTypeScene(name);
-    }, 170);
-  }
-
   function initScenes() {
     bodyEl = document.getElementById("demo-body");
     titleEl = document.getElementById("demo-title");
     if (!bodyEl || typeof SwarmSimulator !== "function") return;
-
-    var sections = document.querySelectorAll(".split-section[data-scene]");
-    if ("IntersectionObserver" in window && sections.length) {
-      // Center-band driving: the section crossing the middle 10% of the
-      // viewport owns the scene — deterministic, no lead/lag vs prose.
-      var so = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) setScene(entry.target.getAttribute("data-scene"));
-        });
-      }, { rootMargin: "-45% 0px -45% 0px", threshold: 0 });
-      sections.forEach(function (s) { so.observe(s); });
-    }
-    setScene("swarm"); // initial
+    sectionEls = Array.from(document.querySelectorAll(".split-section[data-scene]"));
+    currentScene = "swarm";
+    bodyEl.innerHTML = CUE_HTML;
   }
 })();

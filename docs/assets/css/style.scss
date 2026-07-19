@@ -295,32 +295,58 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 
 .lang-toggle:hover { color: var(--accent); border-color: var(--accent); }
 
-/* ── Sticky split (pi.dev scroll pattern) ──
-   Architecture mirrors pi.dev: the stage is sticky from the start and
-   ALL motion is interpolated by a single scroll-progress CSS variable
-   (--p, 0 at top -> 1 after ~0.7 viewport of scroll) written by a rAF
-   scroll listener. The demo window relaxes from its centered, slightly
-   scaled intro pose into the sticky column; its body grows via calc()
-   on --p; prose sections fade in on --sp. No class toggles, no FLIP. */
+/* ── Sticky split (pi.dev scroll pattern, second pass) ──
+   Mirrors pi.dev's actual architecture (home-inline.js + style.css):
+   - The stage is sticky from the start; its sticky top is computed in JS
+     so the terminal rests vertically centered in the viewport.
+   - A single scroll progress --p (0 -> 1 over ~300px of scroll, like
+     pi.dev's HOME_INTRO_SCROLL_RANGES) drives a translate+scale relax
+     from the maximized, viewport-centered intro pose to the rail.
+   - The terminal keeps ONE constant aspect ratio (920/650) at every
+     scroll position — only translate/scale interpolate. Font size is in
+     cqw so 84ch always fits: no forced wrapping, ever.
+   - Prose reveals only after the terminal is ~80% docked
+     (--sp = (--p - 0.8) / 0.2) and slides up as --p grows.
+   - Sections dim unless .is-active (pi.dev's has-scroll-sync dimming). */
 
 .split {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1fr) clamp(19rem, 32%, 26rem);
   gap: 2.5rem;
   align-items: start;
   margin: 2rem 0 1rem;
+  /* full-bleed: the split is wider than the 880px prose column */
+  width: min(1240px, calc(100vw - 2.8rem));
+  margin-left: calc((100% - min(1240px, 100vw - 2.8rem)) / 2);
+  --dy: clamp(0.85rem, 2vh, 1.4rem);
 }
 
 .split-term {
   position: sticky;
-  top: 4.5rem;
+  top: var(--sticky-top, 4.5rem);
+  min-height: calc(100vh - var(--sticky-top, 4.5rem));
+  display: flex;
+  align-items: flex-start;
   z-index: 5; /* intro pose overlaps the hero area */
 }
 
 .demo-term {
-  transform: translate3d(calc((1 - var(--p, 0)) * var(--dx, 0px)), 0, 0)
-    scale(calc(1 + (1 - var(--p, 0)) * 0.05));
-  transform-origin: top center;
+  width: 100%;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 920 / 650;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-soft);
+  transform: translate3d(
+      calc((1 - var(--p, 0)) * var(--dx, 0px)),
+      calc((1 - var(--p, 0)) * var(--dy, 1rem)),
+      0
+    )
+    scale(calc(1 + (1 - var(--p, 0)) * 0.14));
+  transform-origin: center center;
   will-change: transform;
   transition: opacity 0.16s ease;
 }
@@ -329,23 +355,54 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   opacity: 0;
 }
 
+.demo-term .termtitle {
+  flex: 0 0 auto;
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
 #demo-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 1rem 1.2rem;
-  /* short live window at p=0 (clipped lines peek out), tall at p=1 */
-  min-height: calc(var(--p, 0) * 26rem);
-  max-height: calc(9.5rem + var(--p, 0) * 30.5rem);
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 0.9rem;
+  /* size text off the container so 84ch always fits the frame */
+  font-size: clamp(0.5rem, 1.82cqw, 0.92rem);
   line-height: 1.55;
-  mask-image: linear-gradient(to bottom, black calc(55% + var(--p, 0) * 45%), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black calc(55% + var(--p, 0) * 45%), transparent 100%);
   transition: opacity 0.16s ease;
+}
+
+#demo-body .scroll-cue {
+  color: var(--text-dim);
+}
+
+#demo-body .scroll-cue .prompt {
+  color: var(--accent2);
+  margin-right: 0.5rem;
+}
+
+#demo-body .cue-caret {
+  color: var(--text-dim);
+  animation: cue-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes cue-blink {
+  50% { opacity: 0; }
 }
 
 .split-sections {
   opacity: var(--sp, 0);
-  transform: translateY(calc((1 - var(--sp, 0)) * 2rem));
+  /* prose slides up into place while the terminal docks */
+  padding-top: calc((1 - var(--p, 0)) * clamp(9rem, 16vh, 13rem));
+  /* runway so the terminal stays docked until the last section's prose
+     has scrolled past the reading zone (sticky releases late) */
+  padding-bottom: 45vh;
   pointer-events: none;
 }
 
@@ -364,43 +421,34 @@ tr:nth-child(2n) { background: var(--bg-soft); }
   vertical-align: -4px;
 }
 
-.demo-term {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg-soft);
-}
-
-.demo-term .termtitle {
-  padding: 0.45rem 1rem;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  text-transform: uppercase;
-}
-
 #demo-body.fading {
   opacity: 0;
 }
 
 #demo-body pre { margin: 0; border: 0; padding: 0; background: transparent; }
 
-.demo-pre { white-space: pre-wrap; }
+.demo-pre { white-space: pre; }
 
 .demo-footer {
   margin-top: 0.8rem;
   padding-top: 0.6rem;
   border-top: 1px solid var(--border);
-  font-size: 0.75rem;
+  font-size: 0.82em;
+  white-space: pre;
 }
 
 .split-section {
-  min-height: 46vh;
+  min-height: 44vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* pi.dev has-scroll-sync: inactive sections read as background */
+  opacity: 0.3;
+  transition: opacity 0.22s ease;
+}
+
+.split-section.is-active {
+  opacity: 1;
 }
 
 .split-section h3 {
@@ -426,10 +474,14 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 }
 
 @media (max-width: 760px) {
-  .split { grid-template-columns: 1fr; }
-  .split-term { position: static; }
-  .split-section { min-height: 0; padding: 1.2rem 0; }
-  #demo-body { min-height: 18rem; }
+  .split {
+    grid-template-columns: 1fr;
+    width: 100%;
+    margin-left: 0;
+  }
+  .split-term { position: static; min-height: 0; }
+  .split-sections { padding-top: 1rem; padding-bottom: 0; }
+  .split-section { min-height: 0; padding: 1.2rem 0; opacity: 1; }
 }
 
 /* ── Footer ── */
