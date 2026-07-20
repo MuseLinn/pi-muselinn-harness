@@ -3,8 +3,12 @@
 // working spinner.
 //
 // Performance rules (see README): the spinner timer only runs while the
-// agent is working; event handlers only assign state + requestRender;
-// all formatting happens lazily inside render().
+// agent is working; event handlers only assign state + requestRender on
+// actual change; all formatting happens lazily inside render().
+// Verified against pi-tui (dist/tui.js): requestRender() is coalesced via
+// a renderRequested flag and capped at MIN_RENDER_INTERVAL_MS=16, and each
+// doRender re-renders the whole component tree — so the only marginal cost
+// we can add is *extra* full-tree renders after quiet gaps; avoid them.
 // ============================================================
 
 import { type EditorStyle } from "./box";
@@ -148,6 +152,12 @@ function startSpinner(): void {
 }
 
 function setWorking(working: boolean, message?: string): void {
+  // Skip no-op updates: streaming deltas and tool bursts re-assert the same
+  // (working, message) pair dozens of times per second. pi-tui coalesces
+  // requestRender() calls anyway (renderRequested flag + 16ms cap), but a
+  // no-op call arriving after a >16ms quiet gap would still force a full
+  // component-tree re-render for zero visible change.
+  if (rt.working === working && rt.workingMessage === message) return;
   rt.working = working;
   rt.workingMessage = message;
   try { rt.tui?.requestRender(); } catch { /* stale tui */ }
