@@ -18,7 +18,7 @@ import {
 } from "./types";
 import { TasksBrowserComponent, TasksBrowserProps } from "./task-browser";
 import { UserCancellationError } from "./subagent";
-import { swarmArgumentCompletions } from "../completions";
+import { swarmArgumentCompletions } from "../packages/core/completions";
 
 /**
  * Open the Kimi Code-style 3-panel Task Browser overlay.

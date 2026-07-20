@@ -44,7 +44,8 @@ import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkA
 import { SwarmWidgetComponent } from "./swarm/widget";
 import { formatReport } from "./swarm/report";
 import { registerCommands } from "./swarm/commands";
-import { goalManager } from "./goal";
+import { goalManager } from "./packages/core/goal";
+import type { PersistencePort } from "./packages/core/ports";
 import { planManager } from "./plan";
 import { permissionManager } from "./permission";
 import { registerPermissionCommands } from "./permission/commands";
@@ -181,11 +182,17 @@ export default function (pi: ExtensionAPI) {
   // Note: pi/ctx go stale after session replacement (newSession/fork/reload
   // or process teardown in pi -p). Persistence callbacks may fire from
   // timers/background completions after that, so guard every appendEntry.
-  goalManager.setPersistence((data) => {
-    if (data) {
-      try { pi.appendEntry(GOAL_ENTRY_TYPE, data); } catch { /* stale ctx */ }
-    }
-  });
+  // Reads always resolve through the freshest ctx we've seen.
+  let latestCtx: any = null;
+  const persistencePort: PersistencePort = {
+    append: (entryType, data) => {
+      try { pi.appendEntry(entryType, data); } catch { /* stale ctx */ }
+    },
+    entries: () => {
+      try { return latestCtx?.sessionManager?.getEntries?.() ?? []; } catch { return []; }
+    },
+  };
+  goalManager.bindPersistence(persistencePort);
 
   // ── Plan mode: inject plan context + tool restrictions ──
   // Plan state is managed per-session via file in session directory (see plan/commands.ts)
@@ -203,6 +210,7 @@ export default function (pi: ExtensionAPI) {
 
   // ── session_start: restore goal + plan from persisted entries + set status bar ──
   pi.on("session_start", async (_event, ctx) => {
+    latestCtx = ctx;
     // Set plan session directory (for plan file storage)
     try { planManager.setSessionDir(ctx.sessionManager.getSessionDir()); } catch { /* ok */ }
 
@@ -331,7 +339,8 @@ export default function (pi: ExtensionAPI) {
 
   // ── Helper: update goal status bar ──
   function updateGoalStatusBar(ctx: any) {
-    goalManager.tryRestoreFromSession(ctx);
+    latestCtx = ctx;
+    goalManager.tryRestoreFromEntries(Array.from(persistencePort.entries()));
     const badge = goalManager.buildFooterBadge();
     if (badge) {
       const color = goalManager.getFooterBadgeColor();

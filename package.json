@@ -14,9 +14,8 @@
   "files": [
     "index.ts",
     "state.ts",
-    "completions.ts",
+    "packages/",
     "swarm/",
-    "goal/",
     "plan/",
     "permission/",
     "task/",

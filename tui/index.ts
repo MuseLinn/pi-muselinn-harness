@@ -17,7 +17,7 @@ import { MuselinnEditor } from "./editor";
 import { parseTuiArgs } from "./parse";
 import { planStyleSwitch } from "./switch";
 import { renderTiming, isTimingEnabled } from "./timing";
-import { tuiArgumentCompletions } from "../completions";
+import { tuiArgumentCompletions } from "../packages/core/completions";
 import { getSpinnerFrames } from "../swarm/helpers";
 import { FRAME_INTERVAL_MS } from "../swarm/types";
 

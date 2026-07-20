@@ -39,7 +39,7 @@ function loadTs(file) {
 }
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const completions = loadTs(`${EXT}/completions.ts`);
+const completions = loadTs(`${EXT}/packages/core/completions.ts`);
 const utils = loadTs(`${EXT}/swarm/task-list-utils.ts`);
 
 let pass = 0, fail = 0;

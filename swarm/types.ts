@@ -100,8 +100,8 @@ export const OUTPUT_TRUNCATED_MARKER = "[output truncated]";
 // Goal Types — re-export from goal/types.ts (single source of truth)
 // ============================================================
 
-import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "../goal/types";
-import { currentGoal, setCurrentGoal } from "../goal/types";
+import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "../packages/core/goal/types";
+import { currentGoal, setCurrentGoal } from "../packages/core/goal/types";
 
 export type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits };
 export { currentGoal, setCurrentGoal };

@@ -5,7 +5,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResourceLoader } from "@earendil-works/pi-coding-agent";
-import { goalManager } from "../goal";
+import { goalManager } from "../packages/core/goal";
 import { progressEstimator } from "./types";
 import {
   CONFIG_DIR_NAME,

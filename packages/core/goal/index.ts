@@ -9,6 +9,7 @@ import { goalToEntryData, goalFromEntryData, reconstructGoalFromEntries } from "
 import { registerGoalTools } from "./tools";
 import { registerGoalCommands } from "./commands";
 import { autoSwitchToNext } from "./queue";
+import type { PersistencePort } from "../ports";
 
 /** Mutate status on an existing goal snapshot (immutable style). */
 function cloneSnapshot(s: GoalSnapshot, patch: Partial<GoalSnapshot>): GoalSnapshot {
@@ -33,6 +34,18 @@ export class GoalManager {
   /** Bind appendEntry for persistence */
   setAppendEntry(fn: (type: string, data: any) => void): void {
     this.appendEntryFn = fn;
+  }
+
+  /**
+   * Bind the host persistence port (write path). The adapter implements
+   * this with pi.appendEntry; the fork implements it natively. Read path
+   * is tryRestoreFromEntries() below, fed with fresh entries per session.
+   */
+  bindPersistence(port: PersistencePort): void {
+    this.setPersistence((data) => {
+      if (data) port.append(GOAL_ENTRY_TYPE, data);
+    });
+    this.setAppendEntry((type, data) => port.append(type, data));
   }
 
   /** Persist current goal or null (clear) */
@@ -742,11 +755,14 @@ export class GoalManager {
     setCurrentGoal(data);
   }
 
-  /** Try to restore goal from session entries (handles Pi hot-reload) */
-  tryRestoreFromSession(ctx: any): boolean {
+  /**
+   * Try to restore goal from session entries (handles host hot-reload).
+   * Core takes plain entries — the host reads them from its session
+   * manager and passes them in, keeping core free of session APIs.
+   */
+  tryRestoreFromEntries(entries: any[]): boolean {
     if (currentGoal) return true;
     try {
-      const entries = ctx.sessionManager?.getEntries?.();
       if (!entries) return false;
       for (let i = entries.length - 1; i >= 0; i--) {
         const e = entries[i] as any;

@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { SubAgentTask } from "../swarm/types";
-import { goalManager } from "../goal";
+import { goalManager } from "../packages/core/goal";
 import { hookEngine } from "../hooks/index";
 import {
   createAgentSession,

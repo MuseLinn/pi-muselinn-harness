@@ -5,7 +5,7 @@
 import type { PlanManager } from "./index";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { planArgumentCompletions } from "../completions";
+import { planArgumentCompletions } from "../packages/core/completions";
 
 /**
  * Get per-session state file path (inside session directory, keyed by sessionId).

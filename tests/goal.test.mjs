@@ -37,7 +37,7 @@ function loadTs(file) {
 }
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const { goalManager } = loadTs(`${EXT}/goal/index.ts`);
+const { goalManager } = loadTs(`${EXT}/packages/core/goal/index.ts`);
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {
