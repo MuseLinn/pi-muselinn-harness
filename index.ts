@@ -364,6 +364,18 @@ export default function (pi: ExtensionAPI) {
     );
   }
 
+  // ── Goal badge wall-clock: 1s tick while a goal is active ──
+  // The badge shows live duration (Kimi Code footer parity); between turn
+  // events it would otherwise go stale. Extra renders are coalesced by
+  // pi-tui's 16ms cap; unref'd so `pi -p` is never kept alive by it.
+  const goalBadgeTicker = setInterval(() => {
+    if (!latestCtx) return;
+    const g = goalManager.getGoal();
+    if (!g || g.status !== "active") return;
+    try { updateGoalStatusBar(latestCtx); } catch { /* stale ctx */ }
+  }, 1000);
+  goalBadgeTicker.unref?.();
+
   // ── turn_end: record token usage + budget check (pi-codex-goal style) ──
   pi.on("turn_end", (event, _ctx) => {
     const msg = event.message as any;

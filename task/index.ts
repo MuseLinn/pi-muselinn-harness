@@ -5,6 +5,7 @@
 import type { SubAgentTask } from "../swarm/types";
 import { goalManager } from "../packages/core/goal";
 import { hookEngine } from "../packages/core/hooks/index";
+import { sanitizeShellOutput } from "../packages/core/shell-output";
 import {
   createAgentSession,
   SessionManager,
@@ -102,7 +103,10 @@ class BackgroundTaskManager {
   appendOutput(taskId: string, lines: string[]): void {
     const task = this.tasks.get(taskId);
     if (task) {
-      task.outputLines.push(...lines);
+      // Sanitize at capture: control sequences in subprocess output would
+      // otherwise be executed by the terminal when we render it, and is
+      // noise when the model reads the output back.
+      task.outputLines.push(...lines.map(sanitizeShellOutput));
     }
   }
 
@@ -183,7 +187,7 @@ class BackgroundTaskManager {
     task.status = "completed";
     task.endTime = Date.now();
     task.completedAtMs = task.endTime;
-    task.outputLines = outputLines;
+    task.outputLines = outputLines.map(sanitizeShellOutput);
 
     // Cleanup session handle
     const handle = this.sessions.get(taskId);
