@@ -6,9 +6,12 @@ import type { GoalManager } from "./index.ts";
 import type { GoalSnapshot, GoalBudgetLimits } from "./types.ts";
 import { parseBudgetToLimits } from "./types.ts";
 
-/**
- * Register goal tools with Pi.
+/** Register goal tools with Pi.
  */
+function readCtxEntries(ctx: any): any[] {
+  try { return ctx?.sessionManager?.getEntries?.() ?? []; } catch { return []; }
+}
+
 export function registerGoalTools(pi: any, goalManager: GoalManager): void {
   // ── create_goal tool ──
   pi.registerTool({
@@ -84,7 +87,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       properties: {},
     },
     async execute(_toolCallId: string, _params: any, _signal: any, _onUpdate: any, ctx: any) {
-      goalManager.tryRestoreFromSession(ctx);
+      goalManager.tryRestoreFromEntries(readCtxEntries(ctx));
       const goal = goalManager.getGoal();
       if (!goal) {
         return { content: [{ type: "text", text: "No active goal." }] };
@@ -121,7 +124,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       },
     },
     async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
-      goalManager.tryRestoreFromSession(ctx);
+      goalManager.tryRestoreFromEntries(readCtxEntries(ctx));
       const goal = goalManager.getGoal();
       if (!goal) {
         return { content: [{ type: "text", text: "No active goal to update." }] };
@@ -192,7 +195,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       required: ["budget", "unit"],
     },
     async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
-      goalManager.tryRestoreFromSession(ctx);
+      goalManager.tryRestoreFromEntries(readCtxEntries(ctx));
       const goal = goalManager.getGoal();
       if (!goal) {
         return { content: [{ type: "text", text: "No active goal to set budget on." }] };

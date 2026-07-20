@@ -2,9 +2,9 @@
 // 18-Level Policy Chain — Kimi Code-style permission policies
 // ============================================================
 
-import type { Policy, PolicyContext, PolicyResult } from './types';
-import { READ_ONLY_TOOLS, SENSITIVE_PATTERNS, GIT_CONTROL_PATTERNS, sessionApprovals } from './types';
-import { loadUserConfig, matchesPattern } from './config';
+import type { Policy, PolicyContext, PolicyResult } from './types.ts';
+import { READ_ONLY_TOOLS, SENSITIVE_PATTERNS, GIT_CONTROL_PATTERNS, sessionApprovals } from './types.ts';
+import { loadUserConfig, matchesPattern } from './config.ts';
 import * as path from 'node:path';
 
 // Destructive bash command patterns — these always require an explicit ask

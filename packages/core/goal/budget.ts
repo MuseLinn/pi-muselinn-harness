@@ -77,7 +77,7 @@ export function formatBudgetReport(report: GoalBudgetReport): string {
  * Budget guidance string for prompt injection (Kimi Code-style).
  * Returns undefined if no budget limits are set.
  */
-export function budgetBandGuidance(goal: GoalSnapshot): string | undefined {
+export function budgetBandGuidance(goal: GoalSnapshot | null): string | undefined {
   if (!goal || goal.status === "complete") return undefined;
   const report = computeBudgetReport(goal);
   const formatted = formatBudgetReport(report);

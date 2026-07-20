@@ -2,11 +2,11 @@
 // Permission Manager — 18-level policy chain executor
 // ============================================================
 
-import type { PermissionMode, PolicyContext, PolicyResult } from './types';
-import { currentMode, setMode, sessionApprovals } from './types';
-import { policyChain, isDestructive, inputFingerprint } from './policies';
-import { loadAgentsMd } from './config';
-import { hookEngine } from '../hooks/index';
+import type { PermissionMode, PolicyContext, PolicyResult } from './types.ts';
+import { currentMode, setMode, sessionApprovals } from './types.ts';
+import { policyChain, isDestructive, inputFingerprint } from './policies.ts';
+import { loadAgentsMd } from './config.ts';
+import { hookEngine } from '../hooks/index.ts';
 
 /** Adapter-injected approval dialog outcome. */
 export interface ApprovalDialogResult {

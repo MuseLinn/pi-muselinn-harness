@@ -4,7 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { UserPermissionConfig, ToolPattern } from './types';
+import type { UserPermissionConfig, ToolPattern } from './types.ts';
 
 function parsePattern(raw: string): ToolPattern {
   // Format: "toolName" or "toolName:path/pattern" or "path/pattern"

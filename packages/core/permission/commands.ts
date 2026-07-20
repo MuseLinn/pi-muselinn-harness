@@ -2,9 +2,9 @@
 // Permission Commands — /mode
 // ============================================================
 
-import type { PermissionManager } from './index';
-import type { PermissionMode } from './types';
-import { modeArgumentCompletions } from '../completions';
+import type { PermissionManager } from './index.ts';
+import type { PermissionMode } from './types.ts';
+import { modeArgumentCompletions } from '../completions.ts';
 
 export function registerPermissionCommands(pi: any, permissionManager: PermissionManager): void {
   pi.registerCommand("mode", {
