@@ -52,6 +52,7 @@ import { registerPermissionCommands } from "./packages/core/permission/commands"
 import { backgroundManager, registerBackgroundTools } from "./task";
 import { cronManager, registerCronTools } from "./packages/core/task/cron";
 import { registerHooks, hookEngine } from "./packages/core/hooks/index";
+import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
 import shared from "./state";
@@ -200,6 +201,23 @@ export default function (pi: ExtensionAPI) {
   // ── Permission mode persistence ──
   permissionManager.setPersistence((mode) => {
     try { pi.appendEntry("muselinn_permission", { mode }); } catch { /* stale ctx */ }
+  });
+
+  // ── Permission approval dialog: numbered three-way ask (shared with
+  // ask_user_question). 'once' approves without recording; 'always' records
+  // for the session (the old confirm's implicit behavior); 'deny' blocks.
+  permissionManager.setApprovalDialog(async (dialogCtx, title, message) => {
+    const choice = await showQuestionDialog(dialogCtx, {
+      question: `${title}\n${message}`,
+      options: [
+        { label: "Allow once", description: "Approve this call only" },
+        { label: "Always allow (this session)", description: "Record approval for the rest of the session" },
+        { label: "Deny", description: "Block this call" },
+      ],
+    });
+    if (choice === "Allow once") return "once";
+    if (choice === "Always allow (this session)") return "always";
+    return "deny";
   });
 
   // ── Background task manager binding ──
@@ -413,6 +431,7 @@ export default function (pi: ExtensionAPI) {
 
   // ── Register goal tools and commands (from goal/ module) ──
   goalManager.registerTools(pi);
+  registerAskUserQuestion(pi);
   goalManager.registerCommands(pi);
 
   // ── Register plan tools and commands (from plan/ module) ──

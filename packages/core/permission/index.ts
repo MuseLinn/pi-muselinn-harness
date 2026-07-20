@@ -8,14 +8,32 @@ import { policyChain, isDestructive, inputFingerprint } from './policies';
 import { loadAgentsMd } from './config';
 import { hookEngine } from '../hooks/index';
 
+/** Adapter-injected approval dialog: three-way ask outcome. */
+export type ApprovalDialogFn = (
+  ctx: any,
+  title: string,
+  message: string,
+) => Promise<'once' | 'always' | 'deny'>;
+
 export class PermissionManager {
   private mode: PermissionMode = 'manual';
   private lastMode: PermissionMode | undefined;
   private persistFn: ((mode: PermissionMode) => void) | null = null;
+  private approvalDialog: ApprovalDialogFn | null = null;
 
   /** Bind a persistence callback */
   setPersistence(fn: (mode: PermissionMode) => void): void {
     this.persistFn = fn;
+  }
+
+  /**
+   * Inject the interactive approval dialog (adapter). When unset, asks fall
+   * back to ctx.ui.confirm with the original semantics (approve = record).
+   * 'once' approves without recording; 'always' approves and records for the
+   * session; 'deny' blocks.
+   */
+  setApprovalDialog(fn: ApprovalDialogFn | null): void {
+    this.approvalDialog = fn;
   }
 
   /** Get current permission mode */
@@ -77,6 +95,18 @@ export class PermissionManager {
             return { block: true, reason: `${policy.name}: no UI available for approval` };
           }
           try { void hookEngine.fire('PermissionRequest', { tool_name: toolName, policy: policy.name, message: result.message }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
+
+          if (this.approvalDialog) {
+            const decision = await this.approvalDialog(ctx, 'Approval Required', result.message || `Tool: ${toolName}`);
+            try { void hookEngine.fire('PermissionResult', { tool_name: toolName, policy: policy.name, approved: decision !== 'deny' }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
+            if (decision === 'deny') {
+              return { block: true, reason: `User denied: ${policy.name}` };
+            }
+            // 'always' records for the session; 'once' approves just this call.
+            if (decision === 'always') this.recordApproval(policyCtx);
+            continue;
+          }
+
           const approved = await ctx.ui.confirm(
             'Approval Required',
             result.message || `Tool: ${toolName}\n\nAllow?`,

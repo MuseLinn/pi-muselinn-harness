@@ -15,6 +15,7 @@
     "index.ts",
     "state.ts",
     "packages/",
+    "ask/",
     "swarm/",
     "task/",
     "tui/",
