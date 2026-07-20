@@ -32,6 +32,8 @@ export class MuselinnEditor extends CustomEditor {
   private readonly chromeStyle: EditorStyle;
   private readonly slots: EditorSlots;
   private readonly timing: RenderTiming | null;
+  private readonly tui: TUI;
+  private autocompleteWasShowing = false;
 
   constructor(
     tui: TUI,
@@ -44,6 +46,7 @@ export class MuselinnEditor extends CustomEditor {
     // boxed needs column 0 reserved for the left │ bar (pi-tui pads rows
     // with spaces up to paddingX; wrapWithSideBorders overlays them).
     super(tui, theme, keybindings, { paddingX: style === "boxed" ? 1 : 0 });
+    this.tui = tui;
     this.chromeStyle = style;
     this.slots = slots;
     this.timing = timing;
@@ -58,7 +61,36 @@ export class MuselinnEditor extends CustomEditor {
     super.setPaddingX(this.chromeStyle === "boxed" ? Math.max(1, padding) : padding);
   }
 
+  /**
+   * Detect an autocomplete open→close edge from a render frame and force a
+   * full re-render so the editor snaps back to the bottom instead of
+   * sitting where the taller dropdown left it (kimi custom-editor.ts:261
+   * parity). Running from render() also catches asynchronous closes — e.g.
+   * Backspace deleting the leading `/`, where pi-tui only cancels the menu
+   * once the provider re-query resolves.
+   */
+  private trackAutocompleteCloseForFullRender(): void {
+    const showing = (this as any).isShowingAutocomplete?.() ?? false;
+    const closed = this.autocompleteWasShowing && !showing;
+    this.autocompleteWasShowing = showing;
+    if (closed) {
+      // Deferred so the overflow probe below does not re-enter render()
+      // synchronously.
+      queueMicrotask(() => this.requestFullRenderOnAutocompleteClose());
+    }
+  }
+
+  private requestFullRenderOnAutocompleteClose(): void {
+    if (process.env.TMUX) return; // tmux reflows the shrink itself
+    const { columns, rows } = this.tui.terminal;
+    // Redraw only when content fills or overflows the viewport; below that
+    // a full clear would pull the editor up and leave a blank tail.
+    if (this.tui.render(columns).length < rows) return;
+    this.tui.requestRender(true);
+  }
+
   override render(width: number): string[] {
+    this.trackAutocompleteCloseForFullRender();
     const t0 = this.timing ? performance.now() : 0;
     const lines = super.render(width);
     let out = lines;
