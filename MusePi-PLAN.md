@@ -154,6 +154,8 @@ Phase 4  Desktop（TUI 稳定后启动）
 - [x] **A 队列功能批**（`2a64308`..`7c034ef`）：ask_user_question（共享编号对话框）、todo_list+面板、swarm 权限门控（共享管理器，/mode 天然广播）、manual 审批面板（分工具标题+拒绝理由）、编辑器锚定（913d0422 同款）、toolResultTruncation、resume 守卫、fetch_url、插件 manifest 六件套；测试 245 → 362
 - [x] **渲染器脚手架**（`c743ba0`）：`packages/renderer/`（虚拟行缓冲 + damage-tracked 组件树 + 16ms 合并帧循环），378 测试全绿
 - [x] **B⑩ fork 建仓**：https://github.com/MuseLinn/MusePi （私有，pre-alpha）——squash 导入 pi @ `ff992261`（0.80.10 线），`UPSTREAM.md` 记录 pin 与月度 cherry-pick 策略；`.github/workflows` 已剔除（PAT 无 workflow scope）；渲染器已随仓入库
-- [ ] **B⑫-B⑮**（下一批）：extension API 兼容层在渲染器替换后复核、core 原生集成、OMP 式配置系统、transcript 层；验收=跑通一轮完整会话
+- [x] **B⑪ 渲染层集成**（fork `b670e275`）：pi-tui Container 增加可选 `fingerprint()` 协议 + 逐子节点 damage 缓存（未实现指纹的组件行为不变）;AssistantMessage/UserMessage 组件带指纹——静定历史每帧零重渲（O(历史) → O(变更)）;pi-tui 全套件回归通过
+- [x] **B⑫ 兼容层核实**：fork 完整加载 pi-muselinn-harness 全部模块；`pi -p` 会话跑通（`musepi-ok`）、扩展工具真实执行（`todo-done`，kimi-for-coding 模型）
+- [ ] **B⑬-B⑮**（下一批）：core 原生集成（swarm/goal/todo 一等公民 UI）、OMP 式配置系统（schema 放 core）、transcript 层（消息模型与渲染解耦）；验收=box editor 交互会话
 - [ ] **C⑯-⑱**：流式规则注入、真全屏（container swap）、大会话 profile
 - 记录在案：kimi 4b（mode-aware 输入历史）不可移植（pi 编辑器无 bash inputMode）；clustered diff 预览延后
