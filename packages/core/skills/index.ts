@@ -13,6 +13,6 @@ export {
   listDiscoverableSkillFiles,
   findProjectRoot,
   clearSkillsCache,
-} from "./scanner";
-export type { KimiSkill, SkillDiagnostic, LoadSkillsResult, SkillRootDir } from "./scanner";
-export { parseFrontmatter, fallbackDescription } from "./frontmatter";
+} from "./scanner.ts";
+export type { KimiSkill, SkillDiagnostic, LoadSkillsResult, SkillRootDir } from "./scanner.ts";
+export { parseFrontmatter, fallbackDescription } from "./frontmatter.ts";

@@ -2,7 +2,7 @@
 // Plan Injection — Context injection for plan mode
 // ============================================================
 
-import type { PlanManager } from "./index";
+import type { PlanManager } from "./index.ts";
 
 /**
  * Build plan mode injection for system prompt (Kimi Code-style).

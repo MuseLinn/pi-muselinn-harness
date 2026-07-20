@@ -2,9 +2,9 @@
 // Goal Tools — create_goal, get_goal, update_goal
 // ============================================================
 
-import type { GoalManager } from "./index";
-import type { GoalSnapshot, GoalBudgetLimits } from "./types";
-import { parseBudgetToLimits } from "./types";
+import type { GoalManager } from "./index.ts";
+import type { GoalSnapshot, GoalBudgetLimits } from "./types.ts";
+import { parseBudgetToLimits } from "./types.ts";
 
 /**
  * Register goal tools with Pi.

@@ -16,7 +16,7 @@
 //     apps/kimi-code/src/tui/components/editor/custom-editor.ts
 // ============================================================
 
-import { visibleWidth } from "../text-utils";
+import { visibleWidth } from "../text-utils.ts";
 
 /** Strip SGR (color/style) escape sequences — the subset pi-tui emits. */
 export function stripSgr(s: string): string {

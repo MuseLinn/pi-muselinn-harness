@@ -2,10 +2,10 @@
 // Plan System — Kimi Code-style Plan Mode
 // ============================================================
 
-import type { PlanData, PlanStatus, PlanModeState } from "./types";
-import { currentPlanMode, setCurrentPlanMode, setCurrentPlan, setPlanActive } from "./types";
-import { registerPlanTools } from "./tools";
-import { registerPlanCommands } from "./commands";
+import type { PlanData, PlanStatus, PlanModeState } from "./types.ts";
+import { currentPlanMode, setCurrentPlanMode, setCurrentPlan, setPlanActive } from "./types.ts";
+import { registerPlanTools } from "./tools.ts";
+import { registerPlanCommands } from "./commands.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
 

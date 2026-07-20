@@ -2,10 +2,10 @@
 // Goal Commands — /goal, /write-goal, /swarm-status
 // ============================================================
 
-import type { GoalManager } from "./index";
-import { parseBudgetToLimits } from "./types";
-import { formatQueue, addToQueue, prioritizeQueueItem, removeFromQueue, skipCurrentQueueItem } from "./queue";
-import { goalArgumentCompletions } from "../completions";
+import type { GoalManager } from "./index.ts";
+import { parseBudgetToLimits } from "./types.ts";
+import { formatQueue, addToQueue, prioritizeQueueItem, removeFromQueue, skipCurrentQueueItem } from "./queue.ts";
+import { goalArgumentCompletions } from "../completions.ts";
 
 /**
  * Register goal commands with Pi.

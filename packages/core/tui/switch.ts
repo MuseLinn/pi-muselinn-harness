@@ -8,7 +8,7 @@
 //   style boxed/compact → register a factory + hide the indicator
 // ============================================================
 
-import type { EditorStyle } from "./box";
+import type { EditorStyle } from "./box.ts";
 
 export interface StylePlan {
   /** true → register a MuselinnEditor factory; false → setEditorComponent(undefined). */

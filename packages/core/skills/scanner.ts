@@ -33,7 +33,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { parseFrontmatter, fallbackDescription, getField, normalizeArguments } from "./frontmatter";
+import { parseFrontmatter, fallbackDescription, getField, normalizeArguments } from "./frontmatter.ts";
 
 // pi's Skill shape (duck-typed to avoid a hard runtime dep on pi here; the
 // object is fed straight into resourceLoader.getSkills).

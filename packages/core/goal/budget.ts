@@ -2,7 +2,7 @@
 // Goal Budget — Report computation + Prompt injection
 // ============================================================
 
-import type { GoalSnapshot, GoalBudgetReport, GoalBudgetLimits } from "./types";
+import type { GoalSnapshot, GoalBudgetReport, GoalBudgetLimits } from "./types.ts";
 
 /**
  * Live active-pursuit time: the accumulated total plus the in-flight active interval.

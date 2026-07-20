@@ -100,8 +100,8 @@ export const OUTPUT_TRUNCATED_MARKER = "[output truncated]";
 // Goal Types — re-export from goal/types.ts (single source of truth)
 // ============================================================
 
-import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "../goal/types";
-import { currentGoal, setCurrentGoal } from "../goal/types";
+import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "../goal/types.ts";
+import { currentGoal, setCurrentGoal } from "../goal/types.ts";
 
 export type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits };
 export { currentGoal, setCurrentGoal };
@@ -110,7 +110,7 @@ export { currentGoal, setCurrentGoal };
 // Global State
 // ============================================================
 
-import { ProgressEstimator } from "./estimator";
+import { ProgressEstimator } from "./estimator.ts";
 
 export let currentSwarm: SwarmState | null = null;
 export let activeSessions: Map<string, { session: { abort(): Promise<void>; dispose(): void }; taskId: string }> | null = null;

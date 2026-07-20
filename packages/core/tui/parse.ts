@@ -6,7 +6,7 @@
 //   /tui timing                     → render timing stats (env-gated)
 // ============================================================
 
-import { EDITOR_STYLES, type EditorStyle } from "./box";
+import { EDITOR_STYLES, type EditorStyle } from "./box.ts";
 
 export type TuiCommand =
   | { kind: "status" }

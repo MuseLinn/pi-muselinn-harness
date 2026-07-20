@@ -2,8 +2,8 @@
 // Goal Queue — FIFO/Priority queue (reference: @narumitw/pi-goal)
 // ============================================================
 
-import type { GoalQueue, GoalQueueItem, GoalSnapshot, GoalBudgetLimits } from "./types";
-import { currentQueue, setCurrentQueue } from "./types";
+import type { GoalQueue, GoalQueueItem, GoalSnapshot, GoalBudgetLimits } from "./types.ts";
+import { currentQueue, setCurrentQueue } from "./types.ts";
 
 /**
  * Generate a unique queue item ID.

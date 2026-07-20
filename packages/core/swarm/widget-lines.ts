@@ -8,9 +8,9 @@
 // renderer's natural input").
 // ============================================================
 
-import type { SwarmState, AgentStatus, SubAgentTask } from "./types";
-import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS, MIN_LABEL_WIDTH } from "./types";
-import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS, getSpinnerFrames } from "./helpers";
+import type { SwarmState, AgentStatus, SubAgentTask } from "./types.ts";
+import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS, MIN_LABEL_WIDTH } from "./types.ts";
+import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS, getSpinnerFrames } from "./helpers.ts";
 
 /**
  * Build goal status line for widget display.

@@ -10,7 +10,7 @@
 //     apps/kimi-code/src/tui/components/messages/agent-swarm-progress.ts
 // ============================================================
 
-import { GridLayout, AgentStatus } from "./types";
+import { GridLayout, AgentStatus } from "./types.ts";
 import {
   BRAILLE_LEVELS,
   BRAILLE_BAR_FILLED,
@@ -21,7 +21,7 @@ import {
   CELL_GAP,
   TEXT_CELL_PREFERRED_WIDTH,
   COMPLETE_FILL_MS,
-} from "./types";
+} from "./types.ts";
 
 // ============================================================
 // Spinner — harness-branded animation frames
@@ -178,7 +178,7 @@ function calculateGridLayoutUncached(count: number, availableWidth: number, avai
 
 // visibleWidth lives in core/text-utils (shared with tui/box); re-export
 // so existing swarm imports keep working unchanged.
-export { visibleWidth } from "../text-utils";
+export { visibleWidth } from "../text-utils.ts";
 
 // ============================================================
 // Formatting helpers

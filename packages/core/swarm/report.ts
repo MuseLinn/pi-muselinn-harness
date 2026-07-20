@@ -2,8 +2,8 @@
 // Swarm Mode — Report Formatter
 // ============================================================
 
-import type { SwarmState } from "./types";
-import { fmtDuration, fmtTokens, fmtCost } from "./helpers";
+import type { SwarmState } from "./types.ts";
+import { fmtDuration, fmtTokens, fmtCost } from "./helpers.ts";
 
 export function formatReport(state: SwarmState): string {
   const lines = [

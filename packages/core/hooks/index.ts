@@ -14,8 +14,8 @@
 // errors, spawn failures, timeouts, and crashes all fail open.
 // ============================================================
 
-import { getHookRules, type HookRule } from "./config";
-import { runHookCommand, interpretResult, type HookVerdict } from "./executor";
+import { getHookRules, type HookRule } from "./config.ts";
+import { runHookCommand, interpretResult, type HookVerdict } from "./executor.ts";
 
 export interface FireOptions {
   /** Await results and aggregate block decisions (PreToolUse/Stop/UserPromptSubmit). */

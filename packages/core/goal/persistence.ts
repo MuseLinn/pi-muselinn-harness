@@ -2,8 +2,8 @@
 // Goal Persistence — appendEntry + session_start recovery
 // ============================================================
 
-import type { GoalSnapshot, GoalEntryData } from "./types";
-import { GOAL_ENTRY_TYPE, setCurrentGoal } from "./types";
+import type { GoalSnapshot, GoalEntryData } from "./types.ts";
+import { GOAL_ENTRY_TYPE, setCurrentGoal } from "./types.ts";
 
 /**
  * Serialize goal to entry data for appendEntry persistence.

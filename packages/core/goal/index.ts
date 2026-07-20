@@ -2,14 +2,14 @@
 // Goal System — Kimi Code-style lifecycle + persistence + injection
 // ============================================================
 
-import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "./types";
-import { currentGoal, setCurrentGoal, GOAL_ENTRY_TYPE } from "./types";
-import { computeBudgetReport, budgetBandGuidance, liveWallClockMs } from "./budget";
-import { goalToEntryData, goalFromEntryData, reconstructGoalFromEntries } from "./persistence";
-import { registerGoalTools } from "./tools";
-import { registerGoalCommands } from "./commands";
-import { autoSwitchToNext } from "./queue";
-import type { PersistencePort } from "../ports";
+import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "./types.ts";
+import { currentGoal, setCurrentGoal, GOAL_ENTRY_TYPE } from "./types.ts";
+import { computeBudgetReport, budgetBandGuidance, liveWallClockMs } from "./budget.ts";
+import { goalToEntryData, goalFromEntryData, reconstructGoalFromEntries } from "./persistence.ts";
+import { registerGoalTools } from "./tools.ts";
+import { registerGoalCommands } from "./commands.ts";
+import { autoSwitchToNext } from "./queue.ts";
+import type { PersistencePort } from "../ports.ts";
 
 /** Mutate status on an existing goal snapshot (immutable style). */
 function cloneSnapshot(s: GoalSnapshot, patch: Partial<GoalSnapshot>): GoalSnapshot {

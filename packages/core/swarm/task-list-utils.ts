@@ -6,7 +6,7 @@
 // matchesKey + KeybindingsManager.
 // ============================================================
 
-import type { SubAgentTask } from "./types";
+import type { SubAgentTask } from "./types.ts";
 
 // ── Status glyphs (rpiv-todo semantics) ──────────────────────
 // pending ○ / running ◐ / done ✓ / failed ✗ / aborted ▲

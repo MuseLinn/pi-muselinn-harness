@@ -2,8 +2,8 @@
 // Plan Tools — enter_plan_mode, exit_plan_mode
 // ============================================================
 
-import type { PlanManager } from "./index";
-import { permissionManager } from "../permission";
+import type { PlanManager } from "./index.ts";
+import { permissionManager } from "../permission.ts";
 import * as fs from "node:fs";
 
 /**

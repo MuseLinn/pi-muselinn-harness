@@ -2,11 +2,11 @@
 // Plan Commands — /plan
 // ============================================================
 
-import type { PlanManager } from "./index";
+import type { PlanManager } from "./index.ts";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { planArgumentCompletions } from "../completions";
+import { planArgumentCompletions } from "../completions.ts";
 
 /**
  * Get per-session state file path (inside session directory, keyed by sessionId).

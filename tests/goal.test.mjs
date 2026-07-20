@@ -14,7 +14,8 @@ const moduleCache = new Map();
 
 function resolveSpec(spec, parentFile) {
   if (!spec.startsWith(".")) return { native: spec };
-  const base = path.resolve(path.dirname(parentFile), spec);
+  const clean = spec.endsWith(".js") ? spec.slice(0, -3) : spec; // TS ESM convention: ./x.js → ./x.ts
+  const base = path.resolve(path.dirname(parentFile), clean);
   for (const c of [base + ".ts", base + ".js", base]) {
     if (fs.existsSync(c) && fs.statSync(c).isFile()) return { file: c };
   }
