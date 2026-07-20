@@ -60,8 +60,8 @@ export function summarizeTodos(todos: readonly TodoItem[]): Record<TodoStatus, n
  * Fold the list to at most MAX_VISIBLE_TODOS rows: all in_progress first,
  * then earliest pending, keeping one slot for the most recent done.
  */
-export function selectVisibleTodos(todos: readonly TodoItem[]): VisibleTodos {
-  if (todos.length <= MAX_VISIBLE_TODOS) {
+export function selectVisibleTodos(todos: readonly TodoItem[], maxVisible: number = MAX_VISIBLE_TODOS): VisibleTodos {
+  if (todos.length <= maxVisible) {
     return { rows: [...todos], hidden: 0, hiddenCounts: { done: 0, in_progress: 0, pending: 0 } };
   }
 
@@ -75,14 +75,14 @@ export function selectVisibleTodos(todos: readonly TodoItem[]): VisibleTodos {
   });
 
   const picked = new Set<number>();
-  for (const i of inProgress.slice(0, MAX_VISIBLE_TODOS)) picked.add(i);
+  for (const i of inProgress.slice(0, maxVisible)) picked.add(i);
 
   if (picked.size < MAX_VISIBLE_TODOS) {
     // Most recent done first; earliest pending first.
     const doneCandidates = [...done].reverse();
     const pendingCandidates = pending;
 
-    const remaining = MAX_VISIBLE_TODOS - picked.size;
+    const remaining = maxVisible - picked.size;
     let doneCount: number;
     let pendingCount: number;
     if (doneCandidates.length === 0) {

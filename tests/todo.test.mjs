@@ -75,3 +75,11 @@ check("most recent done visible", v5.rows.some((t) => t.id === "6"));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
+
+// 8. maxVisible parameter honored
+const long5 = Array.from({ length: 8 }, (_, i) => T(`t${i + 1}`, "pending"));
+check("maxVisible=3 folds to 3", selectVisibleTodos(long5, 3).rows.length === 3);
+check("maxVisible=8 shows all", selectVisibleTodos(long5, 8).rows.length === 8);
+
+console.log(`\n(maxVisible) ${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);
