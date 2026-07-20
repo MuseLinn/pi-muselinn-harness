@@ -8,12 +8,19 @@ import { policyChain, isDestructive, inputFingerprint } from './policies';
 import { loadAgentsMd } from './config';
 import { hookEngine } from '../hooks/index';
 
+/** Adapter-injected approval dialog outcome. */
+export interface ApprovalDialogResult {
+  decision: 'once' | 'always' | 'deny';
+  /** Optional user-supplied reason attached to a deny (relayed to the model). */
+  reason?: string;
+}
 /** Adapter-injected approval dialog: three-way ask outcome. */
 export type ApprovalDialogFn = (
   ctx: any,
+  toolName: string,
   title: string,
   message: string,
-) => Promise<'once' | 'always' | 'deny'>;
+) => Promise<ApprovalDialogResult>;
 
 export class PermissionManager {
   private mode: PermissionMode = 'manual';
@@ -118,13 +125,14 @@ export class PermissionManager {
           try { void hookEngine.fire('PermissionRequest', { tool_name: toolName, policy: policy.name, message: result.message }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
 
           if (this.approvalDialog) {
-            const decision = await this.approvalDialog(ctx, 'Approval Required', result.message || `Tool: ${toolName}`);
-            try { void hookEngine.fire('PermissionResult', { tool_name: toolName, policy: policy.name, approved: decision !== 'deny' }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
-            if (decision === 'deny') {
-              return { block: true, reason: `User denied: ${policy.name}` };
+            const outcome = await this.approvalDialog(ctx, toolName, 'Approval Required', result.message || `Tool: ${toolName}`);
+            try { void hookEngine.fire('PermissionResult', { tool_name: toolName, policy: policy.name, approved: outcome.decision !== 'deny' }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
+            if (outcome.decision === 'deny') {
+              const why = outcome.reason ? ` — user reason: ${outcome.reason}` : '';
+              return { block: true, reason: `User denied: ${policy.name}${why}` };
             }
             // 'always' records for the session; 'once' approves just this call.
-            if (decision === 'always') this.recordApproval(policyCtx);
+            if (outcome.decision === 'always') this.recordApproval(policyCtx);
             continue;
           }
 

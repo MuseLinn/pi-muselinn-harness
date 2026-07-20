@@ -27,6 +27,27 @@ export interface AnsweredQuestion {
 export const MAX_DIGIT_OPTIONS = 9;
 
 /**
+ * Human action title for a tool name on the approval dialog
+ * (Kimi approval-panel parity: "Run this command?" / "Apply these edits?").
+ */
+export function approvalTitleFor(toolName: string): string {
+  switch (toolName) {
+    case "bash": return "Run this command?";
+    case "edit": return "Apply these edits?";
+    case "write": return "Write this file?";
+    case "read": return "Read this file?";
+    case "grep": return "Search with this pattern?";
+    case "find": return "Find files with this pattern?";
+    case "ls": return "List this directory?";
+    case "ask_user_question": return "Ask the user?";
+    case "todo_list": return "Update the todo list?";
+    case "cron_create": return "Schedule this cron task?";
+    case "cron_delete": return "Delete this cron task?";
+    default: return `Run ${toolName}?`;
+  }
+}
+
+/**
  * Normalize tool input into QuestionSpec[]. Accepts the array form
  * ({ questions: [...] }) and the single-question shorthand
  * ({ question, options }). Options accept strings or {label, description}.

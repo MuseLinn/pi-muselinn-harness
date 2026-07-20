@@ -4,6 +4,7 @@ const {
   digitToIndex,
   moveIndex,
   formatAnswers,
+  approvalTitleFor,
   MAX_DIGIT_OPTIONS,
 } = await import("../packages/core/ask/types.ts");
 
@@ -58,6 +59,12 @@ const text = formatAnswers([
 check("answered formatted", text.includes("Q: Q1") && text.includes("A: A"));
 check("cancel marked", text.includes("user cancelled"));
 check("no cancel → no mark", !formatAnswers([{ question: "Q", answer: "x" }]).includes("cancelled"));
+
+// 7. approvalTitleFor (per-tool approval titles)
+check("bash title", approvalTitleFor("bash") === "Run this command?");
+check("edit title", approvalTitleFor("edit") === "Apply these edits?");
+check("write title", approvalTitleFor("write") === "Write this file?");
+check("unknown tool fallback", approvalTitleFor("webfetch") === "Run webfetch?");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

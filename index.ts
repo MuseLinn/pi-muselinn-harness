@@ -53,6 +53,7 @@ import { backgroundManager, registerBackgroundTools } from "./task";
 import { cronManager, registerCronTools } from "./packages/core/task/cron";
 import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
+import { approvalTitleFor } from "./packages/core/ask/types";
 import { registerTodoList, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
@@ -205,20 +206,30 @@ export default function (pi: ExtensionAPI) {
   });
 
   // ── Permission approval dialog: numbered three-way ask (shared with
-  // ask_user_question). 'once' approves without recording; 'always' records
-  // for the session (the old confirm's implicit behavior); 'deny' blocks.
-  permissionManager.setApprovalDialog(async (dialogCtx, title, message) => {
+  // ask_user_question). Per-tool action titles (Kimi approval-panel
+  // parity); 'once' approves without recording; 'always' records for the
+  // session (the old confirm's implicit behavior); deny optionally
+  // carries a user reason back to the model.
+  permissionManager.setApprovalDialog(async (dialogCtx, toolName, title, message) => {
     const choice = await showQuestionDialog(dialogCtx, {
-      question: `${title}\n${message}`,
+      question: `${approvalTitleFor(toolName)}\n${title}: ${message}`,
       options: [
         { label: "Allow once", description: "Approve this call only" },
         { label: "Always allow (this session)", description: "Record approval for the rest of the session" },
         { label: "Deny", description: "Block this call" },
+        { label: "Deny with reason", description: "Block and tell the agent why" },
       ],
     });
-    if (choice === "Allow once") return "once";
-    if (choice === "Always allow (this session)") return "always";
-    return "deny";
+    if (choice === "Allow once") return { decision: "once" };
+    if (choice === "Always allow (this session)") return { decision: "always" };
+    if (choice === "Deny with reason") {
+      let reason: string | undefined;
+      try {
+        reason = (await dialogCtx.ui.input("Reason for denying (optional)", "e.g. don't force-push to main")) || undefined;
+      } catch { /* input unavailable */ }
+      return { decision: "deny", reason };
+    }
+    return { decision: "deny" };
   });
 
   // ── Background task manager binding ──
