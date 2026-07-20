@@ -161,6 +161,7 @@ Phase 4  Desktop（TUI 稳定后启动）
 - [x] **B⑬-e todo 原生集成**（fork `cc603eb2`）：todo_list 原生工具 + 内联面板走 interactive-mode widget 通道；ctrl+t 有 todo 时切面板、空表回落 thinking 切换；会话验证 `native-todo-ok`
 - [x] **B⑭ 配置系统**（fork `aedf3a01`）：core schema（goal.badge/todo.maxVisible/swarm.*/tui.*/truncation.*，深合并+逐字段文档，12→9 断言修正后全绿）+ SettingsManager `musepi` 嵌套键 + getMusepi()，goal/todo 原生已消费设置
 - [x] **B⑬-f swarm 原生集成（核心）**（fork `558d07dc`）：subagent 执行机制（fork 内部 API 直连）+ 前台编排全量移植（模型自动路由/渐进投放/指纹门控 widget/onUpdate 摘要/resume 记录）；2 项 explore swarm 会话实测产出完整 completed 报告；`run_in_background` 待后台 task 原生后开放（明确报错不静默）
-- [ ] **B⑬-f 余量**（下一批）：后台任务管理器原生（task/cron）+ swarm 后台变体 + /swarm /tasks 命令；**B⑮** transcript 层；验收=box editor 交互会话
+- [x] **B⑬-f 余量：后台 task/cron 原生 + swarm 后台变体**（fork `67a73e32`+`b1799824`）：BackgroundTaskManager 移植（50 上限/7 天 stale/增量持久化/净化输出）；run_background/task_list/task_output/task_stop + cron 三工具 fake-pi 收集注册；cron 走 session.prompt 原生投递；swarm `run_in_background` 全链路实测（注册→task_list→task_output block 等待完成）
+- [ ] **B⑮** transcript 层；余量小项：/swarm /tasks 命令原生（后续随命令系统一起做）；验收=box editor 交互会话
 - [ ] **C⑯-⑱**：流式规则注入、真全屏（container swap）、大会话 profile
 - 记录在案：kimi 4b（mode-aware 输入历史）不可移植（pi 编辑器无 bash inputMode）；clustered diff 预览延后
