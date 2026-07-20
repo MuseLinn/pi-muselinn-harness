@@ -18,6 +18,7 @@ import {
 } from "../packages/core/swarm/types";
 import { TasksBrowserComponent, TasksBrowserProps } from "./task-browser";
 import { UserCancellationError } from "./subagent";
+import { validateSwarmResume } from "../packages/core/swarm/resume-guard";
 import { swarmArgumentCompletions } from "../packages/core/completions";
 
 /**
@@ -227,31 +228,25 @@ export function registerCommands(pi: ExtensionAPI): void {
   pi.registerCommand("swarm-resume", {
     description: "Resume interrupted swarm from where it left off (supports resume_agent_ids)",
     handler: async (_args, ctx) => {
-      const ss = savedSwarmState;
-      if (!ss) {
-        ctx.ui.notify("No saved swarm to resume.", "info");
+      // Ownership + idle validation (kimi agent.ts:302 parity): there must
+      // be a saved interrupted swarm with remaining items, and no other
+      // swarm may be in flight right now.
+      const verdict = validateSwarmResume(savedSwarmState, currentSwarm);
+      if (!verdict.ok) {
+        ctx.ui.notify(verdict.reason ?? "Cannot resume.", verdict.reason?.includes("already running") ? "warning" : "info");
+        if (verdict.reason?.includes("Nothing to resume")) setSavedSwarmState(null);
         return;
       }
 
-      const { name, items, modelTier, subagentType, promptTemplate, maxConcurrency } = ss;
-      const pendingItems = items.filter(
-        (item) => !ss.completedItems.includes(item),
-      );
-
-      if (pendingItems.length === 0) {
-        ctx.ui.notify(
-          "All tasks already completed. Nothing to resume.",
-          "info",
-        );
-        setSavedSwarmState(null);
-        return;
-      }
+      const ss = savedSwarmState!;
+      const { name, modelTier, subagentType, promptTemplate, maxConcurrency } = ss;
+      const pendingItems = verdict.pendingItems;
 
       setSavedSwarmState(null);
 
       const itemsStr = pendingItems.map((i) => `"${i}"`).join(", ");
       ctx.ui.notify(
-        `Resuming ${name}: ${pendingItems.length}/${items.length} remaining`,
+        `Resuming ${name}: ${pendingItems.length}/${ss.items.length} remaining`,
         "info",
       );
 
