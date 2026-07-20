@@ -145,3 +145,15 @@ Phase 4  Desktop（TUI 稳定后启动）
 ## 七、最先动手的一件事
 
 **Phase 1 第一步**：在仓里建 `packages/core/`，先把 goal/（最干净、测试最全）整体迁入并定义 `PersistencePort`，跑通 245 测试中的 goal 部分。这一步能验证 Port 设计是否成立，成立后再批量搬其余模块——不要一次性全搬。
+
+---
+
+## 八、执行进度（2026-07-21 夜更）
+
+- [x] **Phase 1 全部完成**（`2bf8260`）：goal/skills/tui/swarm/task 全部迁入 `packages/core/`，grep 零 pi import；`PersistencePort` + `ScopeDirs` 落地；cron bind 收窄为 sendPrompt 注入
+- [x] **A 队列功能批**（`2a64308`..`7c034ef`）：ask_user_question（共享编号对话框）、todo_list+面板、swarm 权限门控（共享管理器，/mode 天然广播）、manual 审批面板（分工具标题+拒绝理由）、编辑器锚定（913d0422 同款）、toolResultTruncation、resume 守卫、fetch_url、插件 manifest 六件套；测试 245 → 362
+- [x] **渲染器脚手架**（`c743ba0`）：`packages/renderer/`（虚拟行缓冲 + damage-tracked 组件树 + 16ms 合并帧循环），378 测试全绿
+- [x] **B⑩ fork 建仓**：https://github.com/MuseLinn/MusePi （私有，pre-alpha）——squash 导入 pi @ `ff992261`（0.80.10 线），`UPSTREAM.md` 记录 pin 与月度 cherry-pick 策略；`.github/workflows` 已剔除（PAT 无 workflow scope）；渲染器已随仓入库
+- [ ] **B⑫-B⑮**（下一批）：extension API 兼容层在渲染器替换后复核、core 原生集成、OMP 式配置系统、transcript 层；验收=跑通一轮完整会话
+- [ ] **C⑯-⑱**：流式规则注入、真全屏（container swap）、大会话 profile
+- 记录在案：kimi 4b（mode-aware 输入历史）不可移植（pi 编辑器无 bash inputMode）；clustered diff 预览延后
