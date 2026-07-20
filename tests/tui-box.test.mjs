@@ -40,11 +40,11 @@ function loadTs(file) {
 }
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const box = loadTs(`${EXT}/tui/box.ts`);
-const config = loadTs(`${EXT}/tui/config.ts`);
-const timing = loadTs(`${EXT}/tui/timing.ts`);
-const parse = loadTs(`${EXT}/tui/parse.ts`);
-const switchMod = loadTs(`${EXT}/tui/switch.ts`);
+const box = loadTs(`${EXT}/packages/core/tui/box.ts`);
+const config = loadTs(`${EXT}/packages/core/tui/config.ts`);
+const timing = loadTs(`${EXT}/packages/core/tui/timing.ts`);
+const parse = loadTs(`${EXT}/packages/core/tui/parse.ts`);
+const switchMod = loadTs(`${EXT}/packages/core/tui/switch.ts`);
 const completions = loadTs(`${EXT}/packages/core/completions.ts`);
 
 let pass = 0, fail = 0;

@@ -2,56 +2,27 @@
 // Background Task Manager — Pi-style persistent task tracking
 // ============================================================
 
-import type { SubAgentTask } from "../swarm/types";
+import type { SubAgentTask } from "../packages/core/swarm/types";
 import { goalManager } from "../packages/core/goal";
 import { hookEngine } from "../packages/core/hooks/index";
 import { sanitizeShellOutput } from "../packages/core/shell-output";
+import {
+  type BackgroundTaskEntry,
+  BG_ARRAY_ENTRY_TYPE,
+  BG_TASK_ENTRY_TYPE,
+  serializeTask,
+  mergePersistedTaskEntries,
+  computeRestoredTask,
+} from "../packages/core/task/state";
 import {
   createAgentSession,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { loadSkillsForCwd } from "../skills/index";
+import { loadSkillsForCwd } from "../packages/core/skills/index";
 
-export interface BackgroundTaskEntry {
-  id: string;
-  prompt: string;
-  model: string;
-  subagentType: string;
-  status: "running" | "completed" | "failed" | "aborted";
-  outputLines: string[];
-  error?: string;
-  stopReason?: string;          // Kimi Code: reason report to model
-  startTime: number;
-  createdAt: number;            // task creation timestamp (used for stale cleanup)
-  endTime?: number;
-  completedAtMs?: number;       // completion timestamp (set on complete/fail/restart-demotion)
-  turns: number;
-  usage: { input: number; output: number; cost: number };
-}
-
-const BG_ARRAY_ENTRY_TYPE = "muselinn_background_tasks"; // legacy full-snapshot entry
-const BG_TASK_ENTRY_TYPE = "muselinn_background_task";   // incremental single-task entry
-
-/** Strip a task down to its persisted shape (outputLines are not persisted). */
-function serializeTask(t: BackgroundTaskEntry): Record<string, any> {
-  return {
-    id: t.id,
-    prompt: t.prompt,
-    model: t.model,
-    subagentType: t.subagentType,
-    status: t.status,
-    error: t.error,
-    stopReason: t.stopReason,
-    startTime: t.startTime,
-    createdAt: t.createdAt,
-    endTime: t.endTime,
-    completedAtMs: t.completedAtMs,
-    turns: t.turns,
-    usage: t.usage,
-  };
-}
+export type { BackgroundTaskEntry } from "../packages/core/task/state";
 
 // ============================================================
 // BackgroundTaskManager — singleton
@@ -282,73 +253,13 @@ class BackgroundTaskManager {
 
   /** Restore from persisted session entries.
    *  Accepts either the raw session entry list (preferred) or a legacy plain
-   *  array of task objects. Handles both entry types:
-   *   - "muselinn_background_tasks" (array): full snapshot — resets the merge
-   *     baseline (used for deletions such as clearCompleted).
-   *   - "muselinn_background_task" (single object): upserts one task; for the
-   *     same id the later entry wins.
-   *  Post-merge demotions:
-   *   - Tasks older than 7 days are demoted to failed with stopReason="stale_7d".
-   *   - Orphan running tasks (left "running" across a process restart) are
-   *     demoted to "failed" with stopReason="process_restart" so the UI never
-   *     shows zombie forever-running tasks after a crash/restart. */
+   *  array of task objects. Merge + demotion rules live in core/task/state —
+   *  this method only owns the live map. */
   restore(entries: any[]): void {
     const now = Date.now();
-    const STALE_AGE_MS = 7 * 86400 * 1000;
-
-    // Merge phase: id → latest persisted data, in entry order.
-    const merged = new Map<string, any>();
-    let sawSessionEntries = false;
-    for (const e of entries || []) {
-      if (e && e.type === "custom") {
-        sawSessionEntries = true;
-        if (e.customType === BG_ARRAY_ENTRY_TYPE && Array.isArray(e.data)) {
-          merged.clear(); // snapshot is authoritative up to this point
-          for (const t of e.data) if (t && t.id) merged.set(t.id, t);
-        } else if (e.customType === BG_TASK_ENTRY_TYPE && e.data && e.data.id) {
-          merged.set(e.data.id, e.data);
-        }
-      }
-    }
-    if (!sawSessionEntries) {
-      // Legacy call shape: plain array of task objects.
-      for (const t of entries || []) {
-        if (t && t.id) merged.set(t.id, t);
-      }
-    }
-
-    // Demotion + insert phase (applied once per task to the final merged data).
-    for (const e of merged.values()) {
+    for (const e of mergePersistedTaskEntries(entries)) {
       if (this.tasks.has(e.id)) continue;
-      const createdAt = e.createdAt || e.startTime || now;
-      const isStale = now - createdAt > STALE_AGE_MS;
-      const wasRunning = e.status === "running";
-      let status: BackgroundTaskEntry["status"] = e.status || "failed";
-      let stopReason = e.stopReason;
-      let endTime = e.endTime;
-      let completedAtMs = e.completedAtMs;
-
-      if (isStale) {
-        status = "failed";
-        stopReason = "stale_7d";
-        endTime = now;
-        completedAtMs = now;
-      } else if (wasRunning) {
-        status = "failed";
-        stopReason = "process_restart";
-        endTime = now;
-        completedAtMs = now;
-      }
-
-      this.tasks.set(e.id, {
-        ...e,
-        status,
-        stopReason,
-        endTime,
-        completedAtMs,
-        createdAt,
-        outputLines: [],
-      });
+      this.tasks.set(e.id, computeRestoredTask(e, now));
     }
   }
 }

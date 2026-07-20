@@ -11,15 +11,15 @@
 // we can add is *extra* full-tree renders after quiet gaps; avoid them.
 // ============================================================
 
-import { type EditorStyle } from "./box";
-import { loadTuiConfig, saveTuiConfig, type TuiConfig } from "./config";
+import { type EditorStyle } from "../packages/core/tui/box";
+import { loadTuiConfig, saveTuiConfig, type TuiConfig } from "../packages/core/tui/config";
 import { MuselinnEditor } from "./editor";
-import { parseTuiArgs } from "./parse";
-import { planStyleSwitch } from "./switch";
-import { renderTiming, isTimingEnabled } from "./timing";
+import { parseTuiArgs } from "../packages/core/tui/parse";
+import { planStyleSwitch } from "../packages/core/tui/switch";
+import { renderTiming, isTimingEnabled } from "../packages/core/tui/timing";
 import { tuiArgumentCompletions } from "../packages/core/completions";
-import { getSpinnerFrames } from "../swarm/helpers";
-import { FRAME_INTERVAL_MS } from "../swarm/types";
+import { getSpinnerFrames } from "../packages/core/swarm/helpers";
+import { FRAME_INTERVAL_MS } from "../packages/core/swarm/types";
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";

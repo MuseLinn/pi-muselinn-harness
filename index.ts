@@ -21,8 +21,8 @@ import { Type } from "typebox";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { ModelTier, SubAgentType, SwarmState, SubAgentTask } from "./swarm/types";
-import { setResumeResult } from "./swarm/types";
+import type { ModelTier, SubAgentType, SwarmState, SubAgentTask } from "./packages/core/swarm/types";
+import { setResumeResult } from "./packages/core/swarm/types";
 import {
   FRAME_INTERVAL_MS,
   currentSwarm,
@@ -39,10 +39,10 @@ import {
   setGlobalAbortController,
   globalAbortController,
   progressEstimator,
-} from "./swarm/types";
+} from "./packages/core/swarm/types";
 import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkAbortSignal } from "./swarm/subagent";
 import { SwarmWidgetComponent } from "./swarm/widget";
-import { formatReport } from "./swarm/report";
+import { formatReport } from "./packages/core/swarm/report";
 import { registerCommands } from "./swarm/commands";
 import { goalManager } from "./packages/core/goal";
 import type { PersistencePort } from "./packages/core/ports";
@@ -50,9 +50,9 @@ import { planManager } from "./packages/core/plan";
 import { permissionManager } from "./packages/core/permission";
 import { registerPermissionCommands } from "./packages/core/permission/commands";
 import { backgroundManager, registerBackgroundTools } from "./task";
-import { cronManager, registerCronTools } from "./task/cron";
+import { cronManager, registerCronTools } from "./packages/core/task/cron";
 import { registerHooks, hookEngine } from "./packages/core/hooks/index";
-import { listDiscoverableSkillFiles } from "./skills/index";
+import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
 import shared from "./state";
 

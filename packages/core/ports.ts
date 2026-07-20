@@ -28,3 +28,20 @@ export interface PersistencePort {
   append(entryType: string, data: unknown): void;
   entries(): Iterable<SessionEntryLike>;
 }
+
+/**
+ * Host directory layout for config/skill lookup. Core modules default to
+ * pi's conventions; the MusePi fork passes its own layout. Cross-tool
+ * compat dirs (.kimi-code, .agents) are NOT part of this — they are
+ * external standards and stay constant.
+ */
+export interface ScopeDirs {
+  /** Project root (walking base for project-scope lookup). */
+  projectDir: string;
+  /** Host agent home, e.g. ~/.pi/agent. */
+  agentDir: string;
+  /** User home. */
+  homeDir: string;
+  /** Host dot-dir name, default ".pi" (the fork may use its own). */
+  hostDirName?: string;
+}

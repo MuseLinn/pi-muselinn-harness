@@ -16,8 +16,8 @@
 
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 
-import { composeTopBorder, wrapWithSideBorders, type EditorStyle } from "./box";
-import type { RenderTiming } from "./timing";
+import { composeTopBorder, wrapWithSideBorders, type EditorStyle } from "../packages/core/tui/box";
+import type { RenderTiming } from "../packages/core/tui/timing";
 
 import type { TUI, EditorTheme } from "@earendil-works/pi-tui";
 import type { KeybindingsManager } from "@earendil-works/pi-coding-agent";

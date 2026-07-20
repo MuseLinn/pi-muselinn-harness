@@ -47,7 +47,7 @@ process.env.USERPROFILE = userHome;
 process.env.KIMI_CODE_HOME = kimiHome;
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const { loadSkillsForCwd, findProjectRoot, listSkillRootDirs, clearSkillsCache } = loadTs(`${EXT}/skills/index.ts`);
+const { loadSkillsForCwd, findProjectRoot, listSkillRootDirs, clearSkillsCache } = loadTs(`${EXT}/packages/core/skills/index.ts`);
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {
@@ -341,7 +341,7 @@ check("cache: clearSkillsCache forces rescan",
   process.env.USERPROFILE = home2;
   process.env.KIMI_CODE_HOME = kimiHome2;
 
-  const { listDiscoverableSkillFiles } = loadTs(`${EXT}/skills/index.ts`);
+  const { listDiscoverableSkillFiles } = loadTs(`${EXT}/packages/core/skills/index.ts`);
   const files = listDiscoverableSkillFiles(project2);
 
   check("discover: pi-native ~/.agents name beats ~/.kimi-code same-named skill",

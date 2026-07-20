@@ -94,21 +94,53 @@ export function findProjectRoot(cwd: string): string {
   }
 }
 
+/**
+ * Optional host layout override (see ScopeDirs in ../ports). All fields
+ * default to pi's conventions, so existing callers change nothing; the
+ * MusePi fork passes its own. kimiHome defaults to $KIMI_CODE_HOME or
+ * <home>/.kimi-code — a cross-tool compat dir, not host-specific.
+ */
+export interface SkillScope {
+  projectRoot?: string;
+  homeDir?: string;
+  agentDir?: string;
+  hostDirName?: string;
+  kimiHome?: string;
+}
+
+interface ResolvedScope {
+  projectRoot: string;
+  home: string;
+  agentDir: string;
+  hostDirName: string;
+  kimiHome: string;
+}
+
+function resolveScope(cwd: string, scope?: SkillScope): ResolvedScope {
+  const home = scope?.homeDir ?? process.env.HOME ?? process.env.USERPROFILE ?? ".";
+  const hostDirName = scope?.hostDirName ?? ".pi";
+  return {
+    projectRoot: scope?.projectRoot ?? findProjectRoot(cwd),
+    home,
+    agentDir: scope?.agentDir ?? path.join(home, hostDirName, "agent"),
+    hostDirName,
+    kimiHome: scope?.kimiHome ?? process.env.KIMI_CODE_HOME ?? path.join(home, ".kimi-code"),
+  };
+}
+
 /** Ordered skills root dirs, project scope first (priority order). */
-export function listSkillRootDirs(cwd: string): SkillRootDir[] {
-  const projectRoot = findProjectRoot(cwd);
-  const home = process.env.HOME || process.env.USERPROFILE || ".";
-  const kimiHome = process.env.KIMI_CODE_HOME || path.join(home, ".kimi-code");
+export function listSkillRootDirs(cwd: string, scope?: SkillScope): SkillRootDir[] {
+  const s = resolveScope(cwd, scope);
   return [
-    // project scope — pi native first, then Kimi Code compat, then cross-tool
-    { dir: path.join(projectRoot, ".pi", "skills"), source: "project" },
-    { dir: path.join(projectRoot, ".kimi-code", "skills"), source: "project" },
-    { dir: path.join(projectRoot, ".agents", "skills"), source: "project" },
+    // project scope — host native first, then Kimi Code compat, then cross-tool
+    { dir: path.join(s.projectRoot, s.hostDirName, "skills"), source: "project" },
+    { dir: path.join(s.projectRoot, ".kimi-code", "skills"), source: "project" },
+    { dir: path.join(s.projectRoot, ".agents", "skills"), source: "project" },
     // user scope — same ordering
-    { dir: path.join(home, ".pi", "agent", "skills"), source: "user" },
-    { dir: path.join(home, ".pi", "skills"), source: "user" },
-    { dir: path.join(kimiHome, "skills"), source: "user" },
-    { dir: path.join(home, ".agents", "skills"), source: "user" },
+    { dir: path.join(s.agentDir, "skills"), source: "user" },
+    { dir: path.join(s.home, s.hostDirName, "skills"), source: "user" },
+    { dir: path.join(s.kimiHome, "skills"), source: "user" },
+    { dir: path.join(s.home, ".agents", "skills"), source: "user" },
   ];
 }
 
@@ -415,21 +447,19 @@ export function loadSkillsForCwd(cwd: string): LoadSkillsResult {
  * project is untrusted pi skips those dirs while we still seed from
  * them, which can hide a same-named compat skill (conservative).
  */
-export function listDiscoverableSkillFiles(cwd: string): string[] {
-  const projectRoot = findProjectRoot(cwd);
-  const home = process.env.HOME || process.env.USERPROFILE || ".";
-  const kimiHome = process.env.KIMI_CODE_HOME || path.join(home, ".kimi-code");
+export function listDiscoverableSkillFiles(cwd: string, scope?: SkillScope): string[] {
+  const s = resolveScope(cwd, scope);
 
   const piNativeDirs: SkillRootDir[] = [
-    { dir: path.join(projectRoot, ".pi", "skills"), source: "project" },
-    { dir: path.join(projectRoot, ".agents", "skills"), source: "project" },
-    { dir: path.join(home, ".pi", "agent", "skills"), source: "user" },
-    { dir: path.join(home, ".agents", "skills"), source: "user" },
+    { dir: path.join(s.projectRoot, s.hostDirName, "skills"), source: "project" },
+    { dir: path.join(s.projectRoot, ".agents", "skills"), source: "project" },
+    { dir: path.join(s.agentDir, "skills"), source: "user" },
+    { dir: path.join(s.home, ".agents", "skills"), source: "user" },
   ];
   const compatDirs: SkillRootDir[] = [
-    { dir: path.join(projectRoot, ".kimi-code", "skills"), source: "project" },
-    { dir: path.join(home, ".pi", "skills"), source: "user" },
-    { dir: path.join(kimiHome, "skills"), source: "user" },
+    { dir: path.join(s.projectRoot, ".kimi-code", "skills"), source: "project" },
+    { dir: path.join(s.home, s.hostDirName, "skills"), source: "user" },
+    { dir: path.join(s.kimiHome, "skills"), source: "user" },
   ];
 
   const seen = new Set<string>();

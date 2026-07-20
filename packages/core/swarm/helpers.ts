@@ -176,19 +176,9 @@ function calculateGridLayoutUncached(count: number, availableWidth: number, avai
   return { columns: compactCols, rows: compactRows, cellWidth: compactCellWidth, barCells: compactBarCells };
 }
 
-export function visibleWidth(s: string): number {
-  let w = 0;
-  let inEscape = false;
-  for (const ch of s) {
-    if (ch === "\x1b") { inEscape = true; continue; }
-    if (inEscape) { if (ch === "m") inEscape = false; continue; }
-    const cp = ch.charCodeAt(0);
-    if (cp >= 0x4e00 && cp <= 0x9fff) w += 2;
-    else if (cp >= 0x3000 && cp <= 0x303f) w += 2;
-    else w += 1;
-  }
-  return w;
-}
+// visibleWidth lives in core/text-utils (shared with tui/box); re-export
+// so existing swarm imports keep working unchanged.
+export { visibleWidth } from "../text-utils";
 
 // ============================================================
 // Formatting helpers

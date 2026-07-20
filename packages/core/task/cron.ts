@@ -179,13 +179,15 @@ function isStale(task: CronTask, now: number): boolean {
 
 class CronManager {
   private tasks = new Map<string, CronTask>();
-  private piRef: any = null;
+  private sendPromptFn: ((prompt: string) => Promise<void> | void) | null = null;
   private appendEntryFn: ((type: string, data: any) => void) | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  /** Bind Pi API (for sendUserMessage) and persistence callback */
-  bind(pi: any, appendEntry: (type: string, data: any) => void): void {
-    this.piRef = pi;
+  /** Bind the host prompt sender + persistence callback. Narrow injection:
+   *  cron only needs "put a prompt into the main conversation" — the pi
+   *  adapter wires pi.sendUserMessage, the fork wires its own. */
+  bindPromptSender(sendPrompt: (prompt: string) => Promise<void> | void, appendEntry: (type: string, data: any) => void): void {
+    this.sendPromptFn = sendPrompt;
     this.appendEntryFn = appendEntry;
   }
 
@@ -371,12 +373,12 @@ class CronManager {
 
   private async fire(task: CronTask): Promise<void> {
     try {
-      // Pi exposes sendUserMessage on the ExtensionAPI; inject the prompt into the main conversation.
-      // If unavailable, log a clear fallback message rather than pretending it worked.
-      if (this.piRef?.sendUserMessage) {
-        await this.piRef.sendUserMessage(task.prompt);
+      // Inject the prompt into the main conversation through the bound
+      // sender. If unbound, log a clear fallback rather than pretending.
+      if (this.sendPromptFn) {
+        await this.sendPromptFn(task.prompt);
       } else {
-        console.log(`[cron] fire ${task.id}: ${task.prompt.slice(0, 80)}... (sendUserMessage not available)`);
+        console.log(`[cron] fire ${task.id}: ${task.prompt.slice(0, 80)}... (no prompt sender bound)`);
       }
     } catch (e: any) {
       console.error(`[cron] fire ${task.id} failed:`, e.message || String(e));
@@ -391,8 +393,8 @@ export const cronManager = new CronManager();
 // ============================================================
 
 export function registerCronTools(pi: any): void {
-  cronManager.bind(
-    pi,
+  cronManager.bindPromptSender(
+    async (prompt) => { await pi.sendUserMessage(prompt); },
     // Guard: cron fires from a 30s interval that may outlive the session;
     // appendEntry on a stale pi throws.
     (type, data) => { try { pi.appendEntry?.(type, data); } catch { /* stale ctx */ } },

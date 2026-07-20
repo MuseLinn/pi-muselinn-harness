@@ -40,7 +40,7 @@ function loadTs(file) {
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const completions = loadTs(`${EXT}/packages/core/completions.ts`);
-const utils = loadTs(`${EXT}/swarm/task-list-utils.ts`);
+const utils = loadTs(`${EXT}/packages/core/swarm/task-list-utils.ts`);
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {
@@ -300,7 +300,7 @@ check("glyphs: pending ○ / running ◐ / done ✓ / failed ✗ / aborted ▲",
 // ══════════════════════════════════════════════════════════════
 // 7. Spinner styles (harness-branded, PI_MUSELINN_SPINNER)
 // ══════════════════════════════════════════════════════════════
-const helpers = loadTs(`${EXT}/swarm/helpers.ts`);
+const helpers = loadTs(`${EXT}/packages/core/swarm/helpers.ts`);
 const { getSpinnerFrames, SPINNER_STYLES, DEFAULT_SPINNER_STYLE } = helpers;
 
 delete process.env.PI_MUSELINN_SPINNER;

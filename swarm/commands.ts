@@ -15,7 +15,7 @@ import {
   setSwarmCancelled,
   setSavedSwarmState,
   globalAbortController,
-} from "./types";
+} from "../packages/core/swarm/types";
 import { TasksBrowserComponent, TasksBrowserProps } from "./task-browser";
 import { UserCancellationError } from "./subagent";
 import { swarmArgumentCompletions } from "../packages/core/completions";

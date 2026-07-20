@@ -5,7 +5,7 @@
 
 import { Container, Text, truncateToWidth, visibleWidth, matchesKey } from "@earendil-works/pi-tui";
 import type { KeybindingsManager } from "@earendil-works/pi-tui";
-import type { SubAgentTask } from "./types";
+import type { SubAgentTask } from "../packages/core/swarm/types";
 import {
   statusGlyph,
   statusColorName,
@@ -17,7 +17,7 @@ import {
   routeBrowserKey,
   routeViewerKey,
   type KeyMatchFn,
-} from "./task-list-utils";
+} from "../packages/core/swarm/task-list-utils";
 
 const ELLIPSIS = "…";
 const MIN_WIDTH = 48;

@@ -6,7 +6,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResourceLoader } from "@earendil-works/pi-coding-agent";
 import { goalManager } from "../packages/core/goal";
-import { progressEstimator } from "./types";
+import { progressEstimator } from "../packages/core/swarm/types";
 import {
   CONFIG_DIR_NAME,
   createAgentSession,
@@ -14,10 +14,10 @@ import {
   getAgentDir,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
-import type { SubAgentType, SubAgentTask } from "./types";
-import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "./types";
+import type { SubAgentType, SubAgentTask } from "../packages/core/swarm/types";
+import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "../packages/core/swarm/types";
 import { hookEngine } from "../packages/core/hooks/index";
-import { loadSkillsForCwd } from "../skills/index";
+import { loadSkillsForCwd } from "../packages/core/skills/index";
 
 // Append one output line with a hard array-length cap (oldest dropped first).
 function pushOutputLine(task: SubAgentTask, line: string): void {

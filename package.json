@@ -17,7 +17,6 @@
     "packages/",
     "swarm/",
     "task/",
-    "skills/",
     "tui/",
     "README.md",
     "README.zh-CN.md",
