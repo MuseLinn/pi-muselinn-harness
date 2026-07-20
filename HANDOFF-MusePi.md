@@ -105,6 +105,52 @@ pi 的 extension API 提供了：
 5. **与 pi 上游同步策略**：
    - 跟 OMP 一样定期 rebase？还是 pin 一个已知 workable 版本？
 
+## 五、补充需求（第二轮输入）
+
+### 组件化与生态
+
+MusePi 要对标 OhMyPi 的完整度：**插件、扩展、skills、agents 四类组件的统一管理**
+（发现 / 安装 / 启停 / 配置 / 更新），不只是 pi 现有的 package 安装。配置 schema
+放 core，管理 TUI 在 fork。
+
+### 自带伴随工具（替代外部依赖）
+
+当前 harness 文档推荐用户另装 rpiv-todo、rpiv-ask-user-question 等第三方扩展。
+MusePi 要把这些复现为**原生一等公民**：
+- todo 浮层（与 goal/task 状态打通，不是独立清单）
+- 交互式问卷 / 确认工具（ask-user-question，权限审批共用同一套交互组件）
+- btw 类轻量旁注能力
+
+### Kimi Code / OhMyPi 特性复现
+
+- **LSP 懒加载**：语言服务器按需启动、空闲回收，不常驻
+- **分 agent 配置模型**：主 agent / subagent / 后台任务各自独立的
+  provider+model+thinking level 配置（swarm 已有雏形，升级为通用机制）
+- 最大化吸收两边的现代化 TUI 风格与功能实现
+
+### 真全屏 TUI（条件达成后）
+
+pi-core 目前不支持 alternate screen，extension 时代的伪全屏已验证不可行并删除。
+fork 替换渲染层后具备条件：参考 opencode/OpenTUI，实现真全屏模式
+（alternate screen + 完整布局管理，编辑器/历史/面板分区，而非滚动流追加）。
+
+### 交互式内容的中断恢复（新）
+
+合盖待机、终端关闭、pi 进程退出都可能打断进行中的交互（问卷等待回答、
+plan 等待审批、权限等待确认、goal 等待判据）。要求：
+- 所有**等待用户输入的交互状态**持久化到会话（goal/task/cron 已有
+  session 持久化先例，推广到一切 pending interaction）
+- `session_start` 时恢复 pending 状态并重新呈现交互（问卷重新弹出、
+  审批恢复待决状态），而不是静默丢失或卡死
+- 恢复时要区分「用户离开后世界已变化」（如等待审批期间文件已被改动）
+  并给出显式提示
+
+### 哈希锚定编辑（查证结论）
+
+harness 和 pi-core 目前都没有。它是 OMP 的私有特性（edit 前校验文件内容
+哈希，防止基于过期快照写入）。已按规划推迟到 MusePi 1.0 后评估，与
+Rust 原生层同一闸门。
+
 ## 五、范围扩展（用户补充需求，规划时必须纳入）
 
 在 KimiWork 的 Phase 规划之外，用户明确要求 MusePi 的目标形态：
