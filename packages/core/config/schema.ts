@@ -70,10 +70,11 @@ export type ResolvedMusepiSettings = typeof MUSEPI_DEFAULTS;
 
 function pick<T extends object>(defaults: T, override: unknown): T {
 	if (!override || typeof override !== "object") return { ...defaults };
-	const out: Record<string, unknown> = { ...defaults };
-	for (const key of Object.keys(defaults)) {
+	const defaultsRecord = defaults as unknown as Record<string, unknown>;
+	const out: Record<string, unknown> = { ...defaultsRecord };
+	for (const key of Object.keys(defaultsRecord)) {
 		const v = (override as Record<string, unknown>)[key];
-		if (v !== undefined && typeof v === typeof (defaults as Record<string, unknown>)[key]) {
+		if (v !== undefined && typeof v === typeof defaultsRecord[key]) {
 			out[key] = v;
 		}
 	}
