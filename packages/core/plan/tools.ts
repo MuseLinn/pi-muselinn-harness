@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { PlanManager } from "./index.ts";
-import { permissionManager } from "../permission.ts";
+import { permissionManager } from "../permission/index.ts";
 import * as fs from "node:fs";
 
 /**
