@@ -53,6 +53,7 @@ import { backgroundManager, registerBackgroundTools } from "./task";
 import { cronManager, registerCronTools } from "./packages/core/task/cron";
 import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
+import { registerTodoList, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
 import shared from "./state";
@@ -279,6 +280,10 @@ export default function (pi: ExtensionAPI) {
       }
     } catch { /* not critical */ }
 
+    // Restore the todo panel (before binding so the first refresh shows it)
+    try { restoreTodos(ctx.sessionManager.getEntries()); } catch { /* ok */ }
+    bindTodoSession(ctx, (type, data) => { try { pi.appendEntry(type, data); } catch { /* stale ctx */ } });
+
     // Restore plan state from persisted entries
     try {
       const entries = ctx.sessionManager.getEntries();
@@ -432,6 +437,7 @@ export default function (pi: ExtensionAPI) {
   // ── Register goal tools and commands (from goal/ module) ──
   goalManager.registerTools(pi);
   registerAskUserQuestion(pi);
+  registerTodoList(pi);
   goalManager.registerCommands(pi);
 
   // ── Register plan tools and commands (from plan/ module) ──
