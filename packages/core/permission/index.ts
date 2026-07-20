@@ -50,6 +50,27 @@ export class PermissionManager {
   }
 
   /**
+   * Evaluate a tool call from an unattended subagent (swarm worker).
+   *
+   * Workers share the session's permission manager in-process, so a mode
+   * switch propagates to in-flight subagents by construction — the Kimi
+   * Code #1948 fan-out is implicit here. 'ask' verdicts cannot be
+   * answered by a worker, so they degrade to blocks (identical to the
+   * no-UI ask path), never to silent approval.
+   */
+  async evaluateForSubagent(
+    toolName: string,
+    input: Record<string, unknown>,
+    cwd: string,
+  ): Promise<{ block: true; reason: string } | undefined> {
+    return this.evaluate(toolName, input, cwd, {
+      hasUI: false,
+      sessionManager: null,
+      sessionId: `subagent:${process.pid}`,
+    });
+  }
+
+  /**
    * Evaluate tool call through the 18-level policy chain.
    * Returns { block: true, reason } to block, or undefined to allow.
    */

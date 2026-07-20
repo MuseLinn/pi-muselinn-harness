@@ -181,6 +181,38 @@ permissionManager.resetHistory();
 // Restore a sane default mode for any later in-process consumer.
 permissionManager.setMode("manual");
 permissionManager.resetHistory();
+
+// ── Subagent gate (evaluateForSubagent): shared-mode broadcast, ask→block ──
+const evalSub = (tool, input, cwd) => permissionManager.evaluateForSubagent(tool, input, cwd);
+
+// auto 模式下子代理的普通写操作放行（共享 mode = 广播生效）
+permissionManager.setMode("auto");
+{
+  const r = await evalSub("write", { path: "src/app.ts", content: "x" }, cleanCwd);
+  check("subagent(auto): ordinary write allowed", r === undefined, JSON.stringify(r));
+}
+// 共享模式广播：切到 manual 后同一子代理语境的破坏性命令被拦（ask 降级为 block，不经对话框）
+permissionManager.setMode("manual");
+{
+  const r = await evalSub("bash", { command: "rm -rf /tmp/w" }, cleanCwd);
+  check("subagent(manual): destructive ask degrades to block", r?.block === true, JSON.stringify(r));
+  check("subagent(manual): block reason names the policy / no-UI",
+    /destructive|no UI|approval/i.test(r?.reason ?? ""), r?.reason);
+}
+// manual 下普通操作仍放行
+{
+  const r = await evalSub("read", { path: "src/app.ts" }, cleanCwd);
+  check("subagent(manual): ordinary read allowed", r === undefined, JSON.stringify(r));
+}
+// yolo 下敏感文件保护仍然前置（auto/yolo 都不放行 .env）
+permissionManager.setMode("yolo");
+{
+  const r = await evalSub("write", { path: ".env", content: "SECRET=1" }, cleanCwd);
+  check("subagent(yolo): sensitive file still blocked", r?.block === true, JSON.stringify(r));
+}
+
+permissionManager.setMode("manual");
+permissionManager.resetHistory();
 fs.rmSync(cleanCwd, { recursive: true, force: true });
 
 console.log(`\n${pass} passed, ${fail} failed`);

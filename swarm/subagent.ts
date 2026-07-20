@@ -6,11 +6,15 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResourceLoader } from "@earendil-works/pi-coding-agent";
 import { goalManager } from "../packages/core/goal";
+import { permissionManager } from "../packages/core/permission";
+import { wrapWithPermissionGate } from "../packages/core/swarm/wrap-tools";
 import { progressEstimator } from "../packages/core/swarm/types";
 import {
   CONFIG_DIR_NAME,
   createAgentSession,
+  createCodingTools,
   createExtensionRuntime,
+  createReadOnlyTools,
   getAgentDir,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
@@ -238,10 +242,15 @@ export async function runSubAgent(
   //  - explore: read-only (no edit/write/bash)
   //  - plan:    read-only, no shell at all (planning/architecture only)
   // Nested agent dispatch is intentionally not exposed to subagents.
-  const allTools =
-    task.type === "coder"
-      ? ["read", "bash", "edit", "write", "grep", "find", "ls"]
-      : ["read", "grep", "find", "ls"];
+  //
+  // Tools are constructed here and wrapped with the permission gate: the
+  // workers share the session's PermissionManager, so /mode switches
+  // propagate to in-flight subagents by construction, and 'ask' verdicts
+  // degrade to blocks (unattended workers cannot answer dialogs).
+  const baseTools = task.type === "coder" ? createCodingTools(ctx.cwd) : createReadOnlyTools(ctx.cwd);
+  const gatedTools = baseTools.map((t: any) =>
+    wrapWithPermissionGate(t, (name, params) => permissionManager.evaluateForSubagent(name, params as Record<string, unknown>, ctx.cwd)),
+  );
 
   // Parse provider:modelId or just modelId
   let targetProvider = "";
@@ -267,7 +276,7 @@ export async function runSubAgent(
     return;
   }
 
-  await runWithModel(model, task, ctx, resourceLoader, allTools, signal, onProgress);
+  await runWithModel(model, task, ctx, resourceLoader, gatedTools, signal, onProgress);
   } finally {
     try { void hookEngine.fire("SubagentStop", { subagent_type: task.type, task_id: task.id, status: task.status }, { matcherText: task.type, cwd: ctx.cwd }); } catch { /* hooks fail open */ }
   }
@@ -278,7 +287,7 @@ async function runWithModel(
   task: SubAgentTask,
   ctx: { cwd: string; getSystemPrompt?: () => string | undefined; modelRegistry: any },
   resourceLoader: any,
-  tools: string[],
+  tools: any[],
   signal: AbortSignal,
   onProgress: () => void,
 ): Promise<void> {
@@ -317,7 +326,12 @@ async function runWithModel(
       sessionManager: SessionManager.inMemory(),
       model,
       modelRuntime: (ctx.modelRegistry as any)?.runtime ?? ctx.modelRegistry,
-      tools,
+      // Only the gated tools are enabled: default built-ins are disabled
+      // and our wrapped replacements keep their names, so the permission
+      // policy chain runs inside every worker tool call (shared manager
+      // = /mode broadcast by construction).
+      noTools: "builtin",
+      customTools: tools,
       resourceLoader,
     });
     session = result.session;
