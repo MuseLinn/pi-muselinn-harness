@@ -57,6 +57,8 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 - **Destructive detection** — `rm -rf` / `git push --force` / `drop table` / `git reset --hard` regex recognition, always asks, never short-circuited by session approvals
 - **Sensitive-file guard** — `.env` / `id_rsa` / `*.key` read/write interception, even in auto mode
 - **Session approval fingerprints** — approvals remembered per sessionId + input fingerprint, never degrading into "permanent allow"
+- **Approval panel** — numbered dialog with per-tool action titles ("Run this command?" / "Apply these edits?"), digit-key direct select, four outcomes: Allow once / Always allow (session) / Deny / Deny with reason (reason relayed to the model)
+- **Subagent gating** — swarm worker tool calls run through the same policy chain (shared in-process manager): `/mode` switches propagate to in-flight subagents by construction, `ask` verdicts degrade to blocks (never silent approval)
 - **AGENTS.md hierarchy** — project (nearest `AGENTS.md` or `.kimi-code/AGENTS.md`) → global `$KIMI_CODE_HOME/AGENTS.md` → cross-tool `~/.agents/AGENTS.md`, aggregated; `destructive-ask-always` can upgrade ask to deny
 - **Config cache** — permission config cached by file mtime, edits take effect immediately
 
@@ -89,6 +91,26 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 
 > Note: a pi-spark-style BottomFiller pseudo-fullscreen was implemented, then removed — it only has visual effect when the conversation is shorter than one screen. True editor pinning needs alternate-screen support in pi-core.
 
+### Ask (interactive questions)
+- **`ask_user_question` tool** — the agent asks the user numbered single-select questions (multi-question sequences supported); digit keys 1-9 jump straight to an option, arrows/jk navigate, Esc cancels
+- **Shared dialog component** — the same numbered component backs permission approval; in print/RPC mode the tool returns the questions as text instead of blocking
+- **Auto-mode safe** — auto mode denies `ask_user_question` by policy (no unattended hangs)
+
+### Todo (inline task plan)
+- **`todo_list` tool** — update (full-list rewrite) / read / clear; the model's plan stays visible to the user between turns
+- **Inline panel** — above-editor widget with Kimi Code's folding strategy (all in_progress first, earliest pending, one slot for the most recent done); `ctrl+t` expand/collapse
+- **Session persistence** — survives hot-reload; a fresh session always starts with an empty panel
+
+### Web fetch
+- **`fetch_url` tool** — no-auth URL fetch (20s timeout, 5MB stream cap, redirect follow); HTML → readable text (dependency-free extractor), JSON → pretty-print, everything else raw; 20k char cap with `max_chars` tuning
+
+### Plugins (declarative bundles)
+- **`muselinn.plugin.json`** — six declarative capabilities: `skills` (skill dirs merged into discovery), `sessionStart` (context injected on the session's first turn), `hooks` (merged into the `[[hooks]]` engine), `commands` (.md files become slash commands), plus `mcpServers` / `interface` recorded with skipped-diagnostics
+- **Discovery** — project `.pi/plugins/*/` then user `~/.pi/agent/plugins/*/`, first-wins name dedupe; `/plugins` lists capabilities and diagnostics
+
+### Output truncation
+- **Oversized tool results spill to disk** — results over 40k chars are written to `<sessionDir>/tool-results/` and replaced in context with a sanitized head+tail preview carrying the `output_path` and read-paging instructions (Kimi `toolResultTruncation` pattern)
+
 ## Kimi Code alignment
 
 Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/code/docs/kimi-code-cli/customization/agents.html):
@@ -100,9 +122,9 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | Parallel dispatch + max_concurrency | ✅ | Real worker-pool cap + progressive launch |
 | 30-minute timeout | ✅ | Per-subagent AbortSignal.timeout |
 | Background execution (run_in_background) | ✅ | Early task-ID return, blockable task_output, report to output_path |
-| Resume an existing subagent | ⚠️ | Conservative semantics: same-id re-run; true session resume pending pi-coding-agent API |
+| Resume an existing subagent | ⚠️ | Conservative semantics: same-id re-run; resume validated (saved state + nothing in flight + remaining items); true session resume pending pi-coding-agent API |
 | Nested subagents (coder spawning more) | ❌ | Deliberately closed — no recursive dispatch; subagent toolset excludes agent/agent_swarm |
-| Permission inheritance | ⚠️ | Subagents run under the tool whitelist given at creation, not per-call main-chain approval |
+| Permission inheritance | ✅ | Worker tool calls pass through the shared policy chain; /mode propagates by construction; asks degrade to blocks |
 | Instruction-file hierarchy | ✅ | Project `AGENTS.md` / `.kimi-code/AGENTS.md` → `$KIMI_CODE_HOME/AGENTS.md` → `~/.agents/AGENTS.md` |
 | wire.jsonl session persistence | ❌ | Subagents use SessionManager.inMemory() (in-process lifecycle) |
 | Hooks (`[[hooks]]` lifecycle) | ✅ | All 16 events, exit-code/stdout-JSON block semantics, fail-open |
@@ -123,7 +145,9 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `/plan` / `/plan on\|off\|clear` | Plan-mode control |
 | `/mode` | Switch permission mode (auto/yolo/manual) |
 | `/tui` | Switch editor style (plain/boxed/compact), `/tui timing` |
+| `/plugins` | List loaded plugins and their capabilities |
 | `/swarm-status` | Show status |
+| `ctrl+t` | Expand/collapse the todo panel |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` all support Tab completion.
 
@@ -135,54 +159,78 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `agent` | Single subagent |
 | `create_goal` / `get_goal` / `update_goal` / `set_goal_budget` | Goal management |
 | `enter_plan_mode` / `exit_plan_mode` | Plan mode |
+| `ask_user_question` | Numbered single-select questions to the user |
+| `todo_list` | Model-driven task plan with inline panel |
+| `fetch_url` | No-auth URL fetch with content-aware extraction |
 | `run_background` / `task_list` / `task_output` / `task_stop` | Background tasks |
 | `cron_create` / `cron_list` / `cron_delete` | Cron jobs |
 
 ## Architecture
 
+Core/adapter split: `packages/core/` is pure logic with **zero pi imports**
+(the future `@muselinn/core` package / MusePi fork foundation); the repo
+root holds the pi adapter (entry, pi-tui components, tool registration).
+
 ```
 pi-muselinn-harness/
-├── index.ts          entry (agent_swarm/agent tools, background runner, module wiring)
-├── state.ts          shared state
-├── completions.ts    slash-command argument completions (pure)
-├── swarm/            Swarm module
-│   ├── subagent.ts   subagent execution (worker pool, 30-min timeout, config cache)
-│   ├── commands.ts   /swarm /cancel /resume /tasks + ctrl+shift+t
-│   ├── widget.ts     TUI component (pi-tui Component + fingerprint gate)
-│   ├── task-browser.ts three-pane browser (status glyphs / collapse / named keys)
-│   ├── task-list-utils.ts collapse + key routing (pure)
-│   ├── estimator.ts  progress estimation (geometric mean)
-│   └── helpers.ts    braille bars / layout / spinner styles (memoized)
-├── goal/             Goal module (state machine, 3-turn threshold, criterion gate, queue)
-├── plan/             Plan module (tool whitelist, path guard, context injection)
-├── permission/       Permission module (18-level policy chain, AGENTS.md hierarchy)
-├── task/             Task module (50 cap, 7-day stale, incremental persistence) + cron
-├── hooks/            Hooks module (TOML mini-parser, executor, 16-event wiring)
-├── skills/           Skills module (frontmatter parser, seven-scope scanner, discover dedupe)
-├── tui/              TUI module (boxed editor)
-│   ├── box.ts        wrapWithSideBorders / composeTopBorder (pure)
-│   ├── editor.ts     MuselinnEditor (extends CustomEditor, three styles + badge slot)
-│   ├── switch.ts     style-switch planning (pure)
-│   ├── config.ts     muselinn-tui.json two-level config
-│   ├── timing.ts     render() timing probe (P50/P99)
-│   ├── parse.ts      /tui argument parsing
-│   └── index.ts      event wiring + /tui command + spinner lifecycle
-└── tests/            node-level unit tests (below)
+├── index.ts               entry (agent_swarm/agent tools, background runner, module wiring)
+├── state.ts               shared state
+├── packages/core/         @muselinn/core — pure logic, no host imports
+│   ├── ports.ts           host contracts (PersistencePort, ScopeDirs)
+│   ├── text-utils.ts      visibleWidth & friends
+│   ├── shell-output.ts    control-sequence sanitizer
+│   ├── truncation/        oversized tool-result spill (pure)
+│   ├── webfetch/          HTML→text / JSON extraction (pure)
+│   ├── completions.ts     slash-command argument completions
+│   ├── ask/               question spec + formatting (pure)
+│   ├── todo/              todo model + Kimi folding strategy (pure)
+│   ├── plugin/            muselinn.plugin.json manifest parse/discovery
+│   ├── goal/              Goal module (state machine, budgets, queue, persistence)
+│   ├── plan/              Plan module (tool whitelist, path guard, injection)
+│   ├── permission/        Permission module (18-level chain, approval contract)
+│   ├── hooks/             Hooks module (TOML mini-parser, executor, 16 events)
+│   ├── skills/            Skills module (frontmatter, seven-scope scanner)
+│   ├── swarm/             pure swarm half
+│   │   ├── types.ts       state/constants (+ goal re-export)
+│   │   ├── helpers.ts     braille bars / layout / spinner (memoized)
+│   │   ├── estimator.ts   progress estimation (geometric mean)
+│   │   ├── widget-lines.ts braille grid line builders (pure)
+│   │   ├── wrap-tools.ts  permission gate wrapper (pure)
+│   │   ├── resume-guard.ts resume ownership/idle validation (pure)
+│   │   ├── report.ts      swarm report formatting
+│   │   └── task-list-utils.ts collapse + key routing
+│   ├── task/              cron + task persistence state (pure)
+│   └── tui/               box/config/parse/switch/timing (pure chrome parts)
+├── swarm/                 adapter: subagent execution, /swarm commands,
+│                          SwarmWidgetComponent, three-pane task browser
+├── task/                  adapter: background task manager (session spawn)
+├── tui/                   adapter: MuselinnEditor + event wiring
+├── ask/                   adapter: question dialog + ask_user_question tool
+├── todo/                  adapter: todo_list tool + inline panel widget
+├── webfetch/              adapter: fetch_url tool
+├── plugin/                adapter: plugin loader + /plugins command
+└── tests/                 node-level unit tests (below)
 ```
 
 ## Tests
 
-Pure node-level unit tests, no model quota needed (269 assertions):
+Pure node-level unit tests, no model quota needed (362 assertions):
 
 ```bash
-node tests/permission.test.mjs                    # Permission policy chain — 14
+node tests/permission.test.mjs                    # Permission policy chain + subagent gate — 19
 node tests/goal.test.mjs                          # Goal state machine — 17
-node --experimental-strip-types tests/cron.test.mjs  # Cron subsystem — 16
+node tests/cron.test.mjs                          # Cron subsystem — 16
 node tests/hooks.test.mjs                         # Hooks engine — 43
 node tests/skills.test.mjs                        # Skills scan/parse/scopes/discover — 38
 node tests/tui.test.mjs                           # TUI collapse/keys/completions/spinner — 56
 node tests/tui-box.test.mjs                       # TUI box/config/probe/switch — 61
-node tests/math.test.mjs                          # Math split/fail-open/config (feature branch) — 24
+node tests/ask.test.mjs                           # ask spec/digits/answers/approval titles — 24
+node tests/todo.test.mjs                          # todo model + folding strategy — 19
+node tests/shell-output.test.mjs                  # output sanitizer — 21
+node tests/truncation.test.mjs                    # tool-result spill — 13
+node tests/resume-guard.test.mjs                  # swarm resume validation — 6
+node tests/webfetch.test.mjs                      # web extraction — 12
+node tests/plugin.test.mjs                        # plugin manifest/discovery — 17
 ```
 
 ## Experimental branches
@@ -191,10 +239,11 @@ node tests/math.test.mjs                          # Math split/fail-open/config 
 
 ## Roadmap
 
-- **Own companion tools** — reimplement the todo overlay (`rpiv-todo`-style) and the interactive question tool (`ask_user_question`-style) as harness-native versions, integrated with goal / permission / swarm widget instead of external packages
+- **MusePi** — the fork track: `@muselinn/core` is extracted (Phase 1 done, `packages/core/` has zero pi imports); next is a self-developed incremental renderer replacing pi-tui with a pi extension API compat layer. See `MusePi-PLAN.md` and `RESEARCH-kimi-code.md`
 - **i18n** — bilingual harness UI text and notifications (docs are already split en/zh-CN; the project page has an EN/中 toggle)
 - **Math renderer graduation** — merge `feature/math-renderer` once compaction-path context safety is confirmed
-- **True fullscreen** — editor pinning when pi-core lands alternate-screen support
+- **Clustered diff preview** — kimi-style ±3-line clustered diffs in edit/write approval messages (deferred from the P1 batch)
+- **True fullscreen** — container-swap fullscreen (kimi tasks-browser pattern); no alt-screen, preserving terminal scrollback
 
 ## Dependencies
 

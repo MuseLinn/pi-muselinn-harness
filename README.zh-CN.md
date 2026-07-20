@@ -44,6 +44,8 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **Destructive 检测** — `rm -rf` / `git push --force` / `drop table` / `git reset --hard` 等正则识别，每次必问，不被会话批准短路
 - **敏感文件守卫** — `.env` / `id_rsa` / `*.key` 等读写拦截，auto 模式下也不放行
 - **会话批准指纹** — 按 sessionId + 输入指纹记忆批准，不蜕变为"永久许可"
+- **审批面板** — 编号对话框，按工具定制动作标题("Run this command?" / "Apply these edits?")，数字键 1-9 直选，四种结果：Allow once / Always allow(本会话) / Deny / Deny with reason(理由回传给模型)
+- **子代理门控** — swarm worker 的工具调用经过同一策略链（进程内共享管理器）:`/mode` 切换天然传播到进行中的子代理,ask 判定降级为阻断（绝不静默放行）
 - **AGENTS.md 指令** — 对齐 Kimi Code 指令文件层级,聚合生效:项目级(最近的 `AGENTS.md` 或 `.kimi-code/AGENTS.md`)→ 全局 `$KIMI_CODE_HOME/AGENTS.md`(默认 `~/.kimi-code/AGENTS.md`)→ 跨工具 `~/.agents/AGENTS.md`;`destructive-ask-always` 可将 ask 升级为 deny
 - **配置缓存** — 权限配置按文件 mtime 缓存，变更即时生效
 
@@ -76,6 +78,26 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > 注:曾移植 pi-spark 的 BottomFiller 伪全屏(钉底布局),因其只在短会话有视觉效果(长会话填充量恒为 0)已移除;真正的编辑器钉底需要 alternate screen,属 pi-core 范畴。
 
+### Ask 模块(交互式提问)
+- **`ask_user_question` 工具** — agent 向用户发起编号单选提问（支持多题连问）；数字键 1-9 直选，方向键/jk 导航，Esc 取消
+- **共享对话框组件** — 权限审批复用同一编号组件；print/RPC 无 UI 模式下退化为文本提问，不阻塞
+- **auto 模式安全** — auto 模式下 `ask_user_question` 被策略专门拒绝（防无人值守卡死）
+
+### Todo 模块(内联任务计划)
+- **`todo_list` 工具** — update(整表重写) / read / clear；模型的计划在 turn 间对用户持续可见
+- **内联面板** — 编辑器上方 widget,采用 Kimi Code 的折叠策略（in_progress 全部优先，pending 取最早，保留一个最近完成位）;`ctrl+t` 展开/折叠
+- **会话持久化** — 热重载不丢；新会话永远从空面板开始
+
+### Web fetch 模块
+- **`fetch_url` 工具** — 无鉴权 URL 抓取（20s 超时、5MB 流上限、跟随重定向）;HTML → 可读文本（零依赖提取器）,JSON → 美化输出，其余原样返回；默认 20k 字符上限，`max_chars` 可调
+
+### Plugin 模块(声明式资源包)
+- **`muselinn.plugin.json`** — 六件套声明式能力：`skills`(skill 目录并入发现)、`sessionStart`(会话首轮注入上下文)、`hooks`(并入 `[[hooks]]` 引擎)、`commands`(.md 文件变 slash 命令),以及 `mcpServers` / `interface`（记录并给出 skipped 诊断）
+- **发现机制** — 项目 `.pi/plugins/*/` 优先于用户 `~/.pi/agent/plugins/*/`,同名先到先得；`/plugins` 查看能力与诊断
+
+### 输出截断
+- **超大工具结果落盘** — 超过 40k 字符的结果写入 `<sessionDir>/tool-results/`,上下文中只保留净化后的头尾预览 + `output_path`,附 read 分页说明（对齐 Kimi `toolResultTruncation`)
+
 ## 与 Kimi Code 的对齐情况
 
 对照 [Kimi Code CLI 官方文档 — Agent 与子 Agent](https://www.kimi.com/code/docs/kimi-code-cli/customization/agents.html):
@@ -87,9 +109,9 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 | 并行派发 + max_concurrency | ✅ | worker 池真实上限 + 渐进投放 |
 | 30 分钟超时 | ✅ | 每子 Agent 独立 AbortSignal.timeout |
 | 后台运行(run_in_background) | ✅ | 早返回 task ID,task_output 可 block 等待,报告落 output_path |
-| 唤回已有子 Agent(resume) | ⚠️ | 保守语义:同 id 重跑;真·会话恢复待 pi-coding-agent 暴露 resume API |
+| 唤回已有子 Agent(resume) | ⚠️ | 保守语义:同 id 重跑;resume 已加守卫(有保存态+无在飞 swarm+有剩余项);真·会话恢复待 pi-coding-agent 暴露 resume API |
 | 嵌套子 Agent(coder 再派发) | ❌ | 有意不开放——防止递归派发失控,子 Agent 工具集不含 agent/agent_swarm |
-| 权限继承 | ⚠️ | 子 Agent 按创建时的工具白名单执行,不经主会话 18 级策略链逐次审批;收紧权限请用主会话策略或收窄 subagent_type |
+| 权限继承 | ✅ | worker 工具调用经过进程内共享的 18 级策略链;/mode 切换天然传播,ask 降级为阻断 |
 | 指令文件层级 | ✅ | 项目级 `AGENTS.md` / `.kimi-code/AGENTS.md` → `$KIMI_CODE_HOME/AGENTS.md` → `~/.agents/AGENTS.md`,聚合生效 |
 | 会话目录 wire.jsonl 持久化 | ❌ | 子 Agent 用 SessionManager.inMemory(),状态不落盘(进程内生命周期) |
 | Hooks(`[[hooks]]` 生命周期钩子) | ✅ | 16 个事件全覆盖,退出码/stdout JSON 阻断语义,fail-open |
@@ -123,6 +145,8 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `/plan` / `/plan on\|off\|clear` | Plan Mode 控制 |
 | `/mode` | 切换权限模式(auto/yolo/manual) |
 | `/tui` | 切换编辑器样式(plain/boxed/compact) |
+| `/plugins` | 查看已加载插件及能力 |
+| `ctrl+t` | 展开/折叠 todo 面板 |
 | `/swarm-status` | 查看状态 |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` 均支持 Tab 子命令/参数补全。
@@ -135,83 +159,87 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `agent` | 单个子代理 |
 | `create_goal` / `get_goal` / `update_goal` / `set_goal_budget` | 目标管理 |
 | `enter_plan_mode` / `exit_plan_mode` | Plan Mode |
+| `ask_user_question` | 向用户发起编号单选提问 |
+| `todo_list` | 模型驱动的任务计划（内联面板） |
+| `fetch_url` | 无鉴权 URL 抓取（内容感知提取） |
 | `run_background` / `task_list` / `task_output` / `task_stop` | 后台任务 |
 | `cron_create` / `cron_list` / `cron_delete` | 定时任务 |
 
 ## 架构
 
+core/adapter 分层:`packages/core/` 是**零 pi import** 的纯逻辑
+（未来的 `@muselinn/core` 包 / MusePi fork 地基）;仓库根部是 pi
+适配层（入口、pi-tui 组件、工具注册）。
+
 ```
 pi-muselinn-harness/
-├── index.ts          入口(agent_swarm / agent 工具、后台 swarm runner、各模块接线)
-├── state.ts          共享状态
-├── completions.ts    命令参数补全(Tab 补全,prefix 过滤+空回退)
-├── swarm/            Swarm 模块
-│   ├── subagent.ts   子代理执行(worker 池、30min 超时、配置缓存)
-│   ├── commands.ts   /swarm /cancel /resume /tasks + ctrl+shift+t
-│   ├── widget.ts     TUI 组件(pi-tui Component + 指纹门控)
-│   ├── task-browser.ts 三栏浏览器(状态字形/折叠/命名键位)
-│   ├── task-list-utils.ts 折叠与键位路由(纯函数)
-│   ├── estimator.ts  进度估算(几何平均)
-│   └── helpers.ts    盲文进度条/布局/spinner 风格(memo 缓存)
-├── goal/             Goal 模块
-│   ├── index.ts      GoalManager(状态机 + 3 轮阈值 + 判据门禁)
-│   ├── commands.ts   /goal 命令
-│   ├── tools.ts      create/get/update_goal + set_goal_budget
-│   ├── budget.ts     Budget Report
-│   ├── persistence.ts 持久化
-│   └── queue.ts      Goal Queue
-├── plan/             Plan 模块
-│   ├── index.ts      PlanManager(工具白名单 + 路径守卫)
-│   ├── commands.ts   /plan 命令
-│   ├── tools.ts      enter/exit_plan_mode(读盘呈现)
-│   └── injection.ts  Context 注入
-├── permission/       Permission 模块
-│   ├── index.ts      evaluate 入口(18 级策略链)
-│   ├── policies.ts   各策略(destructive/敏感文件/会话批准...)
-│   ├── config.ts     配置加载(mtime 缓存)+ AGENTS.md 层级解析
-│   └── commands.ts   /mode 命令
-├── task/             Task 模块
-│   ├── index.ts      后台任务管理(50 上限/7天 stale/增量持久化)
-│   └── cron.ts       Cron 定时任务(5 字段 + jitter + one-shot)
-├── hooks/            Hooks 模块(Kimi Code [[hooks]] 引擎)
-│   ├── config.ts     TOML 迷你解析 + 双层配置 + mtime 缓存
-│   ├── executor.ts   spawn 执行 + 退出码语义 + fail-open
-│   └── index.ts      HookEngine + 16 事件接线 + pi.events 镜像
-├── skills/           Skills 模块(Kimi Code 四级作用域)
-│   ├── frontmatter.ts YAML frontmatter 迷你解析
-│   ├── scanner.ts    四级扫描 + 去重 + 缓存
-│   └── index.ts      loadSkillsForCwd / resources_discover 接线
-├── tui/              TUI 模块(闭合框编辑器)
-│   ├── box.ts        wrapWithSideBorders / composeTopBorder(纯函数)
-│   ├── editor.ts     MuselinnEditor(继承 CustomEditor,三样式)
-│   ├── switch.ts     样式切换决策(纯函数)
-│   ├── config.ts     muselinn-tui.json 双层配置
-│   ├── timing.ts     render() 耗时探针(P50/P99)
-│   ├── parse.ts      /tui 参数解析
-│   └── index.ts      事件接线 + /tui 命令 + spinner 生命周期
-└── tests/            node 级单元测试(见下)
+├── index.ts               入口(agent_swarm / agent 工具、后台 swarm runner、各模块接线)
+├── state.ts               共享状态
+├── packages/core/         @muselinn/core — 纯逻辑,零 host import
+│   ├── ports.ts           host 契约(PersistencePort、ScopeDirs)
+│   ├── text-utils.ts      visibleWidth 等
+│   ├── shell-output.ts    控制序列净化器
+│   ├── truncation/        超大工具结果落盘(纯函数)
+│   ├── webfetch/          HTML→文本 / JSON 提取(纯函数)
+│   ├── completions.ts     命令参数补全(Tab 补全)
+│   ├── ask/               提问规格 + 答案格式化(纯函数)
+│   ├── todo/              todo 模型 + Kimi 折叠策略(纯函数)
+│   ├── plugin/            muselinn.plugin.json manifest 解析/发现
+│   ├── goal/              Goal 模块(状态机 + 预算 + 队列 + 持久化)
+│   ├── plan/              Plan 模块(工具白名单 + 路径守卫 + 注入)
+│   ├── permission/        Permission 模块(18 级策略链 + 审批契约)
+│   ├── hooks/             Hooks 模块(TOML 迷你解析 + 执行器 + 16 事件)
+│   ├── skills/            Skills 模块(frontmatter + 七级扫描)
+│   ├── swarm/             swarm 纯逻辑半
+│   │   ├── types.ts       状态/常量(+ goal re-export)
+│   │   ├── helpers.ts     盲文条/布局/spinner(memo 缓存)
+│   │   ├── estimator.ts   进度估算(几何平均)
+│   │   ├── widget-lines.ts 盲文网格行构建(纯函数)
+│   │   ├── wrap-tools.ts  权限门控包装(纯函数)
+│   │   ├── resume-guard.ts resume 所有权/空闲校验(纯函数)
+│   │   ├── report.ts      swarm 报告格式化
+│   │   └── task-list-utils.ts 折叠与键位路由
+│   ├── task/              cron + 任务持久化状态(纯函数)
+│   └── tui/               box/config/parse/switch/timing(纯 chrome 件)
+├── swarm/                 适配层:子代理执行、/swarm 命令、
+│                          SwarmWidgetComponent、三栏任务浏览器
+├── task/                  适配层:后台任务管理(会话 spawn)
+├── tui/                   适配层:MuselinnEditor + 事件接线
+├── ask/                   适配层:提问对话框 + ask_user_question 工具
+├── todo/                  适配层:todo_list 工具 + 内联面板
+├── webfetch/              适配层:fetch_url 工具
+├── plugin/                适配层:插件加载器 + /plugins 命令
+└── tests/                 node 级单元测试(见下)
 ```
 
 ## 测试
 
-无需模型额度的 node 级单元测试(共 245 项断言):
+无需模型额度的 node 级单元测试(共 362 项断言):
 
 ```bash
-node tests/permission.test.mjs                    # Permission 策略链 14 项
+node tests/permission.test.mjs                    # Permission 策略链 + 子代理门控 19 项
 node tests/goal.test.mjs                          # Goal 状态机 17 项
-node --experimental-strip-types tests/cron.test.mjs  # Cron 子系统 16 项
+node tests/cron.test.mjs                          # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
 node tests/skills.test.mjs                        # Skills 扫描/解析/作用域/discover 38 项
 node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 56 项
 node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/切换 61 项
+node tests/ask.test.mjs                           # ask 规格/数字键/答案/审批标题 24 项
+node tests/todo.test.mjs                          # todo 模型 + 折叠策略 19 项
+node tests/shell-output.test.mjs                  # 输出净化器 21 项
+node tests/truncation.test.mjs                    # 结果落盘截断 13 项
+node tests/resume-guard.test.mjs                  # swarm resume 守卫 6 项
+node tests/webfetch.test.mjs                      # web 内容提取 12 项
+node tests/plugin.test.mjs                        # 插件 manifest/发现 17 项
 ```
 
 ## 下一步(Roadmap)
 
-- **自有伴随工具** — 把 todo 浮层(rpiv-todo 式)与交互式问卷(ask_user_question 式)复现为 harness 原生版本,与 goal / permission / swarm widget 深度集成,不再依赖外部包
+- **MusePi** — fork 路线:`@muselinn/core` 已完成抽取（Phase 1 完成,`packages/core/` 零 pi import）;下一步是自研增量渲染器替换 pi-tui + pi extension API 兼容层。见 `MusePi-PLAN.md` 与 `RESEARCH-kimi-code.md`
 - **i18n** — harness 界面文案与通知双语化(文档已拆分中英;项目页已有 EN/中 切换)
 - **公式渲染转正** — 待压缩路径的上下文安全性确认后,合入 `feature/math-renderer`
-- **真全屏** — pi-core 支持 alternate screen 后实现编辑器钉底
+- **clustered diff 预览** — edit/write 审批消息中的 ±3 行聚簇 diff（P1 批次延迟项）
+- **真全屏** — container swap 全屏（kimi 任务浏览器模式）,不用 alt screen,保留终端 scrollback
 
 ## 依赖
 
