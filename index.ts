@@ -57,6 +57,7 @@ import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { approvalTitleFor } from "./packages/core/ask/types";
 import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
 import { registerTodoList, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
+import { registerFetchUrl } from "./webfetch/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
 import shared from "./state";
@@ -474,6 +475,7 @@ export default function (pi: ExtensionAPI) {
   goalManager.registerTools(pi);
   registerAskUserQuestion(pi);
   registerTodoList(pi);
+  registerFetchUrl(pi);
   goalManager.registerCommands(pi);
 
   // ── Register plan tools and commands (from plan/ module) ──
