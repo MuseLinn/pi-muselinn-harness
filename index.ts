@@ -19,6 +19,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import type { ModelTier, SubAgentType, SwarmState, SubAgentTask } from "./packages/core/swarm/types";
@@ -54,6 +55,7 @@ import { cronManager, registerCronTools } from "./packages/core/task/cron";
 import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { approvalTitleFor } from "./packages/core/ask/types";
+import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
 import { registerTodoList, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
@@ -411,8 +413,31 @@ export default function (pi: ExtensionAPI) {
   goalBadgeTicker.unref?.();
 
   // ── turn_end: record token usage + budget check (pi-codex-goal style) ──
-  pi.on("turn_end", (event, _ctx) => {
-    const msg = event.message as any;
+  // ── tool_result: spill oversized outputs to disk (Kimi toolResultTruncation)
+  // A runaway log must not eat the context window; the full text lands in
+  // <sessionDir>/tool-results/ and the model gets a preview + output_path.
+  pi.on("tool_result", (event: any, ctx: any) => {
+    try {
+      const content = event?.content;
+      if (!Array.isArray(content)) return undefined;
+      let changed = false;
+      const out = content.map((part: any) => {
+        if (part?.type !== "text" || typeof part.text !== "string" || !shouldTruncate(part.text)) return part;
+        let base: string;
+        try { base = ctx?.sessionManager?.getSessionDir?.() || path.join(os.tmpdir(), "pi-muselinn-harness"); }
+        catch { base = path.join(os.tmpdir(), "pi-muselinn-harness"); }
+        const p = truncationPathFor(base, String(event.toolName ?? "tool"), String(event.toolCallId ?? Date.now()));
+        fs.mkdirSync(path.dirname(p), { recursive: true });
+        fs.writeFileSync(p, part.text, "utf8");
+        changed = true;
+        return { ...part, text: buildTruncatedPreview(part.text, p) };
+      });
+      if (changed) return { content: out };
+    } catch { /* never break tool results */ }
+    return undefined;
+  });
+
+  pi.on("turn_end", (event, _ctx) => {    const msg = event.message as any;
     if (msg?.role === "assistant" && msg?.usage) {
       const tokens = (msg.usage.input || 0) + (msg.usage.output || 0);
       if (tokens > 0) {
