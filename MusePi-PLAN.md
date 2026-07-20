@@ -158,6 +158,8 @@ Phase 4  Desktop（TUI 稳定后启动）
 - [x] **B⑫ 兼容层核实**：fork 完整加载 pi-muselinn-harness 全部模块；`pi -p` 会话跑通（`musepi-ok`）、扩展工具真实执行（`todo-done`，kimi-for-coding 模型）
 - [x] **B⑬-a @musepi/core workspace 包**（fork `a5166004`）：vendor + tsgo 严格构建通过；顺手抓出并修复 6 个 jiti 永不检查的真实 bug（tryRestoreFromSession 残留调用=潜在崩溃、nullable、目录 import、re-export 无本地绑定、parameter property、单引号无扩展名）——harness 侧已推送修复并统一 .ts 扩展名约定
 - [x] **B⑬-b/c/d goal 原生集成**：原生工具注册（agent-session-services 注入 customTools）+ 原生接线（appendCustomEntry 持久化、message_end turn 记录、footer 徽标走现有 status 通道、rebind 安全）；端到端验证 create→get 状态回环；husky 全检（biome/tsgo/shrinkwrap/install-lock/browser-smoke）通过
-- [ ] **B⑬-e**（下一批）：todo/swarm 原生集成；**B⑭** 配置系统；**B⑮** transcript 层；验收=box editor 交互会话
+- [x] **B⑬-e todo 原生集成**（fork `cc603eb2`）：todo_list 原生工具 + 内联面板走 interactive-mode widget 通道；ctrl+t 有 todo 时切面板、空表回落 thinking 切换；会话验证 `native-todo-ok`
+- [x] **B⑭ 配置系统**（fork `aedf3a01`）：core schema（goal.badge/todo.maxVisible/swarm.*/tui.*/truncation.*，深合并+逐字段文档，12→9 断言修正后全绿）+ SettingsManager `musepi` 嵌套键 + getMusepi()，goal/todo 原生已消费设置
+- [ ] **B⑬-f**（下一批）：swarm/task 原生集成（执行机制大，单独切片）；**B⑮** transcript 层；验收=box editor 交互会话
 - [ ] **C⑯-⑱**：流式规则注入、真全屏（container swap）、大会话 profile
 - 记录在案：kimi 4b（mode-aware 输入历史）不可移植（pi 编辑器无 bash inputMode）；clustered diff 预览延后
