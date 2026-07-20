@@ -428,7 +428,7 @@ export class PlanManager {
       `Do NOT modify any source code files until the plan is approved.`,
     ];
 
-    if (plan.content) {
+    if (plan && plan.content) {
       parts.push(
         ``,
         `Current plan content:`,

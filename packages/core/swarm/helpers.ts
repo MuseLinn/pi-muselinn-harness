@@ -178,7 +178,8 @@ function calculateGridLayoutUncached(count: number, availableWidth: number, avai
 
 // visibleWidth lives in core/text-utils (shared with tui/box); re-export
 // so existing swarm imports keep working unchanged.
-export { visibleWidth } from "../text-utils.ts";
+import { visibleWidth } from "../text-utils.ts";
+export { visibleWidth };
 
 // ============================================================
 // Formatting helpers

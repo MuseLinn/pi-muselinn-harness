@@ -17,8 +17,11 @@ export interface TimingStats {
 
 export class RenderTiming {
   private samples = new Map<string, number[]>();
+  private readonly cap: number;
 
-  constructor(private readonly cap: number = 240) {}
+  constructor(cap: number = 240) {
+    this.cap = cap;
+  }
 
   record(name: string, ms: number): void {
     let arr = this.samples.get(name);
