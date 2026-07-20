@@ -4,8 +4,9 @@
 
 import type { PlanManager } from "./index";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
-import { planArgumentCompletions } from "../packages/core/completions";
+import { planArgumentCompletions } from "../completions";
 
 /**
  * Get per-session state file path (inside session directory, keyed by sessionId).
@@ -15,7 +16,7 @@ function getPlanStateFile(ctx: any): string {
   const sessionId = ctx.sessionManager?.getSessionId?.() ?? 'default';
   if (sessionDir) return path.join(sessionDir, `.plan-state-${sessionId}.json`);
   // Fallback: temp dir
-  return path.join(require('node:os').tmpdir(), `pi-plan-state-${sessionId}.json`);
+  return path.join(os.tmpdir(), `pi-plan-state-${sessionId}.json`);
 }
 
 /**

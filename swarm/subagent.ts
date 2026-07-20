@@ -16,7 +16,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { SubAgentType, SubAgentTask } from "./types";
 import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "./types";
-import { hookEngine } from "../hooks/index";
+import { hookEngine } from "../packages/core/hooks/index";
 import { loadSkillsForCwd } from "../skills/index";
 
 // Append one output line with a hard array-length cap (oldest dropped first).

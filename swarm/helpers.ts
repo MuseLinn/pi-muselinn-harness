@@ -1,5 +1,13 @@
 // ============================================================
 // Swarm Mode — Utility Helpers
+//
+// Braille grid layout math mirrors Kimi Code's
+// apps/kimi-code/src/tui/components/messages/agent-swarm-progress.ts.
+// Upstream sync: verified current with MoonshotAI/kimi-code main @
+// c5b6103b (2026-07-20); that file last changed in 7859b0af (07-01).
+// Re-check with:
+//   git log --oneline c5b6103b..origin/main -- \
+//     apps/kimi-code/src/tui/components/messages/agent-swarm-progress.ts
 // ============================================================
 
 import { GridLayout, AgentStatus } from "./types";

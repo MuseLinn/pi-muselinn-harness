@@ -8,6 +8,12 @@
 // option (our addition) replaces the first dash row outright, so the
 // boxed editor can embed spinner/model info into ╭─ … ─╮ instead of a
 // plain corner-wrapped dash run.
+//
+// Upstream sync: verified current with MoonshotAI/kimi-code main @
+// c5b6103b (2026-07-20); the ported region is unaffected by upstream
+// changes through that commit. Re-check with:
+//   git log --oneline c5b6103b..origin/main -- \
+//     apps/kimi-code/src/tui/components/editor/custom-editor.ts
 // ============================================================
 
 import { visibleWidth } from "../swarm/helpers";

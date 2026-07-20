@@ -41,7 +41,7 @@ function loadTs(file) {
 }
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const { permissionManager } = loadTs(`${EXT}/permission/index.ts`);
+const { permissionManager } = loadTs(`${EXT}/packages/core/permission/index.ts`);
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {

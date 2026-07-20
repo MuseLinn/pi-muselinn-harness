@@ -41,9 +41,9 @@ function loadTs(file) {
 }
 
 const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const { parseHooksToml, getHookRules, resetHookConfigCache } = loadTs(`${EXT}/hooks/config.ts`);
-const { runHookCommand, interpretResult } = loadTs(`${EXT}/hooks/executor.ts`);
-const { hookEngine } = loadTs(`${EXT}/hooks/index.ts`);
+const { parseHooksToml, getHookRules, resetHookConfigCache } = loadTs(`${EXT}/packages/core/hooks/config.ts`);
+const { runHookCommand, interpretResult } = loadTs(`${EXT}/packages/core/hooks/executor.ts`);
+const { hookEngine } = loadTs(`${EXT}/packages/core/hooks/index.ts`);
 
 let pass = 0, fail = 0;
 function check(name, cond, extra = "") {

@@ -4,7 +4,7 @@
 
 import type { SubAgentTask } from "../swarm/types";
 import { goalManager } from "../packages/core/goal";
-import { hookEngine } from "../hooks/index";
+import { hookEngine } from "../packages/core/hooks/index";
 import {
   createAgentSession,
   SessionManager,
