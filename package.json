@@ -18,6 +18,7 @@
     "ask/",
     "todo/",
     "webfetch/",
+    "plugin/",
     "swarm/",
     "task/",
     "tui/",

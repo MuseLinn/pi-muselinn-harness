@@ -58,6 +58,7 @@ import { approvalTitleFor } from "./packages/core/ask/types";
 import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
 import { registerTodoList, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
 import { registerFetchUrl } from "./webfetch/index";
+import { loadPlugins, injectPluginSessionStart, registerPluginCommand, getPluginSkillFiles } from "./plugin/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
 import shared from "./state";
@@ -176,7 +177,7 @@ export default function (pi: ExtensionAPI) {
   try {
     pi.on("resources_discover", (event: { cwd: string }) => {
       try {
-        const skillPaths = listDiscoverableSkillFiles(event.cwd || process.cwd());
+        const skillPaths = [...listDiscoverableSkillFiles(event.cwd || process.cwd()), ...getPluginSkillFiles()];
         return skillPaths.length > 0 ? { skillPaths } : undefined;
       } catch {
         return undefined;
@@ -244,6 +245,8 @@ export default function (pi: ExtensionAPI) {
   // ── session_start: restore goal + plan from persisted entries + set status bar ──
   pi.on("session_start", async (_event, ctx) => {
     latestCtx = ctx;
+    // Plugin sessionStart bundles → first-turn context
+    try { injectPluginSessionStart(pi); } catch { /* ok */ }
     // Set plan session directory (for plan file storage)
     try { planManager.setSessionDir(ctx.sessionManager.getSessionDir()); } catch { /* ok */ }
 
@@ -476,6 +479,8 @@ export default function (pi: ExtensionAPI) {
   registerAskUserQuestion(pi);
   registerTodoList(pi);
   registerFetchUrl(pi);
+  registerPluginCommand(pi);
+  loadPlugins(pi, null);
   goalManager.registerCommands(pi);
 
   // ── Register plan tools and commands (from plan/ module) ──

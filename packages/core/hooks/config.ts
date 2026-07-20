@@ -266,7 +266,23 @@ export function getHookRules(cwd: string, opts?: { projectConfig?: string | null
   if (!seen.has(globalPath)) {
     rules.push(...loadHookFile(globalPath));
   }
+  // Plugin-declared rules come last (host config wins on identical commands).
+  rules.push(...extraHookRules);
   return rules;
+}
+
+// ── Plugin-provided rules ─────────────────────────────────────
+// Registered by the plugin loader (adapter) at session start; merged
+// after file-based rules above.
+const extraHookRules: HookRule[] = [];
+
+/** Merge plugin-declared hook rules into the engine (deduped by command). */
+export function addExtraHookRules(rules: HookRule[]): void {
+  for (const r of rules) {
+    if (!r || typeof r.event !== "string" || typeof r.command !== "string") continue;
+    if (extraHookRules.some((x) => x.event === r.event && x.command === r.command)) continue;
+    extraHookRules.push(r);
+  }
 }
 
 /** Cheap probe: does any layer define at least one rule? (early-exit gate) */
