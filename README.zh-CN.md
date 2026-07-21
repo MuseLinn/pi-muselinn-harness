@@ -3,6 +3,20 @@
 
 Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills 七模块架构，全面对齐 Kimi Code 的子系统行为。
 
+> **维护模式（0.7.4 起）**：本扩展只接收 bug 修复与 Pi 兼容更新。新功能在 **MusePi**（Pi fork）开发 — 见 [MusePi-PLAN.md](MusePi-PLAN.md)。
+
+### 0.7.4 新功能
+
+- **`ask_user_question` 工具** — 原生交互式问卷对话框（编号选项，与审批流共用组件）
+- **`todo_list` 工具 + 内联面板** — 会话共享 todo，带折叠策略（替代外部 rpiv-todo）
+- **审批面板** — 分工具标题、数字键直选、拒绝可填理由（manual 权限档）
+- **Swarm 权限门控** — 共享权限管理器，`/mode` 广播到全部子代理
+- **编辑器锚定** — slash 菜单关闭后输入锚定（渲染边沿检测）
+- **`toolResultTruncation`** — 超大工具结果落盘，留 preview + `output_path`
+- **子代理 resume 守卫** — resume 前做所有权/空闲校验
+- **`fetch_url` 工具** — 无鉴权 URL 抓取（替代外部依赖）
+- **插件 manifest** — 六件套包元数据
+
 [English](README.md) · [项目主页](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev 包目录](https://pi.dev/packages)
 
 ![闭合框编辑器,上边框嵌入工作状态](docs/assets/img/pi-boxed-editor.png)

@@ -3,6 +3,20 @@
 
 **Kimi Code-style agent orchestration harness for the [Pi coding agent](https://pi.dev)** — Swarm + Goal + Plan + Permission + Task + Hooks + Skills + TUI, an eight-module architecture that builds the features Pi deliberately skips (sub-agents, plan mode, …) and aligns them with Kimi Code's subsystem behavior.
 
+> **Maintenance mode (since 0.7.4):** this extension now only receives bug fixes and Pi compatibility updates. New features are developed in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](MusePi-PLAN.md).
+
+### What's new in 0.7.4
+
+- **`ask_user_question` tool** — native interactive question dialog with numbered options, shared with the approval flow
+- **`todo_list` tool + inline panel** — session-shared todo with collapse policy (replaces external rpiv-todo)
+- **Approval panel** — per-tool titles, number-key selection, reject-with-reason (manual permission tier)
+- **Swarm permission gating** — shared permission manager; `/mode` broadcasts to all subagents
+- **Editor anchoring** — input anchored after slash-menu closes (render-edge detection)
+- **`toolResultTruncation`** — oversized tool results persisted to disk with preview + `output_path`
+- **Subagent resume guard** — ownership/idle validation before resuming
+- **`fetch_url` tool** — no-auth URL fetching (replaces external dependency)
+- **Plugin manifest** — six-piece package metadata set
+
 [中文文档](README.zh-CN.md) · [Project page](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev catalog](https://pi.dev/packages)
 
 ![Closed-box editor with streaming state in the top border](docs/assets/img/pi-boxed-editor.png)

@@ -134,22 +134,31 @@ pi-core 目前不支持 alternate screen，extension 时代的伪全屏已验证
 fork 替换渲染层后具备条件：参考 opencode/OpenTUI，实现真全屏模式
 （alternate screen + 完整布局管理，编辑器/历史/面板分区，而非滚动流追加）。
 
-### 交互式内容的中断恢复（新）
+### 交互式内容的中断恢复（2026-07-21 修订：采用 kimi 模式）
 
-合盖待机、终端关闭、pi 进程退出都可能打断进行中的交互（问卷等待回答、
-plan 等待审批、权限等待确认、goal 等待判据）。要求：
-- 所有**等待用户输入的交互状态**持久化到会话（goal/task/cron 已有
-  session 持久化先例，推广到一切 pending interaction）
-- `session_start` 时恢复 pending 状态并重新呈现交互（问卷重新弹出、
-  审批恢复待决状态），而不是静默丢失或卡死
-- 恢复时要区分「用户离开后世界已变化」（如等待审批期间文件已被改动）
-  并给出显式提示
+合盖待机、终端关闭、进程退出都会打断进行中的交互（问卷等待回答、审批
+等待确认、goal 等待判据）。**修订后的策略：不持久化/重放交互本身，
+而是恢复一致的状态 + 合成中断证据，让模型重新驱动**（kimi 模式，
+比持久化问卷状态机简单且健壮）：
 
-### 哈希锚定编辑（查证结论）
+- **未完成的工具交换**：恢复时合成 interrupted 结果收尾（"Tool execution
+  was interrupted…Do not assume the tool completed successfully."），
+  模型下一轮可据此重新发起（kimi `loopEventFold.ts:210-255`）
+- **goal**：重放到 `active` 的强制改 `paused`（reason 记录）；`complete`
+  的清掉；wall-clock 用持久化锚点结算跨崩溃时长（kimi `goalService.ts:832-847`）
+- **后台 task**：replay → 磁盘加载 → reconcile；磁盘上仍 running 的标记
+  `lost`，并把"任务丢失+resume 指引"重新喂给模型（kimi `taskService.ts:496-503`）
+- turn 正常结束时，该 turn 的 pending interaction 统一 cancel
+- 恢复时要区分「等待期间世界已变化」（如审批期间文件被改动）并显式提示
 
-harness 和 pi-core 目前都没有。它是 OMP 的私有特性（edit 前校验文件内容
-哈希，防止基于过期快照写入）。已按规划推迟到 MusePi 1.0 后评估，与
-Rust 原生层同一闸门。
+### 哈希锚定编辑（2026-07-21 修订：提前到本期，W4）
+
+harness 和 pi-core 目前都没有。它是 OMP 的私有特性（hashline：read/search
+输出带 `[path#TAG]` 快照锚点，edit patch 以 TAG 锚定并与磁盘逐行校验，
+漂移拒绝 + 3-way merge recovery）。OMP 自报 benchmark：弱模型编辑成功率
+6.7%→68.3%、输出 token −61%。**用户 2026-07-21 决策：提前到现在做**
+（fork `packages/musepi/hashline/`，默认开启、`musepi.edit.hashline` 可关），
+不再与 Rust 原生层同闸门。
 
 ## 五、范围扩展（用户补充需求，规划时必须纳入）
 

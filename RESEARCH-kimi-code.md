@@ -3,6 +3,21 @@
 > 四路并行调研的蒸馏版。证据行号见各分项；本文件只保留决策相关内容。
 > 原始问题：kimi-code 的核心是不是 pi？K3 最佳实践要调什么？哪些好实现我们缺失？
 
+> **修订（2026-07-21 二次调研，main @ c5b6103b 与上游实质同步）**：
+> 1. 「分 agent 模型配置」需修正：kimi 子代理是**继承制**（spawn 时拷调用方
+>    model+thinking，`session/subagent/tools/agent.ts:248-258`），不开放独立配置；
+>    turn 边界快照机制属实（`llmRequesterService.ts:540-559`）。per-agent 独立
+>    配置是 MusePi 自研项，参照 OMP model-roles。
+> 2. 「clustered diff 流式期间抑制尾部删除行」需补注：`isIncomplete=true` 在当前
+>    版本**无生产调用方**——流式 Edit 只显示进度行（`tool-call.ts:2064-2078`），
+>    clustered diff 仅用于审批面板/预览（参数完整时）。 MusePi 应照此取舍。
+> 3. mode-aware 输入历史**可移植**：pi 编辑器本来就有 `!`/`!!` bash 模式
+>    （`interactive-mode.ts:2840`），kimi 的 4 钩子在 pi-tui Editor，port ~60 行。
+> 4. kimi **没有**长期记忆系统（仅 AGENTS.md 层级 + 对话内 contextMemory buffer）。
+> 5. 新候选：`/undo`（上下文回退不撤文件）、`/btw`（fork+DenyAll 侧问）、
+>    OSC 9 终端通知（`terminal-notification.ts`）。「没有 /share」仍成立，
+>    但有 `/web`、`/export-md`、`/export-debug-zip` 作为分享出口。
+
 ## 一、架构事实（重要，纠正认知）
 
 **Kimi Code 的 agent loop / 模型路由 / 会话 / 工具执行不是 pi。** 它用自研
