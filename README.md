@@ -1,9 +1,17 @@
 # pi-muselinn-harness
 
+[![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
 
 **Kimi Code-style agent orchestration harness for the [Pi coding agent](https://pi.dev)** — Swarm + Goal + Plan + Permission + Task + Hooks + Skills + TUI, an eight-module architecture that builds the features Pi deliberately skips (sub-agents, plan mode, …) and aligns them with Kimi Code's subsystem behavior.
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x.
+
+### What's new in 0.7.7
+
+- **Plan mode fixes** — the bash read-only gate now understands `rtk`-wrapped commands (pi-rtk-optimizer rewrites commands in place) and Windows `dir`; **Revise** keeps the same plan object instead of trapping you or losing work; review timeout raised 60 s → 600 s; a stale persisted plan with no file on disk deactivates cleanly instead of trapping the session; the `plan` badge now also follows tool-driven plan mode
+- **Goal fixes** — footer badge counters (`turns` / tokens / wall-clock) restore monotonically, so they never flicker backwards; completed goals leave a tombstone entry and can't be resurrected with stale counters; `update_goal` docs now state the `verified=true` rule explicitly (required to complete a goal with a declared criterion)
+- **Ask dialog robustness** — scrolling window for long option lists, answer deduplication, and background-question support, on top of the tabbed multi-question dialog (multi-select + free-text Other)
+- **CI/CD** — GitHub Actions test matrix (ubuntu + windows × node 20/22) on every push/PR; tagging `v*` runs the matrix and publishes to npm automatically
 
 ### What's new in 0.7.4
 
@@ -26,6 +34,8 @@
 ```bash
 pi install npm:pi-muselinn-harness
 ```
+
+Already installed? Re-run the same command to upgrade to the latest release (0.7.7).
 
 Or from git / local source:
 
@@ -52,17 +62,19 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 - **Lifecycle** — active / paused / blocked / complete / usage_limited / budget_limited
 - **Active Guard** — `create_goal` refuses to silently overwrite an active goal (`replace=true` or `/goal replace`)
 - **Blocked 3-turn threshold** — three consecutive blocks for the same reason before really blocking
-- **Completion-criterion gate** — a declared criterion must be verified before completing
+- **Completion-criterion gate** — a declared criterion must be verified before completing (`verified=true` in the same `update_goal` call; documented in the tool description)
 - **Triple budget checks** — tokenBudget + turnBudget + wallClockBudgetMs (`turns/tokens/ms/s/minutes/hours`)
 - **Goal Queue** — FIFO + high/normal priority + auto-switch + prioritize/drop/skip
-- **Persistence** — appendEntry + session_start restore
+- **Persistence** — appendEntry + session_start restore; counters merge **monotonically** (max per goalId), so a stale entry can never pull turns/tokens backwards; `clear()` writes a tombstone entry so completed goals stay completed
 - **Context injection** — `<untrusted_objective>` tag into the system prompt
 - **Recovery** — compaction preservation + context-overflow detection + 429 detection
 
 ### Plan
 - **Plan mode** — the LLM explores, writes a plan, and only executes after approval
-- **Tool restrictions** — read-only tool whitelist + plan-file write access; bash gated by command whitelist
+- **Tool restrictions** — read-only tool whitelist + plan-file write access; bash gated by command whitelist (env assignments and a leading `rtk` wrapper peeled before vetting; Windows `dir` accepted)
 - **ExitPlanMode reads the plan file** — presentation matches what was actually written to disk
+- **Revise keeps your plan** — a revised or cancelled review re-enters plan mode with the same plan object (id/path/content), never a trap, never lost work; review timeout 600 s
+- **Restore validation** — a stale persisted active-plan entry with no content and no file on disk deactivates plan mode instead of trapping the session
 - **Path guard** — `path.resolve` + `startsWith(planDir)` against escape
 - **Context injection** — the plan is injected into the system prompt
 
@@ -107,6 +119,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 
 ### Ask (interactive questions)
 - **`ask_user_question` tool** — the agent asks 1-4 structured questions in one tabbed dialog: per-question header tabs (`1/3 · header`, ←/→/Tab to switch), numbered options with description sub-lines, `multi_select` checkboxes (Space toggles, Enter confirms), and an automatic free-text **Other** option on every question; digit keys 1-9 jump straight to an option, arrows/jk navigate, Esc cancels
+- **Robust by default** — long option lists scroll inside a bounded window, duplicate answers are deduplicated, and questions can be posed from background tasks without wedging the UI
 - **Shared dialog component** — the same component backs permission approval (single-select, no Other); in print/RPC mode the tool returns the questions as text instead of blocking
 - **Answer reporting** — per-question answers (multi-select as an array); skipped questions and Esc-cancelled dialogs are reported distinctly
 - **Auto-mode safe** — auto mode denies `ask_user_question` by policy (no unattended hangs)
@@ -229,24 +242,51 @@ pi-muselinn-harness/
 
 ## Tests
 
-Pure node-level unit tests, no model quota needed (362 assertions):
+Pure node-level unit tests, no model quota needed (18 suites, 500+ assertions):
 
 ```bash
-node tests/permission.test.mjs                    # Permission policy chain + subagent gate — 19
-node tests/goal.test.mjs                          # Goal state machine — 17
+npm test                                        # all suites (node tests/run-all.mjs)
+```
+
+or individually:
+
+```bash
+node tests/permission.test.mjs                    # Permission policy chain + subagent gate — 22
+node tests/goal.test.mjs                          # Goal state machine + monotonic restore — 32
+node tests/plan.test.mjs                          # Plan mode round-trip + restore validation — 34
 node tests/cron.test.mjs                          # Cron subsystem — 16
 node tests/hooks.test.mjs                         # Hooks engine — 43
 node tests/skills.test.mjs                        # Skills scan/parse/scopes/discover — 38
-node tests/tui.test.mjs                           # TUI collapse/keys/completions/spinner — 56
+node tests/tui.test.mjs                           # TUI collapse/keys/completions/spinner — 62
 node tests/tui-box.test.mjs                       # TUI box/config/probe/switch — 61
-node tests/ask.test.mjs                           # ask spec/digits/answers/approval titles — 24
-node tests/todo.test.mjs                          # todo model + folding strategy — 19
+node tests/ask.test.mjs                           # ask spec/dialog/answers/approval titles
+node tests/todo.test.mjs                          # todo model + folding strategy — 21
 node tests/shell-output.test.mjs                  # output sanitizer — 21
 node tests/truncation.test.mjs                    # tool-result spill — 13
 node tests/resume-guard.test.mjs                  # swarm resume validation — 6
 node tests/webfetch.test.mjs                      # web extraction — 12
 node tests/plugin.test.mjs                        # plugin manifest/discovery — 17
+node tests/renderer.test.mjs                      # incremental renderer buffer/tree — 16
+node tests/stream-rules.test.mjs                  # stream entry rules — 14
+node tests/musepi-config.test.mjs                 # MusePi settings schema — 9
 ```
+
+The suites run on Node 20/22/24 (20 via `tests/ts-esm-loader.mjs`, a
+TypeScript-transpile ESM loader; 22.6+ strips types natively). CI runs the
+full matrix — ubuntu + windows × node 20/22 — on every push and PR.
+
+## Releasing (maintainers)
+
+Tag-driven npm publish via GitHub Actions:
+
+```bash
+git tag v0.7.7 && git push origin v0.7.7   # test matrix gates the publish
+```
+
+One-time setup: create an npm granular/automation token with publish rights
+on `pi-muselinn-harness` and store it as the **`NPM_TOKEN`** repository
+secret (Settings → Secrets and variables → Actions). Without it the publish
+workflow fails at the `npm publish` step.
 
 ## Experimental branches
 

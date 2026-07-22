@@ -54,7 +54,23 @@ title: pi-muselinn-harness
   </div>
 </div>
 
-<h2><span data-l="en">New in 0.7.4 / 0.7.5</span><span data-l="zh">0.7.4 / 0.7.5 新功能</span></h2>
+<h2><span data-l="en">New in 0.7.7</span><span data-l="zh">0.7.7 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Plan &amp; Goal, de-glitch’d</span><span data-l="zh">Plan 与 Goal 除颤</span>
+<span data-l="en">Plan mode: the bash gate vets <code>rtk</code>-wrapped commands, Revise keeps the same plan object, and stale restored plans deactivate instead of trapping the session. Goal: badge counters restore monotonically (no more flicker), completed goals stay completed, and the <code>verified=true</code> completion rule is documented in the tool itself.</span><span data-l="zh">Plan 模式：bash 门禁识别 <code>rtk</code> 包装命令，Revise 保留同一 plan 对象，过期恢复的 plan 自动停用而不是困住会话。Goal：徽标计数单调恢复（不再闪烁），完成的目标不会复活，<code>verified=true</code> 完成规则写进了工具描述。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Ask dialog robustness</span><span data-l="zh">Ask 对话框健壮性</span>
+<span data-l="en">The tabbed multi-question dialog (multi-select + free-text Other) grows up: long option lists scroll in a bounded window, duplicate answers are deduplicated, and background tasks can ask questions without wedging the UI.</span><span data-l="zh">标签页多题对话框（多选 + Other 自由文本）走向成熟：超长选项列表在有界窗口内滚动，重复答案自动去重，后台任务也能发起提问而不卡死 UI。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">CI/CD on GitHub Actions</span><span data-l="zh">GitHub Actions CI/CD</span>
+<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 20/22, 18 suites, 500+ assertions). Tag <code>v*</code> and the same matrix gates an automatic npm publish.</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 20/22，18 个套件，500+ 断言）。打 <code>v*</code> tag 即由同一矩阵门禁触发 npm 自动发布。</span>
+</div>
+</div>
+
+<h2><span data-l="en">Previously — 0.7.4 / 0.7.5</span><span data-l="zh">此前 — 0.7.4 / 0.7.5</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
 ### <span data-l="en">Native companion tools</span><span data-l="zh">原生伴随工具</span>

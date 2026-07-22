@@ -1,9 +1,17 @@
 # pi-muselinn-harness
 
+[![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
 
 Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills + TUI 八模块架构，补齐 Pi 刻意不做的能力（子代理、计划模式……），全面对齐 Kimi Code 的子系统行为。
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x。
+
+### 0.7.7 新功能
+
+- **Plan 模式修复** — bash 只读门禁现在能识别 `rtk` 包装命令（pi-rtk-optimizer 会原地重写命令）并接受 Windows `dir`；**Revise** 保留同一个 plan 对象，不再困住用户或丢失工作；评审超时 60s → 600s；磁盘上无文件的过期持久化 plan 会干净地退出 plan 模式而不是卡死会话；`plan` 徽标现在同样跟随工具驱动的 plan 模式
+- **Goal 修复** — 底部徽标计数（轮次/token/墙钟）按单调合并恢复，不再倒退闪烁；已完成目标留下墓碑 entry，不会被过期计数复活；`update_goal` 文档明确写出 `verified=true` 规则（声明了完成判据时必须在同一次调用中传入）
+- **Ask 对话框健壮性** — 长选项列表滚动窗口、答案去重、后台任务提问支持，叠加在标签页多题对话框（多选 + Other 自由文本）之上
+- **CI/CD** — GitHub Actions 测试矩阵（ubuntu + windows × node 20/22）随 push/PR 运行；打 `v*` tag 先跑矩阵再自动发布 npm
 
 ### 0.7.4 新功能
 
@@ -39,17 +47,19 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 - **Goal 生命周期** — active / paused / blocked / complete / usage_limited / budget_limited
 - **Active Guard** — 已有 active 目标时 `create_goal` 拒绝静默覆盖，需 `replace=true` 或 `/goal replace`
 - **Blocked 3 轮阈值** — 同一原因连续 3 次 block 才真正进入 blocked
-- **完成判据门禁** — 声明了 `completionCriterion` 时，未验证通过不允许 complete
+- **完成判据门禁** — 声明了 `completionCriterion` 时，未验证通过不允许 complete（需在同一次 `update_goal` 调用中传 `verified=true`，已写入工具描述）
 - **Budget 三重检测** — tokenBudget + turnBudget + wallClockBudgetMs,`set_goal_budget` 支持 turns/tokens/ms/s/min/hours
 - **Goal Queue** — FIFO + high/normal 优先级 + Auto-switch + prioritize/drop/skip
-- **持久化** — appendEntry + session_start 恢复
+- **持久化** — appendEntry + session_start 恢复；计数按 goalId **单调合并**(max)，过期 entry 不会把轮次/token 拉回过去；`clear()` 写入墓碑 entry，完成的目标不会复活
 - **Context 注入** — `<untrusted_objective>` 标签注入 system prompt
 - **Recovery** — Compaction 保留 + Context Overflow 检测 + 429 检测
 
 ### Plan 模块
 - **Plan Mode** — LLM 先探索代码库、写计划、审批后再执行
-- **工具限制** — 只读工具白名单 + plan 文件写权限，bash 按命令白名单放行
+- **工具限制** — 只读工具白名单 + plan 文件写权限，bash 按命令白名单放行（先剥离 env 赋值与前导 `rtk` 包装再审；接受 Windows `dir`）
 - **ExitPlanMode 读盘** — 呈现时读取 plan 文件真实内容，与 LLM 写盘保持一致
+- **Revise 保留 plan** — 评审选 Revise 或取消会以同一个 plan 对象(id/路径/内容)重新进入 plan 模式，不困住用户、不丢工作；评审超时 600s
+- **恢复校验** — 无内容且磁盘无文件的过期 active-plan entry 会停用 plan 模式，而不是静默困住会话
 - **路径守卫** — `path.resolve` + `startsWith(planDir)` 防绕过
 - **Context 注入** — 注入 plan 到 system prompt
 
@@ -94,6 +104,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 ### Ask 模块(交互式提问)
 - **`ask_user_question` 工具** — agent 一次发起 1-4 个结构化提问，共用一个标签页对话框：每题短标签页（`1/3 · header`，←/→/Tab 切换）、编号选项可带描述次行、`multi_select` 复选（空格切换、Enter 确认）、每题自动附带自由文本 **Other** 选项；数字键 1-9 直选，方向键/jk 导航，Esc 取消
+- **默认健壮** — 超长选项列表在有界窗口内滚动，重复答案自动去重，后台任务也能发起提问而不卡死 UI
 - **共享对话框组件** — 权限审批复用同一组件（单选、无 Other）；print/RPC 无 UI 模式下退化为文本提问，不阻塞
 - **结果回传** — 按题回传答案（多选为数组）；跳过的题与 Esc 取消区分上报
 - **auto 模式安全** — auto 模式下 `ask_user_question` 被策略专门拒绝（防无人值守卡死）
@@ -137,6 +148,8 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 ```bash
 pi install npm:pi-muselinn-harness
 ```
+
+已安装过？再跑一次同样的命令即可升级到最新版（0.7.7）。
 
 也可以从 git 或本地源码安装：
 
@@ -229,24 +242,51 @@ pi-muselinn-harness/
 
 ## 测试
 
-无需模型额度的 node 级单元测试(共 362 项断言):
+无需模型额度的 node 级单元测试（18 个套件，500+ 项断言）：
 
 ```bash
-node tests/permission.test.mjs                    # Permission 策略链 + 子代理门控 19 项
-node tests/goal.test.mjs                          # Goal 状态机 17 项
+npm test                                        # 全部套件(node tests/run-all.mjs)
+```
+
+或逐个运行：
+
+```bash
+node tests/permission.test.mjs                    # Permission 策略链 + 子代理门控 22 项
+node tests/goal.test.mjs                          # Goal 状态机 + 单调恢复 32 项
+node tests/plan.test.mjs                          # Plan 模式往返 + 恢复校验 34 项
 node tests/cron.test.mjs                          # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
 node tests/skills.test.mjs                        # Skills 扫描/解析/作用域/discover 38 项
-node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 56 项
+node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 62 项
 node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/切换 61 项
-node tests/ask.test.mjs                           # ask 规格/数字键/答案/审批标题 24 项
-node tests/todo.test.mjs                          # todo 模型 + 折叠策略 19 项
+node tests/ask.test.mjs                           # ask 规格/对话框/答案/审批标题
+node tests/todo.test.mjs                          # todo 模型 + 折叠策略 21 项
 node tests/shell-output.test.mjs                  # 输出净化器 21 项
 node tests/truncation.test.mjs                    # 结果落盘截断 13 项
 node tests/resume-guard.test.mjs                  # swarm resume 守卫 6 项
 node tests/webfetch.test.mjs                      # web 内容提取 12 项
 node tests/plugin.test.mjs                        # 插件 manifest/发现 17 项
+node tests/renderer.test.mjs                      # 增量渲染器 buffer/tree 16 项
+node tests/stream-rules.test.mjs                  # 流式 entry 规则 14 项
+node tests/musepi-config.test.mjs                 # MusePi 设置 schema 9 项
 ```
+
+测试支持 Node 20/22/24（20 走 `tests/ts-esm-loader.mjs` TypeScript 转译
+ESM loader；22.6+ 原生擦除类型）。CI 在每次 push 和 PR 上跑完整矩阵
+——ubuntu + windows × node 20/22。
+
+## 发布流程(维护者)
+
+打 tag 触发 npm 自动发布（GitHub Actions）：
+
+```bash
+git tag v0.7.7 && git push origin v0.7.7   # 测试矩阵作为发布门禁
+```
+
+一次性配置：在 npm 创建对 `pi-muselinn-harness` 有发布权限的
+granular/automation token，并存为仓库的 **`NPM_TOKEN`** secret
+（Settings → Secrets and variables → Actions)。未配置时 publish
+workflow 会在 `npm publish` 步骤失败。
 
 ## 下一步(Roadmap)
 
