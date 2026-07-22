@@ -265,10 +265,13 @@ node tests/plugin.test.mjs                        # plugin manifest/discovery �
 - `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui` (peers)
 - `typebox`
 
-**No companion extensions required** — the harness is fully functional standalone. Optional companions that improve the experience:
+**No companion extensions required** — the harness is fully functional standalone. Since 0.7.4, `ask_user_question` and `todo_list` are built in natively:
 
-- [`@juicesharp/rpiv-ask-user-question`](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) — lets swarm's model routing ask you interactively instead of deciding itself (the tool descriptions reference `ask_user_question`; without it the model just picks a model)
-- [`@juicesharp/rpiv-todo`](https://www.npmjs.com/package/@juicesharp/rpiv-todo) — live todo overlay; the task browser borrows its status-glyph/overflow semantics but does not require it
+> **Upgrading to 0.7.4?** Remove the old companion extensions — they conflict with the built-in tools (pi refuses to start on duplicate tool names):
+> ```bash
+> pi remove npm:@juicesharp/rpiv-ask-user-question
+> pi remove npm:rpiv-todo
+> ```
 
 ## Acknowledgments
 
