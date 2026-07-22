@@ -34,6 +34,10 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
       }
 
       const plan = planManager.enterPlanMode(params.reason);
+      // Tool-driven plan mode gets the same footer badge as /plan.
+      if (ctx.ui?.theme) {
+        try { ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan")); } catch { /* ok */ }
+      }
       ctx.ui.notify("Entered plan mode. Explore codebase and write a plan.", "info");
 
       return {
@@ -95,9 +99,35 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         };
       }
 
+      // Footer badge helpers: tool-driven plan mode must show/clear the same
+      // "plan" status the /plan command sets.
+      const setPlanBadge = () => {
+        if (ctx.ui?.theme) {
+          try { ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan")); } catch { /* ok */ }
+        }
+      };
+      const clearPlanBadge = () => {
+        try { ctx.ui.setStatus("plan-mode", undefined); } catch { /* ok */ }
+      };
+      // Review cancelled / timed out (choice undefined/null): this is NOT a
+      // Revise vote — but the plan must be preserved and plan mode stays
+      // active so the user is not trapped and nothing is lost.
+      const handleReviewCancelled = () => {
+        planManager.reenterForRevision();
+        setPlanBadge();
+        ctx.ui.notify("Plan review cancelled/timed out — plan mode still active, plan preserved", "info");
+        return {
+          content: [{
+            type: "text",
+            text: "Plan review was not completed (cancelled or timed out). Plan mode is still active and your plan is preserved. Continue editing the plan, or call exit_plan_mode again when it is ready for review.",
+          }],
+        };
+      };
+
       // Kimi Code-style: auto mode skips approval entirely
       if (permissionManager.getMode() === "auto") {
         planManager.approvePlan();
+        clearPlanBadge();
         ctx.ui.notify("Plan auto-approved (auto mode).", "success");
         return {
           content: [{ type: "text", text: `Plan auto-approved. You can now execute the plan.` }],
@@ -145,17 +175,23 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
       if (validAlternatives.length > 0) {
         const altLabels = validAlternatives.map((a) => a.label);
         const allOptions = [...altLabels, "Approve", "Reject", "Revise"];
-        
+
         const choice = await ctx.ui.select(
           `Plan Review:\n\n${planPreview}\n\nChoose an approach:`,
           allOptions,
-          { timeout: 60000 }
+          { timeout: 600000 } // a human needs more than 60s to review a plan
         );
+
+        // Cancelled / timed out: preserve the plan, keep plan mode active.
+        if (choice === undefined || choice === null) {
+          return handleReviewCancelled();
+        }
 
         // If user selected an alternative, approve with that approach
         if (choice && altLabels.includes(choice)) {
           const selected = validAlternatives.find((a) => a.label === choice)!;
           planManager.approvePlan();
+          clearPlanBadge();
           ctx.ui.notify(`Plan approved with approach: ${choice}`, "success");
           return {
             content: [{ type: "text", text: `Plan approved with approach: ${choice}\n${selected.description}\n\nYou can now execute the plan.` }],
@@ -164,18 +200,19 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
 
         if (choice === "Approve") {
           planManager.approvePlan();
+          clearPlanBadge();
           ctx.ui.notify("Plan approved! Execution can begin.", "success");
           return { content: [{ type: "text", text: `Plan approved. You can now execute the plan.` }] };
         } else if (choice === "Reject") {
           planManager.rejectPlan("User rejected");
+          clearPlanBadge();
           ctx.ui.notify("Plan rejected.", "info");
           return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
         } else {
-          // Revise: re-enter plan mode so LLM can keep editing
-          planManager.enterPlanMode("Plan revision requested");
-          if (ctx.ui?.theme) {
-            ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
-          }
+          // Revise: re-enter plan mode with the SAME plan (id/path/content
+          // preserved) so the LLM can keep editing what was reviewed.
+          planManager.reenterForRevision();
+          setPlanBadge();
           ctx.ui.notify("Plan revision requested. Continue editing.", "info");
           return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
         }
@@ -186,23 +223,29 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
       const choice = await ctx.ui.select(
         `Plan Review:\n\n${planPreview}`,
         options,
-        { timeout: 60000 }
+        { timeout: 600000 } // a human needs more than 60s to review a plan
       );
+
+      // Cancelled / timed out: preserve the plan, keep plan mode active.
+      if (choice === undefined || choice === null) {
+        return handleReviewCancelled();
+      }
 
       if (choice === "Approve") {
         planManager.approvePlan();
+        clearPlanBadge();
         ctx.ui.notify("Plan approved! Execution can begin.", "success");
         return { content: [{ type: "text", text: `Plan approved. You can now execute the plan.` }] };
       } else if (choice === "Reject") {
         planManager.rejectPlan("User rejected");
+        clearPlanBadge();
         ctx.ui.notify("Plan rejected.", "info");
         return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
       } else {
-        // Revise: re-enter plan mode so LLM can keep editing
-        planManager.enterPlanMode("Plan revision requested");
-        if (ctx.ui?.theme) {
-          ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg("warning", "plan"));
-        }
+        // Revise: re-enter plan mode with the SAME plan (id/path/content
+        // preserved) so the LLM can keep editing what was reviewed.
+        planManager.reenterForRevision();
+        setPlanBadge();
         ctx.ui.notify("Plan revision requested. Continue editing.", "info");
         return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
       }

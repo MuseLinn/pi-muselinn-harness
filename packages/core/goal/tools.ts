@@ -22,6 +22,7 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       "Use create_goal to set a goal before starting complex multi-step work",
       "Use get_goal to check the current goal and its status",
       "Use update_goal to mark the goal status as 'complete', 'paused', or 'active'",
+      "When you declare a completion_criterion, the goal can only be completed via update_goal with verified=true",
       "Use set_goal_budget to add or update a budget limit on the active goal",
       "Keep the model working toward the active goal until it's complete",
     ],
@@ -29,7 +30,12 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
       type: "object",
       properties: {
         objective: { type: "string", description: "The goal objective" },
-        completion_criterion: { type: "string", description: "How to verify completion" },
+        completion_criterion: {
+          type: "string",
+          description:
+            "How to verify completion. Declaring one adds a hard completion gate: " +
+            "update_goal(status='complete') will later be REFUSED unless verified=true is passed.",
+        },
         budgetLimits: {
           type: "object",
           description: "Budget limits for the goal",
@@ -100,10 +106,13 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
   pi.registerTool({
     name: "update_goal",
     label: "Update Goal",
-    promptSnippet: "update_goal: update the current goal status",
+    promptSnippet:
+      "update_goal: update the current goal status (complete requires verified=true when a completion_criterion was declared)",
     promptGuidelines: [
       "Use update_goal to mark the goal status as 'complete', 'paused', or 'active'",
-      "Mark goal as 'complete' when the objective is achieved",
+      "Mark goal as 'complete' only when the objective is achieved and any stated validation has passed — verify the actual state against the objective and every explicit requirement; treat weak or indirect evidence as not complete",
+      "If the goal was created with a completion_criterion, status='complete' is REFUSED unless you also pass verified=true in the same call — verified=true is your machine-readable assertion that you checked the criterion against the actual result",
+      "Do not mark 'complete' merely because a budget is nearly exhausted or you want to stop",
       "Mark goal as 'blocked' if there's an impasse",
     ],
     parameters: {
@@ -112,14 +121,16 @@ export function registerGoalTools(pi: any, goalManager: GoalManager): void {
         status: {
           type: "string",
           enum: ["active", "paused", "blocked", "complete"],
-          description: "New status for the goal",
+          description:
+            "New status for the goal. Note: 'complete' requires verified=true in the same call when the goal declared a completion_criterion.",
         },
         objective: { type: "string", description: "Updated objective (optional)" },
         reason: { type: "string", description: "Reason for status change (optional)" },
         verified: {
           type: "boolean",
           description:
-            "Required=true when marking complete AND the goal has a declared completionCriterion. Ignored otherwise.",
+            "Required=true when marking status='complete' AND the goal has a declared completion_criterion — " +
+            "asserts you verified the criterion is actually satisfied. Ignored otherwise.",
         },
       },
     },

@@ -198,6 +198,10 @@ export default function (pi: ExtensionAPI) {
 
   // ── Plan mode: inject plan context + tool restrictions ──
   // Plan state is managed per-session via file in session directory (see plan/commands.ts)
+  // Persist plan state on every change so session restore (below) can pick it up.
+  planManager.setPersistence((data) => {
+    try { pi.appendEntry("muselinn_plan", data); } catch { /* stale ctx */ }
+  });
 
   // ── Permission mode persistence ──
   permissionManager.setPersistence((mode) => {
@@ -248,6 +252,39 @@ export default function (pi: ExtensionAPI) {
     // Refresh model catalog once at startup (Pi 0.80.8 async refresh)
     try { await ctx.modelRegistry?.refresh?.(); } catch { /* non-critical */ }
 
+    // Restore goal + plan BEFORE the status-bar section so restored state is
+    // reflected in the badges below.
+    // Restore goal from session custom entries (latest wins; a "complete"
+    // entry is a tombstone — the goal ended and is not restorable).
+    // restoreFromData merges counters monotonically, so a stale entry can
+    // never pull turns/tokens/wall-clock backwards.
+    try {
+      const entries = ctx.sessionManager.getEntries();
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i] as any;
+        if (e.type === "custom" && e.customType === GOAL_ENTRY_TYPE && e.data) {
+          if (e.data.status !== "complete") goalManager.restoreFromData(e.data);
+          break;
+        }
+      }
+    } catch { /* not critical */ }
+
+    // Restore plan state from persisted entries, then validate: a stale
+    // active plan with no content and no file on disk must not silently
+    // trap the session — validateRestoredState() deactivates it, and the
+    // badge section below then shows no badge.
+    try {
+      const entries = ctx.sessionManager.getEntries();
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i] as any;
+        if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
+          planManager.restoreFromData(e.data);
+          planManager.validateRestoredState();
+          break;
+        }
+      }
+    } catch { /* not critical */ }
+
     if (shared.swarmEnabled) {
       ctx.ui.setStatus("swarm-mode", ctx.ui.theme.fg("accent", "swarm"));
     }
@@ -280,33 +317,9 @@ export default function (pi: ExtensionAPI) {
       ? ctx.ui.theme.fg("accent", `[${runningTasks} tasks running]`)
       : undefined
     );
-    // Restore goal from session custom entries (latest wins)
-    try {
-      const entries = ctx.sessionManager.getEntries();
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const e = entries[i] as any;
-        if (e.type === "custom" && e.customType === GOAL_ENTRY_TYPE && e.data) {
-          goalManager.restoreFromData(e.data);
-          break;
-        }
-      }
-    } catch { /* not critical */ }
-
     // Restore the todo panel (before binding so the first refresh shows it)
     try { restoreTodos(ctx.sessionManager.getEntries()); } catch { /* ok */ }
     bindTodoSession(ctx, (type, data) => { try { pi.appendEntry(type, data); } catch { /* stale ctx */ } });
-
-    // Restore plan state from persisted entries
-    try {
-      const entries = ctx.sessionManager.getEntries();
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const e = entries[i] as any;
-        if (e.type === "custom" && e.customType === "muselinn_plan" && e.data) {
-          planManager.restoreFromData(e.data);
-          break;
-        }
-      }
-    } catch { /* not critical */ }
 
     // Restore background tasks from persisted entries. Pass the raw entry
     // list: restore() understands both the legacy full-array entry type and
@@ -372,10 +385,13 @@ export default function (pi: ExtensionAPI) {
     permissionManager.injectIntoMessages(event.messages);
   });
 
-  // ── Helper: update goal status bar ──
+  // ── Helper: update goal status bar (pure display refresh) ──
+  // This runs on the 1s badge ticker and on turn_end, so it must render
+  // in-memory state only — no restore-from-entries here. Restore happens at
+  // session_start and (restore-if-empty) at goal tool entry points; doing it
+  // on every tick risks swapping newer in-memory state for a stale entry.
   function updateGoalStatusBar(ctx: any) {
     latestCtx = ctx;
-    goalManager.tryRestoreFromEntries(Array.from(persistencePort.entries()));
     const badge = goalManager.buildFooterBadge();
     if (badge) {
       const color = goalManager.getFooterBadgeColor();

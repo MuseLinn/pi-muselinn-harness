@@ -19,9 +19,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createRequire } from "node:module";
 
-const { createJiti } = await import(
-  "file:///C:/Users/unive/AppData/Roaming/npm/node_modules/@earendil-works/pi-coding-agent/node_modules/jiti/lib/jiti.cjs"
-);
+import { jitiUrl } from "./jiti-path.mjs";
+const { createJiti } = await import(jitiUrl());
 const jiti = createJiti(import.meta.url ?? __filename, { moduleCache: false });
 const nativeRequire = createRequire(import.meta.url);
 const moduleCache = new Map();
@@ -99,6 +98,68 @@ const ref = planTypes.planModeState;
 planManager.enterPlanMode();
 check("container object identity stable", planTypes.planModeState === ref);
 planManager.exitPlanMode();
+
+// ── Bug 1: plan-mode bash gate understands rtk-rewritten commands ──
+// pi-rtk-optimizer rewrites `ls "D:/x"` → `rtk ls "D:/x"` (optionally with
+// leading env assignments) before this gate vets the command string.
+planManager.enterPlanMode("rtk gate tests");
+check("rtk-wrapped ls is read-only", planManager.shouldBlockTool("bash", "", "rtk ls /tmp") === false);
+check("env + rtk + pipe is read-only", planManager.shouldBlockTool("bash", "", "FOO=bar RTK_X=1 rtk cat file.txt | head -5") === false);
+check("rtk global flags stripped", planManager.shouldBlockTool("bash", "", "rtk -q --no-color git status") === false);
+check("windows dir is read-only", planManager.shouldBlockTool("bash", "", "dir") === false);
+check("rtk rm -rf still blocked", planManager.shouldBlockTool("bash", "", "rtk rm -rf x") === true);
+check("unwrapped write still blocked", planManager.shouldBlockTool("bash", "", "rm -rf x") === true);
+check("unwrapped read-only still allowed", planManager.shouldBlockTool("bash", "", "ls /tmp | head -5") === false);
+planManager.exitPlanMode();
+
+// ── Bug 2: reenterForRevision preserves the current plan ──
+const revPlan = planManager.enterPlanMode("revise test");
+const revContent = "# My Plan\n\nDo the thing.\n";
+fs.writeFileSync(revPlan.path, revContent, "utf-8"); // model wrote the plan file
+planManager.updatePlanContent(revContent);
+const revId = revPlan.id;
+const revPath = revPlan.path;
+planManager.exitPlanMode();
+check("inactive after exit before revise", planManager.isPlanModeActive() === false);
+const revised = planManager.reenterForRevision();
+check("reenterForRevision keeps plan id", revised.id === revId);
+check("reenterForRevision keeps plan path", revised.path === revPath);
+check("reenterForRevision keeps plan content", revised.content === revContent);
+check("reenterForRevision re-activates plan mode", planManager.isPlanModeActive() === true);
+check("reenterForRevision sets writing status", revised.status === "writing");
+planManager.exitPlanMode();
+
+// ── Bug 4c: validateRestoredState drops stale active plans ──
+// stale: active + empty content + missing file → deactivated
+planManager.restoreFromData({
+  isActive: true,
+  currentPlan: { id: "stale-1", content: "", path: path.join(cleanCwd, "plans", "does-not-exist.md"), status: "exploring", createdAt: 1 },
+  history: [],
+});
+check("stale restored state rejected by validation", planManager.validateRestoredState() === false);
+check("stale restore clears isActive", planManager.isPlanModeActive() === false);
+check("stale restore drops the dead plan", planManager.getCurrentPlan() === null);
+
+// valid: active + empty content + existing file on disk → kept active
+const keptPath = path.join(cleanCwd, "plans", "kept.md");
+fs.mkdirSync(path.dirname(keptPath), { recursive: true });
+fs.writeFileSync(keptPath, "# Kept plan\n", "utf-8");
+planManager.restoreFromData({
+  isActive: true,
+  currentPlan: { id: "kept-1", content: "", path: keptPath, status: "writing", createdAt: 1 },
+  history: [],
+});
+check("valid restored state kept active", planManager.validateRestoredState() === true);
+check("valid restore keeps isActive", planManager.isPlanModeActive() === true);
+planManager.exitPlanMode();
+
+// ── Bug 4d: exitPlanMode syncs in-memory content from the on-disk plan file ──
+const syncPlan = planManager.enterPlanMode("disk sync test");
+const diskContent = "# Disk Plan\n\nWritten straight to disk.\n";
+fs.writeFileSync(syncPlan.path, diskContent, "utf-8"); // model wrote file; memory not updated
+check("memory stale before exit", planManager.getCurrentPlan()?.content === "");
+const syncExited = planManager.exitPlanMode();
+check("exitPlanMode syncs content from disk", syncExited?.content === diskContent);
 
 fs.rmSync(cleanCwd, { recursive: true, force: true });
 

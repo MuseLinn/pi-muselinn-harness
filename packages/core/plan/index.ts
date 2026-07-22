@@ -30,6 +30,7 @@ function generatePlanId(): string {
 const READ_ONLY_BASH_PATTERNS: RegExp[] = [
   // ── Pure read-only coreutils ──
   /^\s*ls(\s|$)/,
+  /^\s*dir(\s|$)/,  // Windows read-only directory listing
   /^\s*pwd(\s|$)/,
   /^\s*echo(\s|$)/,
   /^\s*cat(\s|$)/,
@@ -84,6 +85,45 @@ const READ_ONLY_BASH_PATTERNS: RegExp[] = [
 ];
 
 /**
+ * Global flags accepted after a leading `rtk` wrapper token. Keep small and
+ * easy to extend — add new rtk global flags here as they appear.
+ */
+const RTK_GLOBAL_FLAGS = new Set(["-q", "--quiet", "--no-color"]);
+
+/**
+ * Normalize one command segment before whitelist matching.
+ *
+ * Third-party command wrappers (e.g. pi-rtk-optimizer, which loads before
+ * this extension) mutate `event.input.command` in place, rewriting
+ * `ls "D:/x"` → `rtk ls "D:/x"` (optionally with leading env assignments
+ * like `RTK_FOO=1 rtk ls ...`). This gate vets the REWRITTEN string, so we
+ * first peel off leading `KEY=VALUE` env assignments and a leading `rtk`
+ * wrapper token (plus its global flags); the remaining segment is what gets
+ * matched against READ_ONLY_BASH_PATTERNS. Anything we do not recognize is
+ * left untouched and will be denied by the whitelist (deny-by-default).
+ */
+function normalizeBashSegment(seg: string): string {
+  let s = seg;
+  // Strip leading KEY=VALUE env assignments (quoted or bare values), repeatedly.
+  const envAssign = /^\s*[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+/;
+  while (envAssign.test(s)) s = s.replace(envAssign, "");
+  // Strip a leading `rtk` wrapper token plus its known global flags.
+  if (/^\s*rtk(\s|$)/.test(s)) {
+    s = s.replace(/^\s*rtk\s*/, "");
+    let stripped = true;
+    while (stripped) {
+      stripped = false;
+      const m = s.match(/^(\S+)(?:\s+|$)/);
+      if (m && RTK_GLOBAL_FLAGS.has(m[1])) {
+        s = s.slice(m[0].length);
+        stripped = true;
+      }
+    }
+  }
+  return s;
+}
+
+/**
  * Determine whether a bash command string is read-only / safe in Plan Mode.
  *
  * Strategy:
@@ -92,7 +132,9 @@ const READ_ONLY_BASH_PATTERNS: RegExp[] = [
  *    output redirection (`>` / `>>` / `2>`), or the `find ... -exec` /
  *    `-delete` side-effecting forms.
  * 2. Split the remaining command on pipe / sequence separators (`|`, `||`,
- *    `&&`, `;`) and require EVERY segment to match the read-only whitelist.
+ *    `&&`, `;`), normalize each segment (strip env assignments and a leading
+ *    `rtk` wrapper — see normalizeBashSegment), and require EVERY segment to
+ *    match the read-only whitelist.
  * 3. Any segment that does not match a whitelist entry → deny.
  *
  * Deny-by-default: an unmatched command is blocked, not silently allowed.
@@ -126,7 +168,9 @@ function isReadOnlyBashCommand(cmd: string): boolean {
   const segments = trimmed.split(/\s*(?:\|\||&&|;|\|)\s*/);
   for (const seg of segments) {
     if (!seg) continue;
-    const matched = READ_ONLY_BASH_PATTERNS.some((re) => re.test(seg));
+    const normalized = normalizeBashSegment(seg);
+    if (!normalized) return false;
+    const matched = READ_ONLY_BASH_PATTERNS.some((re) => re.test(normalized));
     if (!matched) return false;
   }
   return true;
@@ -200,6 +244,15 @@ export class PlanManager {
 
     this.ensurePlanDirectory(planPath);
 
+    // Write an initial placeholder plan file if none exists yet, so the
+    // review panel never hits "plan file not found" for a plan created in
+    // this session. Best-effort: a read-only FS must not break plan mode.
+    try {
+      if (!fs.existsSync(planPath)) {
+        fs.writeFileSync(planPath, "# Plan\n\n(Write your plan here.)\n", "utf-8");
+      }
+    } catch { /* not critical */ }
+
     setCurrentPlanMode({
       isActive: true,
       currentPlan: plan,
@@ -218,9 +271,43 @@ export class PlanManager {
     const plan = planModeState.currentPlan;
     if (!plan) return null;
 
+    // Sync in-memory content from the on-disk plan file (when present and
+    // readable) so the review panel and any in-memory consumer see the real
+    // plan, not a stale/empty snapshot.
+    if (plan.path) {
+      try {
+        if (fs.existsSync(plan.path)) {
+          plan.content = fs.readFileSync(plan.path, "utf-8");
+        }
+      } catch { /* keep in-memory content on read failure */ }
+    }
+
     plan.status = 'reviewing';
     setCurrentPlan(plan);
     setPlanActive(false);
+    this.persist();
+
+    return plan;
+  }
+
+  /**
+   * Re-enter plan mode to revise the CURRENT plan (Revise path).
+   *
+   * Unlike enterPlanMode(), this keeps the SAME plan object — same id, same
+   * file path, same content — so the user's review context and everything
+   * already written survive the round-trip. Falls back to enterPlanMode()
+   * only when there is no current plan to revise.
+   */
+  reenterForRevision(): PlanData {
+    const plan = planModeState.currentPlan;
+    if (!plan) {
+      return this.enterPlanMode("Plan revision requested");
+    }
+
+    plan.status = 'writing';
+    plan.updatedAt = Date.now();
+    setCurrentPlan(plan);
+    setPlanActive(true);
     this.persist();
 
     return plan;
@@ -467,6 +554,43 @@ export class PlanManager {
    */
   restoreFromData(data: PlanModeState): void {
     setCurrentPlanMode(data);
+  }
+
+  /**
+   * Validate restored plan state (call right after restoreFromData).
+   *
+   * A stale persisted entry can claim plan mode is active while holding an
+   * empty plan whose file no longer exists on disk — that would silently
+   * trap the session in plan mode with nothing to review. In that case we
+   * deactivate plan mode (and drop the dead plan) instead.
+   *
+   * Invalid when: isActive is true but there is no currentPlan, OR the
+   * current plan has empty content AND its file does not exist on disk.
+   *
+   * Returns true when plan mode remains active after validation.
+   */
+  validateRestoredState(): boolean {
+    if (!planModeState.isActive) return false;
+
+    const plan = planModeState.currentPlan;
+    let stale = false;
+    if (!plan) {
+      stale = true;
+    } else if (!plan.content) {
+      let fileExists = false;
+      try {
+        fileExists = !!plan.path && fs.existsSync(plan.path);
+      } catch { /* treat stat failure as missing */ }
+      stale = !fileExists;
+    }
+
+    if (stale) {
+      setCurrentPlan(null);
+      setPlanActive(false);
+      this.persist();
+      return false;
+    }
+    return true;
   }
 
   // ── Format ─────────────────────────────────────────────────────────────

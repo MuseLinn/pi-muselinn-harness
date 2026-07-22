@@ -285,11 +285,26 @@ export class GoalManager {
     return updated;
   }
 
-  /** Clear the goal */
+  /**
+   * Clear the goal.
+   * Also appends a tombstone entry (status "complete"): persist() skips a
+   * null current goal, so without a tombstone the cleared goal's last entry
+   * would remain the most recent one — and any restore-from-entries (next
+   * session start, or the restore-if-empty at goal tool entry points) would
+   * resurrect the cleared goal with its stale counters. Kimi Code semantics:
+   * an ended goal never rests on disk as restorable state.
+   */
   clear(actor: GoalActor = "user"): void {
-    goalState.current && this.blockAttempts.delete(goalState.current.goalId);
+    const g = goalState.current;
+    if (g) this.blockAttempts.delete(g.goalId);
     setCurrentGoal(null);
     this.persist();
+    if (g && this.appendEntryFn) {
+      const data = goalToEntryData(g);
+      if (data) {
+        this.appendEntryFn(GOAL_ENTRY_TYPE, { ...data, status: "complete" as GoalStatus });
+      }
+    }
   }
 
   /**
@@ -750,8 +765,26 @@ export class GoalManager {
     return goalState.current;
   }
 
-  /** Restore from entry data */
+  /**
+   * Restore from entry data.
+   * Monotonic counters: when the in-memory goal is the same goalId, the
+   * accounting counters never regress — a stale persisted entry must not
+   * pull turnsUsed / tokensUsed / wallClockMs backwards (that regression is
+   * what made the footer badge bounce between the newer in-memory value and
+   * the older entry value). A different goalId (session switch) replaces
+   * wholesale.
+   */
   restoreFromData(data: GoalSnapshot): void {
+    const cur = goalState.current;
+    if (cur && cur.goalId === data.goalId) {
+      setCurrentGoal({
+        ...data,
+        turnsUsed: Math.max(cur.turnsUsed, data.turnsUsed ?? 0),
+        tokensUsed: Math.max(cur.tokensUsed, data.tokensUsed ?? 0),
+        wallClockMs: Math.max(cur.wallClockMs, data.wallClockMs ?? 0),
+      });
+      return;
+    }
     setCurrentGoal(data);
   }
 
@@ -759,6 +792,11 @@ export class GoalManager {
    * Try to restore goal from session entries (handles host hot-reload).
    * Core takes plain entries — the host reads them from its session
    * manager and passes them in, keeping core free of session APIs.
+   *
+   * Restore-if-empty only: when an in-memory goal exists this is a no-op,
+   * so it can never clobber newer live state with an older entry. When the
+   * latest goal entry is a "complete" tombstone (goal completed or cleared),
+   * there is nothing to restore — do NOT fall through to older entries.
    */
   tryRestoreFromEntries(entries: any[]): boolean {
     if (goalState.current) return true;
@@ -767,6 +805,9 @@ export class GoalManager {
       for (let i = entries.length - 1; i >= 0; i--) {
         const e = entries[i] as any;
         if (e.type === "custom" && e.customType === GOAL_ENTRY_TYPE && e.data) {
+          // Tombstone: an ended goal is not restorable (Kimi Code: complete
+          // never rests on disk).
+          if (e.data.status === "complete") return false;
           this.restoreFromData(e.data);
           return true;
         }
