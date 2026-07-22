@@ -72,9 +72,11 @@ export interface UserPermissionConfig {
   allow: ToolPattern[];
 }
 
-// State
-export let currentMode: PermissionMode = 'manual';
+// State — `export const` container + property-level mutation (jiti 2.7.0
+// snapshots cross-module `export let` bindings; a shared container keeps
+// every importer on the same live object).
+export const permissionModeState: { current: PermissionMode } = { current: 'manual' };
 
 export function setMode(mode: PermissionMode): void {
-  currentMode = mode;
+  permissionModeState.current = mode;
 }

@@ -84,7 +84,7 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
     async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: any) {
       if (!planManager.isPlanModeActive()) {
         return {
-          content: [{ type: "text", text: "Plan mode is not active." }],
+          content: [{ type: "text", text: "Plan mode is not active. Call enter_plan_mode first to start planning." }],
         };
       }
 

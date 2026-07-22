@@ -19,7 +19,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import type { SubAgentType, SubAgentTask } from "../packages/core/swarm/types";
-import { activeSessions, swarmCancelled, setSwarmCancelled, globalAbortController, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "../packages/core/swarm/types";
+import { swarmState, setSwarmCancelled, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "../packages/core/swarm/types";
 import { hookEngine } from "../packages/core/hooks/index";
 import { loadSkillsForCwd } from "../packages/core/skills/index";
 
@@ -338,7 +338,7 @@ async function runWithModel(
     try { progressEstimator.markStarted(task.id, Date.now()); } catch (e) { log_swarm_warn('progressEstimator.markStarted failed', e); }
 
     const entry = { session, taskId: task.id };
-    activeSessions?.set(task.id, entry);
+    swarmState.activeSessions?.set(task.id, entry);
 
     const unsub = session.subscribe((event: any) => {
       if (event.type === "message_end" && event.message?.role === "assistant") {
@@ -405,7 +405,7 @@ async function runWithModel(
       const wasAborted =
         signal.aborted ||
         (childController?.signal.aborted ?? false) ||
-        swarmCancelled;
+        swarmState.swarmCancelled;
       const wasTimeout = timeoutAborted;
 
       if (wasTimeout) {
@@ -419,7 +419,7 @@ async function runWithModel(
         setResumeResult(task.id, { status: "failed", output: task.error });
         cleanupAbortListeners();
         unsub();
-        activeSessions?.delete(task.id);
+        swarmState.activeSessions?.delete(task.id);
         return;
       }
 
@@ -432,7 +432,7 @@ async function runWithModel(
         setResumeResult(task.id, { status: "aborted" });
         cleanupAbortListeners();
         unsub();
-        activeSessions?.delete(task.id);
+        swarmState.activeSessions?.delete(task.id);
         return;
       }
       log_swarm_warn('prompt failed', promptErr);
@@ -446,7 +446,7 @@ async function runWithModel(
       setResumeResult(task.id, { status: "failed", output: promptErr.message });
       cleanupAbortListeners();
       unsub();
-      activeSessions?.delete(task.id);
+      swarmState.activeSessions?.delete(task.id);
       return;
     }
 
@@ -512,7 +512,7 @@ async function runWithModel(
     }
 
     unsub();
-    activeSessions?.delete(task.id);
+    swarmState.activeSessions?.delete(task.id);
     onProgress();
   } catch (initErr: any) {
     log_swarm_warn('runWithModel init failed', initErr);
@@ -524,7 +524,7 @@ async function runWithModel(
     try { progressEstimator.markFailed(task.id, Date.now()); } catch (e) { log_swarm_warn('progressEstimator.markFailed failed', e); }
     setResumeResult(task.id, { status: "failed", output: initErr.message || String(initErr) });
     cleanupAbortListeners();
-    activeSessions?.delete(task.id);
+    swarmState.activeSessions?.delete(task.id);
     onProgress();
   } finally {
     // Defensive: ensure abort listeners are unlinked even if an unexpected

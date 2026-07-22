@@ -101,10 +101,10 @@ export const OUTPUT_TRUNCATED_MARKER = "[output truncated]";
 // ============================================================
 
 import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "../goal/types.ts";
-import { currentGoal, setCurrentGoal } from "../goal/types.ts";
+import { goalState, setCurrentGoal } from "../goal/types.ts";
 
 export type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits };
-export { currentGoal, setCurrentGoal };
+export { goalState, setCurrentGoal };
 
 // ============================================================
 // Global State
@@ -112,14 +112,32 @@ export { currentGoal, setCurrentGoal };
 
 import { ProgressEstimator } from "./estimator.ts";
 
-export let currentSwarm: SwarmState | null = null;
-export let activeSessions: Map<string, { session: { abort(): Promise<void>; dispose(): void }; taskId: string }> | null = null;
-export let cancelPending = false;
-export let cancelTimer: ReturnType<typeof setTimeout> | null = null;
-export let savedSwarmState: SavedSwarm | null = null;
-export let swarmCancelled = false;
-export let globalAbortController: AbortController | null = null; // parent cancel → children
-export let progressEstimator = new ProgressEstimator(); // Kimi Code-style progress prediction
+// Global state — `export const` container + property-level mutation, never
+// reassigned `export let` bindings. pi's jiti loader (2.7.0) snapshots
+// cross-module `export let` state, so a setter write would be invisible to
+// consumers that imported the binding earlier. A shared container object
+// keeps every importer looking at the same live values.
+export interface SwarmGlobalState {
+  currentSwarm: SwarmState | null;
+  activeSessions: Map<string, { session: { abort(): Promise<void>; dispose(): void }; taskId: string }> | null;
+  cancelPending: boolean;
+  cancelTimer: ReturnType<typeof setTimeout> | null;
+  savedSwarmState: SavedSwarm | null;
+  swarmCancelled: boolean;
+  globalAbortController: AbortController | null; // parent cancel → children
+}
+
+export const swarmState: SwarmGlobalState = {
+  currentSwarm: null,
+  activeSessions: null,
+  cancelPending: false,
+  cancelTimer: null,
+  savedSwarmState: null,
+  swarmCancelled: false,
+  globalAbortController: null,
+};
+
+export const progressEstimator = new ProgressEstimator(); // Kimi Code-style progress prediction
 
 // Resume tracking: agentId → completed info for resume_agent_ids
 const resumeResults = new Map<string, { status: string; output?: string }>();
@@ -127,10 +145,10 @@ export function setResumeResult(id: string, r: { status: string; output?: string
 export function getResumeResults(): Map<string, { status: string; output?: string }> { return resumeResults; }
 export function clearResumeResults(): void { resumeResults.clear(); }
 
-export function setCurrentSwarm(s: SwarmState | null): void { currentSwarm = s; }
-export function setActiveSessions(m: typeof activeSessions): void { activeSessions = m; }
-export function setCancelPending(v: boolean): void { cancelPending = v; }
-export function setCancelTimer(t: typeof cancelTimer): void { cancelTimer = t; }
-export function setSavedSwarmState(s: typeof savedSwarmState): void { savedSwarmState = s; }
-export function setSwarmCancelled(v: boolean): void { swarmCancelled = v; }
-export function setGlobalAbortController(c: AbortController | null): void { globalAbortController = c; }
+export function setCurrentSwarm(s: SwarmState | null): void { swarmState.currentSwarm = s; }
+export function setActiveSessions(m: SwarmGlobalState["activeSessions"]): void { swarmState.activeSessions = m; }
+export function setCancelPending(v: boolean): void { swarmState.cancelPending = v; }
+export function setCancelTimer(t: SwarmGlobalState["cancelTimer"]): void { swarmState.cancelTimer = t; }
+export function setSavedSwarmState(s: SwarmGlobalState["savedSwarmState"]): void { swarmState.savedSwarmState = s; }
+export function setSwarmCancelled(v: boolean): void { swarmState.swarmCancelled = v; }
+export function setGlobalAbortController(c: AbortController | null): void { swarmState.globalAbortController = c; }

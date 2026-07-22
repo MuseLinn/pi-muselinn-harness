@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { PlanData, PlanStatus, PlanModeState } from "./types.ts";
-import { currentPlanMode, setCurrentPlanMode, setCurrentPlan, setPlanActive } from "./types.ts";
+import { planModeState, setCurrentPlanMode, setCurrentPlan, setPlanActive } from "./types.ts";
 import { registerPlanTools } from "./tools.ts";
 import { registerPlanCommands } from "./commands.ts";
 import * as fs from "node:fs";
@@ -152,7 +152,7 @@ export class PlanManager {
 
   /** Persist current state */
   private persist(): void {
-    if (this.persistFn) this.persistFn(currentPlanMode);
+    if (this.persistFn) this.persistFn(planModeState);
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -203,7 +203,7 @@ export class PlanManager {
     setCurrentPlanMode({
       isActive: true,
       currentPlan: plan,
-      history: [...currentPlanMode.history, plan],
+      history: [...planModeState.history, plan],
     });
     this.persist();
 
@@ -215,7 +215,7 @@ export class PlanManager {
    * Called by ExitPlanMode tool.
    */
   exitPlanMode(): PlanData | null {
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return null;
 
     plan.status = 'reviewing';
@@ -230,7 +230,7 @@ export class PlanManager {
    * Approve the current plan.
    */
   approvePlan(): PlanData | null {
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return null;
 
     plan.status = 'approved';
@@ -248,7 +248,7 @@ export class PlanManager {
    * Reject the current plan.
    */
   rejectPlan(reason?: string): PlanData | null {
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return null;
 
     plan.status = 'rejected';
@@ -280,7 +280,7 @@ export class PlanManager {
    * Keeps plan mode active, just empties the plan file/content.
    */
   clearPlanContent(): void {
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return;
     plan.content = '';
     plan.updatedAt = Date.now();
@@ -292,7 +292,7 @@ export class PlanManager {
    * Toggle plan mode (Kimi Code-style /plan).
    */
   togglePlanMode(): boolean {
-    if (currentPlanMode.isActive) {
+    if (planModeState.isActive) {
       this.exitPlanMode();
       return false;
     } else {
@@ -307,21 +307,21 @@ export class PlanManager {
    * Check if plan mode is active.
    */
   isPlanModeActive(): boolean {
-    return currentPlanMode.isActive;
+    return planModeState.isActive;
   }
 
   /**
    * Get current plan.
    */
   getCurrentPlan(): PlanData | null {
-    return currentPlanMode.currentPlan;
+    return planModeState.currentPlan;
   }
 
   /**
    * Get plan mode state.
    */
   getState(): PlanModeState {
-    return currentPlanMode;
+    return planModeState;
   }
 
   // ── Plan File Operations ───────────────────────────────────────────────
@@ -330,7 +330,7 @@ export class PlanManager {
    * Update plan content (called when LLM writes to plan file).
    */
   updatePlanContent(content: string, filePath?: string): void {
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return;
 
     plan.content = content;
@@ -344,7 +344,7 @@ export class PlanManager {
    * Get plan file path.
    */
   getPlanFilePath(): string {
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return '';
     return plan.path;
   }
@@ -360,7 +360,7 @@ export class PlanManager {
    * (isReadOnlyBashCommand). When omitted, bash is denied (deny-by-default).
    */
   shouldBlockTool(toolName: string, filePath?: string, command?: string): boolean {
-    if (!currentPlanMode.isActive) return false;
+    if (!planModeState.isActive) return false;
 
     // Pi built-in tools: bash, edit, find, grep, ls, read, write
     // Read-only tools are always allowed (Pi built-in + our extensions)
@@ -408,9 +408,9 @@ export class PlanManager {
    * Build plan mode injection for system prompt (Kimi Code-style).
    */
   buildInjection(): string | undefined {
-    if (!currentPlanMode.isActive) return undefined;
+    if (!planModeState.isActive) return undefined;
 
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     // Use plan path or default to sessionDir-based path
     const planPath = plan?.path || (this.sessionDir ? `${this.sessionDir}/plans/` : "plans/");
 
@@ -475,11 +475,11 @@ export class PlanManager {
    * Format plan summary for display.
    */
   formatSummary(): string {
-    if (!currentPlanMode.isActive) {
+    if (!planModeState.isActive) {
       return 'Plan mode is inactive.';
     }
 
-    const plan = currentPlanMode.currentPlan;
+    const plan = planModeState.currentPlan;
     if (!plan) return 'Plan mode active, no plan.';
 
     const badge: Record<string, string> = {

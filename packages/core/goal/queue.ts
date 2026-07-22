@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { GoalQueue, GoalQueueItem, GoalSnapshot, GoalBudgetLimits } from "./types.ts";
-import { currentQueue, setCurrentQueue } from "./types.ts";
+import { goalQueueState, setCurrentQueue } from "./types.ts";
 
 /**
  * Generate a unique queue item ID.
@@ -39,7 +39,7 @@ export function addToQueue(
     priority,
   };
 
-  const queue = { ...currentQueue };
+  const queue = { ...goalQueueState };
 
   // Rank: high=0, normal=1, low=2. Lower rank ⇒ closer to the head.
   const rank = (p: GoalQueueItem["priority"]): number =>
@@ -73,14 +73,14 @@ export function addToQueue(
  * Get the current queue.
  */
 export function getQueue(): GoalQueue {
-  return currentQueue;
+  return goalQueueState;
 }
 
 /**
  * Get the next pending item in the queue.
  */
 export function getNextQueueItem(): GoalQueueItem | null {
-  const queue = currentQueue;
+  const queue = goalQueueState;
   const nextIndex = queue.currentIndex + 1;
   if (nextIndex >= queue.items.length) return null;
   return queue.items[nextIndex];
@@ -90,7 +90,7 @@ export function getNextQueueItem(): GoalQueueItem | null {
  * Mark the current queue item as completed and advance to the next.
  */
 export function completeCurrentQueueItem(): GoalQueueItem | null {
-  const queue = { ...currentQueue };
+  const queue = { ...goalQueueState };
   const currentItem = queue.items[queue.currentIndex];
   if (currentItem) {
     currentItem.status = "completed";
@@ -105,7 +105,7 @@ export function completeCurrentQueueItem(): GoalQueueItem | null {
  * Mark the current queue item as failed.
  */
 export function failCurrentQueueItem(reason?: string): void {
-  const queue = { ...currentQueue };
+  const queue = { ...goalQueueState };
   const currentItem = queue.items[queue.currentIndex];
   if (currentItem) {
     currentItem.status = "failed";
@@ -118,7 +118,7 @@ export function failCurrentQueueItem(reason?: string): void {
  * Skip the current queue item (advance without completing).
  */
 export function skipCurrentQueueItem(): GoalQueueItem | null {
-  const queue = { ...currentQueue };
+  const queue = { ...goalQueueState };
   queue.currentIndex++;
   setCurrentQueue(queue);
   return getNextQueueItem();
@@ -128,7 +128,7 @@ export function skipCurrentQueueItem(): GoalQueueItem | null {
  * Remove a queue item by index.
  */
 export function removeFromQueue(index: number): boolean {
-  const queue = { ...currentQueue };
+  const queue = { ...goalQueueState };
   if (index < 0 || index >= queue.items.length) return false;
   if (index === queue.currentIndex) return false; // Can't remove current item
   queue.items = queue.items.filter((_, i) => i !== index);
@@ -143,7 +143,7 @@ export function removeFromQueue(index: number): boolean {
  * Prioritize a queue item (move it closer to front).
  */
 export function prioritizeQueueItem(index: number): boolean {
-  const queue = { ...currentQueue };
+  const queue = { ...goalQueueState };
   if (index <= queue.currentIndex || index >= queue.items.length) return false;
   // Swap with previous item
   const items = [...queue.items];
@@ -164,7 +164,7 @@ export function clearQueue(): void {
  * Format queue for display.
  */
 export function formatQueue(): string {
-  const queue = currentQueue;
+  const queue = goalQueueState;
   if (queue.items.length === 0) return "Goal queue is empty.";
 
   const lines: string[] = [`Goal Queue (${queue.items.length} items):`, ""];
@@ -196,7 +196,7 @@ export function queueItemToGoalSnapshot(item: GoalQueueItem): GoalSnapshot {
     wallClockMs: 0,
     wallClockResumedAt: Date.now(),
     budgetLimits: item.budgetLimits,
-    queueIndex: currentQueue.currentIndex,
+    queueIndex: goalQueueState.currentIndex,
   };
 }
 
@@ -206,7 +206,7 @@ export function queueItemToGoalSnapshot(item: GoalQueueItem): GoalSnapshot {
  * Returns the next queue item if available, null otherwise.
  */
 export function autoSwitchToNext(): GoalQueueItem | null {
-  const queue = currentQueue;
+  const queue = goalQueueState;
   const nextItem = getNextQueueItem();
   if (!nextItem) return null;
   

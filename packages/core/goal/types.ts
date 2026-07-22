@@ -108,8 +108,17 @@ export interface GoalEntryData {
 }
 
 // Global state
-export let currentGoal: GoalSnapshot | null = null;
-export function setCurrentGoal(g: GoalSnapshot | null): void { currentGoal = g; }
+//
+// NOTE: `export const` containers + property-level mutation, never reassigned
+// `export let` bindings — pi's jiti loader (2.7.0) snapshots cross-module
+// `export let` state, so writes would be invisible to other modules. Mutating
+// properties of a shared container keeps every importer on the same live object.
+export const goalState: { current: GoalSnapshot | null } = { current: null };
+export function setCurrentGoal(g: GoalSnapshot | null): void { goalState.current = g; }
 
-export let currentQueue: GoalQueue = { items: [], currentIndex: 0, mode: "fifo" };
-export function setCurrentQueue(q: GoalQueue): void { currentQueue = q; }
+export const goalQueueState: GoalQueue = { items: [], currentIndex: 0, mode: "fifo" };
+export function setCurrentQueue(q: GoalQueue): void {
+  goalQueueState.items = q.items;
+  goalQueueState.currentIndex = q.currentIndex;
+  goalQueueState.mode = q.mode;
+}

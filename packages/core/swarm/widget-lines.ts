@@ -9,14 +9,14 @@
 // ============================================================
 
 import type { SwarmState, AgentStatus, SubAgentTask } from "./types.ts";
-import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, currentGoal, COMPLETE_FILL_MS, MIN_LABEL_WIDTH } from "./types.ts";
+import { AGENT_SWARM_LEFT_INDENT, STATUS_BAR_CHAR, FRAME_INTERVAL_MS, goalState, COMPLETE_FILL_MS, MIN_LABEL_WIDTH } from "./types.ts";
 import { accumulatedBrailleBar, computeProgress, needsAnimation, calculateGridLayout, visibleWidth, gradientText, AGENT_SWARM_TITLE_ACCENT_BIAS, getSpinnerFrames } from "./helpers.ts";
 
 /**
  * Build goal status line for widget display.
  * @narumitw/pi-goal style: show goal status in widget.
  */
-export function buildGoalStatus(goal: typeof currentGoal): string {
+export function buildGoalStatus(goal: typeof goalState.current): string {
   if (!goal) return "";
   const badge = goal.status === "active" ? "●" :
                 goal.status === "paused" ? "○" :
@@ -65,15 +65,15 @@ export function buildWidgetLines(
   lines.push(header);
 
   // ---- Goal Badge (Kimi Code-style) ----
-  if (currentGoal && currentGoal.status !== "complete") {
-    const dot = currentGoal.status === "active" ? "●" : currentGoal.status === "blocked" ? "●" : "○";
-    const dotColor = currentGoal.status === "active" ? "accent" : currentGoal.status === "blocked" ? "warning" : "muted";
-    const durationMs = currentGoal.wallClockMs;
+  if (goalState.current && goalState.current.status !== "complete") {
+    const dot = goalState.current.status === "active" ? "●" : goalState.current.status === "blocked" ? "●" : "○";
+    const dotColor = goalState.current.status === "active" ? "accent" : goalState.current.status === "blocked" ? "warning" : "muted";
+    const durationMs = goalState.current.wallClockMs;
     const durationMin = Math.floor(durationMs / 60000);
     const duration = durationMin > 0 ? `${durationMin}m` : `${Math.floor(durationMs / 1000)}s`;
-    const turnBudget = currentGoal.budgetLimits?.turnBudget;
-    const turns = turnBudget ? `${currentGoal.turnsUsed}/${turnBudget}` : `${currentGoal.turnsUsed}`;
-    lines.push(`  ${theme.fg(dotColor, dot)} ${theme.fg("text", currentGoal.status)} · ${duration} · ${turns} turns`);
+    const turnBudget = goalState.current.budgetLimits?.turnBudget;
+    const turns = turnBudget ? `${goalState.current.turnsUsed}/${turnBudget}` : `${goalState.current.turnsUsed}`;
+    lines.push(`  ${theme.fg(dotColor, dot)} ${theme.fg("text", goalState.current.status)} · ${duration} · ${turns} turns`);
   }
 
   // ---- Grid ----
@@ -108,11 +108,11 @@ export function buildWidgetLines(
   }
 
   // ---- Goal Status (if active) ----
-  const goalLine = currentGoal && currentGoal.status !== "complete"
+  const goalLine = goalState.current && goalState.current.status !== "complete"
     ? ` ${theme.fg("accent", "Goal:")} ${theme.fg(
-        currentGoal.status === "active" ? "success" : currentGoal.status === "blocked" ? "warning" : "muted",
-        currentGoal.status,
-      )} ${theme.fg("muted", currentGoal.objective.slice(0, Math.max(0, termWidth - 30)))}`
+        goalState.current.status === "active" ? "success" : goalState.current.status === "blocked" ? "warning" : "muted",
+        goalState.current.status,
+      )} ${theme.fg("muted", goalState.current.objective.slice(0, Math.max(0, termWidth - 30)))}`
     : null;
 
   // ---- Status Line ----
@@ -279,8 +279,8 @@ export function computeWidgetFingerprint(
   if (running > 0) fp += `|spin:${Math.floor(ts / 120)}`;
 
   // Goal badge/status lines (duration is floored to seconds/minutes).
-  if (currentGoal && currentGoal.status !== "complete") {
-    fp += `|goal:${currentGoal.status}:${Math.floor(currentGoal.wallClockMs / 1000)}:${currentGoal.turnsUsed}:${currentGoal.budgetLimits?.turnBudget ?? ""}:${currentGoal.objective}`;
+  if (goalState.current && goalState.current.status !== "complete") {
+    fp += `|goal:${goalState.current.status}:${Math.floor(goalState.current.wallClockMs / 1000)}:${goalState.current.turnsUsed}:${goalState.current.budgetLimits?.turnBudget ?? ""}:${goalState.current.objective}`;
   }
 
   return fp;

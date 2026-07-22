@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { GoalSnapshot, GoalStatus, GoalActor, GoalBudgetLimits } from "./types.ts";
-import { currentGoal, setCurrentGoal, GOAL_ENTRY_TYPE } from "./types.ts";
+import { goalState, setCurrentGoal, GOAL_ENTRY_TYPE } from "./types.ts";
 import { computeBudgetReport, budgetBandGuidance, liveWallClockMs } from "./budget.ts";
 import { goalToEntryData, goalFromEntryData, reconstructGoalFromEntries } from "./persistence.ts";
 import { registerGoalTools } from "./tools.ts";
@@ -50,10 +50,10 @@ export class GoalManager {
 
   /** Persist current goal or null (clear) */
   private persist(): void {
-    if (this.persistFn) this.persistFn(currentGoal);
+    if (this.persistFn) this.persistFn(goalState.current);
     // Also persist via appendEntry if available
-    if (this.appendEntryFn && currentGoal) {
-      const data = goalToEntryData(currentGoal);
+    if (this.appendEntryFn && goalState.current) {
+      const data = goalToEntryData(goalState.current);
       if (data) {
         this.appendEntryFn(GOAL_ENTRY_TYPE, data);
       }
@@ -76,7 +76,7 @@ export class GoalManager {
     replace: boolean = false,
   ): GoalSnapshot {
     // P0 (1): active guard
-    if (currentGoal && currentGoal.status === "active" && !replace) {
+    if (goalState.current && goalState.current.status === "active" && !replace) {
       throw new Error("已有 active 目标,使用 replace=true 或 /goal replace 才能覆盖");
     }
     const goal: GoalSnapshot = {
@@ -99,7 +99,7 @@ export class GoalManager {
 
   /** Get the current goal */
   getGoal(): GoalSnapshot | null {
-    return currentGoal;
+    return goalState.current;
   }
 
   /** Apply actor+timestamp to any snapshot patch */
@@ -119,7 +119,7 @@ export class GoalManager {
     actor: GoalActor = "user",
     status: GoalStatus | undefined = undefined,
   ): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return null;
     const patch: Partial<GoalSnapshot> = { objective, completionCriterion };
     if (status !== undefined) patch.status = status;
@@ -131,7 +131,7 @@ export class GoalManager {
 
   /** Pause → paused (Kimi Code-style wall clock handling) */
   pause(actor: GoalActor = "user"): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status === "complete") return null;
 
     // Fold live wall clock interval into total (Kimi Code-style)
@@ -153,7 +153,7 @@ export class GoalManager {
 
   /** Resume paused/blocked → active (Kimi Code-style wall clock handling) */
   resume(actor: GoalActor = "user"): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status === "complete") return null;
 
     const updated = cloneSnapshot(g, this.withActor({
@@ -178,7 +178,7 @@ export class GoalManager {
    * Once the goal is actually blocked, the counter for that goal is cleared.
    */
   block(reason?: string, actor: GoalActor = "system"): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status === "complete") return null;
 
     // P0 (3): block-attempt accounting
@@ -240,7 +240,7 @@ export class GoalManager {
    * allowed as before.
    */
   complete(actor: GoalActor = "user", summary?: string, verified: boolean = false): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return null;
 
     // P0 (2): criterion gate
@@ -287,7 +287,7 @@ export class GoalManager {
 
   /** Clear the goal */
   clear(actor: GoalActor = "user"): void {
-    currentGoal && this.blockAttempts.delete(currentGoal.goalId);
+    goalState.current && this.blockAttempts.delete(goalState.current.goalId);
     setCurrentGoal(null);
     this.persist();
   }
@@ -297,7 +297,7 @@ export class GoalManager {
    * Called when user presses Esc, Ctrl+C, or any turn-level cancellation.
    */
   pauseOnInterrupt(reason?: string): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return null;
     return this.pause("user");
   }
@@ -310,7 +310,7 @@ export class GoalManager {
    * Auto-blocks the goal when budget is exceeded.
    */
   recordTurn(tokens: number, actor: GoalActor = "runtime"): { crossedBudget: boolean } {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return { crossedBudget: false };
 
     const now = Date.now();
@@ -351,7 +351,7 @@ export class GoalManager {
    * Record token usage without incrementing turns (Kimi Code-style).
    */
   recordTokenUsage(delta: number): void {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return;
 
     const newTokens = g.tokensUsed + Math.max(0, delta);
@@ -359,14 +359,14 @@ export class GoalManager {
       tokensUsed: newTokens,
     }));
     // Silent persist (no UI update)
-    if (this.persistFn) this.persistFn(currentGoal);
+    if (this.persistFn) this.persistFn(goalState.current);
   }
 
   /**
    * Increment turn count (Kimi Code-style).
    */
   incrementTurn(): void {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return;
 
     const now = Date.now();
@@ -378,14 +378,14 @@ export class GoalManager {
       wallClockResumedAt: now,
     }));
     // Silent persist
-    if (this.persistFn) this.persistFn(currentGoal);
+    if (this.persistFn) this.persistFn(goalState.current);
   }
 
   /**
    * Set budget limits on the current goal (Kimi Code-style).
    */
   setBudgetLimits(limits: GoalBudgetLimits, actor: GoalActor = "user"): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return null;
 
     const updated = cloneSnapshot(g, this.withActor({
@@ -402,7 +402,7 @@ export class GoalManager {
    * Mark goal as usage_limited (provider quota exhausted, e.g., 429 error).
    */
   markUsageLimited(reason?: string, actor: GoalActor = "runtime"): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return null;
     const now = Date.now();
     let wallClockMs = g.wallClockMs;
@@ -424,7 +424,7 @@ export class GoalManager {
    * Mark goal as budget_limited (user token budget exceeded).
    */
   markBudgetLimited(reason?: string, actor: GoalActor = "runtime"): GoalSnapshot | null {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return null;
     const now = Date.now();
     let wallClockMs = g.wallClockMs;
@@ -447,7 +447,7 @@ export class GoalManager {
    */
   detectProviderLimitError(errorMessage: string | undefined): boolean {
     if (!errorMessage) return false;
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return false;
     const isProviderLimit = /429|rate.?limit|quota.?exhausted|usage.?limit|insufficient.?balance/i.test(errorMessage);
     if (isProviderLimit) {
@@ -461,7 +461,7 @@ export class GoalManager {
    * Build wrap-up instruction for budget_limited/usage_limited goals.
    */
   buildWrapUpInjection(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return undefined;
     if (g.status !== "budget_limited" && g.status !== "usage_limited") return undefined;
     const statusLabel = g.status === "budget_limited" ? "Token budget exceeded" : "Provider quota exhausted";
@@ -482,7 +482,7 @@ export class GoalManager {
    * @narumitw/pi-goal style: block stale tool calls after budget exhaustion.
    */
   shouldBlockTool(toolName: string, toolGoalId?: string): boolean {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return false;
 
     // Block stale tool calls (tool from old goal)
@@ -501,7 +501,7 @@ export class GoalManager {
    * Get current goal ID for tool tagging.
    */
   getCurrentGoalId(): string | null {
-    return currentGoal?.goalId ?? null;
+    return goalState.current?.goalId ?? null;
   }
 
   // ── Continuation Messages (@narumitw/pi-goal style) ───────────────────
@@ -511,7 +511,7 @@ export class GoalManager {
    * @narumitw/pi-goal style: send continuation after agent settles.
    */
   buildContinuationMessage(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return undefined;
 
     const parts = [
@@ -538,7 +538,7 @@ export class GoalManager {
    * Used to detect stale tool calls.
    */
   buildGoalIdTag(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "active") return undefined;
     return `[goal_id:${g.goalId}]`;
   }
@@ -549,13 +549,13 @@ export class GoalManager {
    * Budget guidance string for prompt injection (Kimi Code-style).
    */
   budgetBandGuidance(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     return budgetBandGuidance(g);
   }
 
   /** Build summary line for display */
   formatSummary(): string {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return "No goal set.";
     const badge: Record<string, string> = {
       active: "Active", paused: "Paused", blocked: "Blocked", complete: "Complete",
@@ -569,7 +569,7 @@ export class GoalManager {
 
   /** Build a GoalPanel-style formatted report (Kimi Code-style) */
   formatGoalPanel(goal?: GoalSnapshot): string {
-    const g = goal || currentGoal;
+    const g = goal || goalState.current;
     if (!g) return "No goal set.";
 
     const lines: string[] = [];
@@ -626,7 +626,7 @@ export class GoalManager {
    * Format: [goal ● active · 4m · 7/20 turns]
    */
   buildFooterBadge(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status === "complete") return undefined;
 
     // Status dot color: active=primary, blocked=warning, paused=muted
@@ -649,7 +649,7 @@ export class GoalManager {
    * Get status color for Goal Badge (for theme integration).
    */
   getFooterBadgeColor(): string {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g) return "muted";
     switch (g.status) {
       case "active": return "accent";
@@ -662,7 +662,7 @@ export class GoalManager {
 
   /** Build model-facing injection text for <untrusted_objective> block */
   buildInjection(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status === "complete") return undefined;
     const budgetLine = this.budgetBandGuidance();
     if (g.status === "active") {
@@ -728,7 +728,7 @@ export class GoalManager {
    * Shows when goal completes.
    */
   formatCompletionStats(): string | undefined {
-    const g = currentGoal;
+    const g = goalState.current;
     if (!g || g.status !== "complete") return undefined;
 
     const durationMs = g.wallClockMs;
@@ -747,7 +747,7 @@ export class GoalManager {
 
   /** Serialize to entry data for appendEntry persistence */
   toEntryData(): GoalSnapshot | null {
-    return currentGoal;
+    return goalState.current;
   }
 
   /** Restore from entry data */
@@ -761,7 +761,7 @@ export class GoalManager {
    * manager and passes them in, keeping core free of session APIs.
    */
   tryRestoreFromEntries(entries: any[]): boolean {
-    if (currentGoal) return true;
+    if (goalState.current) return true;
     try {
       if (!entries) return false;
       for (let i = entries.length - 1; i >= 0; i--) {

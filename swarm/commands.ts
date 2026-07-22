@@ -5,16 +5,11 @@
 import type { AutocompleteItem } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-  currentSwarm,
-  cancelPending,
-  cancelTimer,
-  savedSwarmState,
-  activeSessions,
+  swarmState,
   setCancelPending,
   setCancelTimer,
   setSwarmCancelled,
   setSavedSwarmState,
-  globalAbortController,
 } from "../packages/core/swarm/types";
 import { TasksBrowserComponent, TasksBrowserProps } from "./task-browser";
 import { UserCancellationError } from "./subagent";
@@ -49,7 +44,7 @@ export async function openTaskBrowser(ctx: ExtensionContext): Promise<void> {
   // Helper to build props with current state + live tasks
   function buildProps(done: (v?: any) => void): TasksBrowserProps {
     return {
-      tasks: currentSwarm?.tasks || [],
+      tasks: swarmState.currentSwarm?.tasks || [],
       filter,
       selectedTaskId,
       outputPreview,
@@ -62,8 +57,8 @@ export async function openTaskBrowser(ctx: ExtensionContext): Promise<void> {
       onCancel: () => { done(undefined); },
       onStopConfirmed: (taskId: string) => {
         // Abort the session for this task — surface failures instead of swallowing
-        if (activeSessions) {
-          const entry = activeSessions.get(taskId);
+        if (swarmState.activeSessions) {
+          const entry = swarmState.activeSessions.get(taskId);
           if (entry) entry.session.abort().catch((e: unknown) => {
             const msg = e instanceof Error ? e.message : String(e);
             try { ctx.ui.notify(`Failed to abort task ${taskId}: ${msg}`, "error"); } catch { console.error(`[swarm] abort failed for ${taskId}:`, msg); }
@@ -71,7 +66,7 @@ export async function openTaskBrowser(ctx: ExtensionContext): Promise<void> {
         }
       },
       onOpenOutput: (taskId: string) => {
-        const s = currentSwarm;
+        const s = swarmState.currentSwarm;
         if (!s) return;
         const task = s.tasks.find(t => t.id === taskId);
         if (!task) return;
@@ -101,7 +96,7 @@ export async function openTaskBrowser(ctx: ExtensionContext): Promise<void> {
         let lastTickFp: string | null = null;
         refreshTimer = setInterval(() => {
           if (!component) return;
-          const tasks = currentSwarm?.tasks || [];
+          const tasks = swarmState.currentSwarm?.tasks || [];
           let fp = `${filter}:${selectedTaskId ?? ""}:${outputPreview?.length ?? 0}:${flashMessage ?? ""}`;
           for (const t of tasks) {
             fp += `#${t.id}:${t.status}:${t.toolCalls}/${t.estimatedTotalCalls}:${t.currentAction ?? ""}:${(t.outputLines || []).length}`;
@@ -170,9 +165,9 @@ export function registerCommands(pi: ExtensionAPI): void {
       } else if (arg === "status") {
         const { default: state } = await import("../state");
         let msg = `Swarm mode: ${state.swarmEnabled ? "ON ✓" : "OFF ✗"}`;
-        if (savedSwarmState) {
-          const completed = savedSwarmState.completedItems.length;
-          const total = savedSwarmState.items.length;
+        if (swarmState.savedSwarmState) {
+          const completed = swarmState.savedSwarmState.completedItems.length;
+          const total = swarmState.savedSwarmState.items.length;
           msg += `  |  Resume available: ${completed}/${total} completed`;
         }
         ctx.ui.notify(msg, "info");
@@ -191,22 +186,22 @@ export function registerCommands(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       if ((args || "").trim() === "--force") {
         setCancelPending(false);
-        if (cancelTimer) { clearTimeout(cancelTimer); setCancelTimer(null); }
+        if (swarmState.cancelTimer) { clearTimeout(swarmState.cancelTimer); setCancelTimer(null); }
         setSwarmCancelled(true);
         // Abort via parent controller → propagates to all children
-        if (globalAbortController && !globalAbortController.signal.aborted) {
-          globalAbortController.abort(new UserCancellationError());
+        if (swarmState.globalAbortController && !swarmState.globalAbortController.signal.aborted) {
+          swarmState.globalAbortController.abort(new UserCancellationError());
         }
         ctx.ui.notify(" Swarm cancelled.", "warning");
         return;
       }
 
-      if (cancelPending) {
+      if (swarmState.cancelPending) {
         setCancelPending(false);
-        if (cancelTimer) { clearTimeout(cancelTimer); setCancelTimer(null); }
+        if (swarmState.cancelTimer) { clearTimeout(swarmState.cancelTimer); setCancelTimer(null); }
         setSwarmCancelled(true);
-        if (globalAbortController && !globalAbortController.signal.aborted) {
-          globalAbortController.abort(new UserCancellationError());
+        if (swarmState.globalAbortController && !swarmState.globalAbortController.signal.aborted) {
+          swarmState.globalAbortController.abort(new UserCancellationError());
         }
         ctx.ui.notify(" Swarm cancelled.", "warning");
       } else {
@@ -231,14 +226,14 @@ export function registerCommands(pi: ExtensionAPI): void {
       // Ownership + idle validation (kimi agent.ts:302 parity): there must
       // be a saved interrupted swarm with remaining items, and no other
       // swarm may be in flight right now.
-      const verdict = validateSwarmResume(savedSwarmState, currentSwarm);
+      const verdict = validateSwarmResume(swarmState.savedSwarmState, swarmState.currentSwarm);
       if (!verdict.ok) {
         ctx.ui.notify(verdict.reason ?? "Cannot resume.", verdict.reason?.includes("already running") ? "warning" : "info");
         if (verdict.reason?.includes("Nothing to resume")) setSavedSwarmState(null);
         return;
       }
 
-      const ss = savedSwarmState!;
+      const ss = swarmState.savedSwarmState!;
       const { name, modelTier, subagentType, promptTemplate, maxConcurrency } = ss;
       const pendingItems = verdict.pendingItems;
 

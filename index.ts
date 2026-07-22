@@ -26,11 +26,7 @@ import type { ModelTier, SubAgentType, SwarmState, SubAgentTask } from "./packag
 import { setResumeResult } from "./packages/core/swarm/types";
 import {
   FRAME_INTERVAL_MS,
-  currentSwarm,
-  activeSessions,
-  cancelPending,
-  cancelTimer,
-  savedSwarmState,
+  swarmState,
   setCurrentSwarm,
   setActiveSessions,
   setCancelPending,
@@ -38,7 +34,6 @@ import {
   setSwarmCancelled,
   setSavedSwarmState,
   setGlobalAbortController,
-  globalAbortController,
   progressEstimator,
 } from "./packages/core/swarm/types";
 import { getDefaultModel, getDefaultProvider, runSubAgent, runProgressive, linkAbortSignal } from "./swarm/subagent";
@@ -158,7 +153,7 @@ async function runSwarmInBackground(
     backgroundManager.fail(bgId, e?.message || String(e));
   } finally {
     clearInterval(stopPoll);
-    if (currentSwarm === state) setCurrentSwarm(null);
+    if (swarmState.currentSwarm === state) setCurrentSwarm(null);
   }
 }
 
@@ -274,7 +269,7 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.setStatus("goal", ctx.ui.theme.fg(color, goalBadge));
     }
     // Running agents count (Kimi Code-style: [3 agents running])
-    const agentCount = activeSessions?.size ?? 0;
+    const agentCount = swarmState.activeSessions?.size ?? 0;
     ctx.ui.setStatus("agent-count", agentCount > 0
       ? ctx.ui.theme.fg("accent", `[${agentCount} agents running]`)
       : undefined
@@ -390,7 +385,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     // Running agents count (Kimi Code-style)
-    const agentCount = activeSessions?.size ?? 0;
+    const agentCount = swarmState.activeSessions?.size ?? 0;
     ctx.ui.setStatus("agent-count", agentCount > 0
       ? ctx.ui.theme.fg("accent", `[${agentCount} agents running]`)
       : undefined
@@ -891,8 +886,8 @@ export default function (pi: ExtensionAPI) {
       setActiveSessions(new Map());
       setCancelPending(false);
       setSwarmCancelled(false);
-      if (cancelTimer) {
-        clearTimeout(cancelTimer);
+      if (swarmState.cancelTimer) {
+        clearTimeout(swarmState.cancelTimer);
         setCancelTimer(null);
       }
 
@@ -931,7 +926,7 @@ export default function (pi: ExtensionAPI) {
 
       // Setup parent abort controller for cancel propagation
       setGlobalAbortController(new AbortController());
-      const unlinkGlobal = linkAbortSignal(signal, globalAbortController!);
+      const unlinkGlobal = linkAbortSignal(signal, swarmState.globalAbortController!);
 
       const theme = ctx.ui.theme;
       state.status = "running";
@@ -941,7 +936,7 @@ export default function (pi: ExtensionAPI) {
       // browser). pi mounts it via setWidget and calls render(width) with the
       // real viewport width; all line building is fingerprint-gated inside
       // widget.update().
-      const widget = new SwarmWidgetComponent(() => currentSwarm, theme, () => cancelPending);
+      const widget = new SwarmWidgetComponent(() => swarmState.currentSwarm, theme, () => swarmState.cancelPending);
       let widgetTui: any = null;
       ctx.ui.setWidget("swarm-mode-progress", (t: any, _th: any) => {
         widgetTui = t;
@@ -995,13 +990,13 @@ export default function (pi: ExtensionAPI) {
       // bounded by max_concurrency via the worker pool in runProgressive.
       try {
         await runProgressive(tasks, maxC, async (task) => {
-          if (signal.aborted || currentSwarm === null) {
+          if (signal.aborted || swarmState.currentSwarm === null) {
             task.status = "aborted";
             return;
           }
           // Combined signal: tool-level abort OR global /cancel
           const combinedSignal = AbortSignal.any?.(
-            [signal, globalAbortController?.signal].filter(Boolean) as AbortSignal[],
+            [signal, swarmState.globalAbortController?.signal].filter(Boolean) as AbortSignal[],
           ) ?? signal;
           await runSubAgent(task, ctx, combinedSignal, updateProgress);
         }, { initialBatch: Math.min(5, maxC), spacingMs: 700 });
@@ -1050,7 +1045,7 @@ export default function (pi: ExtensionAPI) {
           try {
             ctx.ui.setWidget("swarm-mode-progress", undefined);
           } catch { /* stale ctx */ }
-          if (currentSwarm === state) setCurrentSwarm(null);
+          if (swarmState.currentSwarm === state) setCurrentSwarm(null);
         }, 30000);
       }
 
@@ -1283,7 +1278,7 @@ export default function (pi: ExtensionAPI) {
           try {
             ctx.ui.setWidget("swarm-mode-progress", undefined);
           } catch { /* stale ctx */ }
-          if (currentSwarm === state) setCurrentSwarm(null);
+          if (swarmState.currentSwarm === state) setCurrentSwarm(null);
         }, 30000);
       }
 

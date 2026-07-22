@@ -24,7 +24,7 @@ function getPlanStateFile(ctx: any): string {
  *
  * NOTE: This file is a best-effort session mirror / debugging aid. It is
  * intentionally NOT read back as the source of truth. The authoritative
- * in-process state lives in PlanManager (currentPlanMode.isActive), which
+ * in-process state lives in PlanManager (planModeState.isActive), which
  * is also used by plan-mode tool gating in the extension entry point.
  * Keeping writes here allows external observers to inspect the last known
  * state without creating a second truth source.

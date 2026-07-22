@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { PermissionMode, PolicyContext, PolicyResult } from './types.ts';
-import { currentMode, setMode, sessionApprovals } from './types.ts';
+import { setMode, sessionApprovals } from './types.ts';
 import { policyChain, isDestructive, inputFingerprint } from './policies.ts';
 import { loadAgentsMd } from './config.ts';
 import { hookEngine } from '../hooks/index.ts';
