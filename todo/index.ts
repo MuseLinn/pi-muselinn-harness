@@ -3,7 +3,7 @@
 //
 // The model rewrites the whole list per update (Kimi Code semantics);
 // the panel above the editor shows the folded view
-// (selectVisibleTodos) and ctrl+t toggles expanded/collapsed. State
+// (selectVisibleTodos) and alt+t toggles expanded/collapsed. State
 // persists to session entries so the panel survives hot-reload.
 // ============================================================
 
@@ -42,12 +42,12 @@ function buildWidgetLines(theme: any): string[] | undefined {
   const counts = summarizeTodos(rt.todos);
   const head = theme.fg("dim", `─ todo (${counts.in_progress} active · ${counts.pending} pending · ${counts.done} done) ─`);
   if (rt.expanded) {
-    return [head, ...rt.todos.map((t) => statusLine(t, theme)), theme.fg("dim", "ctrl+t collapse")];
+    return [head, ...rt.todos.map((t) => statusLine(t, theme)), theme.fg("dim", "alt+t collapse")];
   }
   const { rows, hidden, hiddenCounts } = selectVisibleTodos(rt.todos);
   const lines = [head, ...rows.map((t) => statusLine(t, theme))];
   if (hidden > 0) {
-    lines.push(theme.fg("dim", `… +${hidden} more (${hiddenCounts.done} done · ${hiddenCounts.in_progress} in progress) · ctrl+t expand`));
+    lines.push(theme.fg("dim", `… +${hidden} more (${hiddenCounts.done} done · ${hiddenCounts.in_progress} in progress) · alt+t expand`));
   }
   return lines;
 }
@@ -145,8 +145,8 @@ export function registerTodoList(pi: any): void {
     },
   });
 
-  // ctrl+t toggles the panel's expanded view.
-  pi.registerShortcut("ctrl+t", {
+  // alt+t toggles the panel's expanded view (ctrl+t is pi built-in thinking toggle).
+  pi.registerShortcut("alt+t", {
     description: "Expand/collapse the todo panel",
     handler: () => {
       if (rt.todos.length === 0) return;
