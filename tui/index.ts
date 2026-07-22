@@ -12,6 +12,7 @@
 // ============================================================
 
 import { type EditorStyle } from "../packages/core/tui/box";
+import { shouldKeepAliveRender, wallClockFrameIndex } from "../packages/core/tui/keepalive";
 import { loadTuiConfig, saveTuiConfig, type TuiConfig } from "../packages/core/tui/config";
 import { MuselinnEditor } from "./editor";
 import { parseTuiArgs } from "../packages/core/tui/parse";
@@ -34,7 +35,8 @@ interface TuiRuntime {
   working: boolean;
   workingMessage: string | undefined;
   runningTools: Set<string>;
-  spinnerIndex: number;
+  /** Wall-clock of the last pi render observed via the editor probe. */
+  lastRenderAt: number;
   spinnerTimer: ReturnType<typeof setInterval> | null;
 }
 
@@ -48,7 +50,7 @@ const rt: TuiRuntime = {
   working: false,
   workingMessage: undefined,
   runningTools: new Set(),
-  spinnerIndex: 0,
+  lastRenderAt: 0,
   spinnerTimer: null,
 };
 
@@ -76,7 +78,10 @@ function slotLeft(): string {
   if (badge) parts.push(theme.fg("warning", badge));
   if (rt.working) {
     const frames = getSpinnerFrames();
-    const frame = frames[rt.spinnerIndex % frames.length];
+    // Wall-clock frame: the spinner advances whenever pi renders for any
+    // reason (streaming deltas drive plenty), so the keep-alive timer below
+    // only needs to cover quiet gaps — not drive the animation itself.
+    const frame = frames[wallClockFrameIndex(frames.length, Date.now(), FRAME_INTERVAL_MS)];
     parts.push(theme.fg("accent", frame));
     if (rt.workingMessage) parts.push(theme.fg("dim", rt.workingMessage));
   }
@@ -128,6 +133,7 @@ export function applyStyleToUi(ui: TuiUiLike, style: EditorStyle): void {
       style,
       { left: slotLeft, right: slotRight },
       isTimingEnabled() ? renderTiming : null,
+      () => { rt.lastRenderAt = performance.now(); },
     );
     return rt.editor;
   });
@@ -144,11 +150,15 @@ function stopSpinner(): void {
 
 function startSpinner(): void {
   stopSpinner();
+  // Keep-alive only: pi-tui re-renders the WHOLE component tree per frame,
+  // which at high context costs real milliseconds. The animation itself
+  // rides on pi's natural renders (wall-clock frame in slotLeft); this
+  // timer exists solely to cover quiet gaps (long tool executions with no
+  // streaming), and skips itself whenever a render happened recently.
   rt.spinnerTimer = setInterval(() => {
-    if (!rt.working) return;
-    rt.spinnerIndex += 1;
+    if (!shouldKeepAliveRender(rt.working, rt.lastRenderAt, performance.now())) return;
     try { rt.tui?.requestRender(); } catch { /* stale tui */ }
-  }, FRAME_INTERVAL_MS);
+  }, 500);
 }
 
 function setWorking(working: boolean, message?: string): void {
@@ -190,7 +200,7 @@ export function registerTui(pi: ExtensionAPI): void {
     rt.working = false;
     rt.workingMessage = undefined;
     rt.runningTools.clear();
-    rt.spinnerIndex = 0;
+    rt.lastRenderAt = 0;
     rt.modelInBorder = config.modelInBorder;
 
     applyStyleToUi(ctx.ui, config.style);

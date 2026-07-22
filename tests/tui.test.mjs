@@ -328,5 +328,21 @@ check("spinner: unknown style falls back to braille",
   getSpinnerFrames() === SPINNER_STYLES.braille);
 delete process.env.PI_MUSELINN_SPINNER;
 
+// ── spinner keep-alive gate (wall-clock piggyback render) ──
+const { shouldKeepAliveRender, wallClockFrameIndex, KEEP_ALIVE_QUIET_MS } = loadTs(`${EXT}/packages/core/tui/keepalive.ts`);
+check("keep-alive: not working -> no render",
+  shouldKeepAliveRender(false, 0, 10000) === false);
+check("keep-alive: working + recent render -> skip",
+  shouldKeepAliveRender(true, 9800, 10000) === false);
+check("keep-alive: working + quiet >= threshold -> render",
+  shouldKeepAliveRender(true, 9500, 10000) === true);
+check("keep-alive: never rendered (0) -> render",
+  shouldKeepAliveRender(true, 0, 10000) === true);
+check("keep-alive: quiet threshold is 400ms",
+  KEEP_ALIVE_QUIET_MS === 400);
+check("wall-clock frame: advances by time, wraps around",
+  wallClockFrameIndex(8, 0, 250) === 0 && wallClockFrameIndex(8, 250, 250) === 1 &&
+  wallClockFrameIndex(8, 2000, 250) === 0 && wallClockFrameIndex(8, 2250, 250) === 1);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

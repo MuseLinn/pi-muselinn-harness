@@ -33,6 +33,7 @@ export class MuselinnEditor extends CustomEditor {
   private readonly slots: EditorSlots;
   private readonly timing: RenderTiming | null;
   private readonly tui: TUI;
+  private readonly onRender: (() => void) | null;
   private autocompleteWasShowing = false;
 
   constructor(
@@ -42,6 +43,7 @@ export class MuselinnEditor extends CustomEditor {
     style: EditorStyle,
     slots: EditorSlots,
     timing: RenderTiming | null = null,
+    onRender: (() => void) | null = null,
   ) {
     // boxed needs column 0 reserved for the left │ bar (pi-tui pads rows
     // with spaces up to paddingX; wrapWithSideBorders overlays them).
@@ -50,6 +52,7 @@ export class MuselinnEditor extends CustomEditor {
     this.chromeStyle = style;
     this.slots = slots;
     this.timing = timing;
+    this.onRender = onRender;
   }
 
   /**
@@ -90,6 +93,7 @@ export class MuselinnEditor extends CustomEditor {
   }
 
   override render(width: number): string[] {
+    this.onRender?.();
     this.trackAutocompleteCloseForFullRender();
     const t0 = this.timing ? performance.now() : 0;
     const lines = super.render(width);
