@@ -80,7 +80,7 @@ export class GoalManager {
       throw new Error("已有 active 目标,使用 replace=true 或 /goal replace 才能覆盖");
     }
     const goal: GoalSnapshot = {
-      goalId: `g-${Date.now().toString(36)}`,
+      goalId: `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       objective,
       completionCriterion,
       status: "active",
