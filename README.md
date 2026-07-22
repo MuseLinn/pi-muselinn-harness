@@ -19,7 +19,7 @@
 
 [中文文档](README.zh-CN.md) · [Project page](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev catalog](https://pi.dev/packages)
 
-![Closed-box editor with streaming state in the top border](https://raw.githubusercontent.com/MuseLinn/pi-muselinn-harness/main/docs/assets/img/pi-boxed-editor.png)
+![Closed-box editor with streaming state in the top border](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
 
 ## Install
 
