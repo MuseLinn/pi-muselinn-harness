@@ -1,0 +1,39 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  # Full test matrix as the publish gate (reuses test.yml).
+  test:
+    uses: ./.github/workflows/test.yml
+
+  publish:
+    name: npm publish
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci --no-audit --no-fund --legacy-peer-deps
+
+      # Belt and braces: the matrix already gated this tag, but never
+      # publish without a green suite on this exact checkout.
+      - run: npm test
+
+      # Requires an NPM_TOKEN secret (npm granular/automation token with
+      # publish rights on pi-muselinn-harness) configured in the repo:
+      # Settings → Secrets and variables → Actions.
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

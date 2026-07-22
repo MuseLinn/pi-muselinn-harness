@@ -1,0 +1,32 @@
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · node ${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # devDependencies only: jiti (CJS-loader suites) + typescript
+      # (tests/ts-esm-loader.mjs, used on the node 20 leg which predates
+      # native type stripping). Peer deps (pi packages) are not needed by
+      # the pure node-level suites.
+      - run: npm ci --no-audit --no-fund --legacy-peer-deps
+
+      # node tests/run-all.mjs — spawns every tests/*.test.mjs, picks the
+      # right TS loading strategy for the node version.
+      - run: npm test
