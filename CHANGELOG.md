@@ -1,0 +1,43 @@
+# Changelog
+
+## 0.7.7
+
+### Fixes
+
+- **plan** (`dbc917c`) — rtk-wrapped bash gate + revise-preserving review flow + restore validation
+  - bash read-only gate peels env assignments and a leading `rtk` wrapper (pi-rtk-optimizer rewrites commands in place; the gate now vets the rewritten string) and accepts Windows `dir` listings
+  - `enter_plan_mode` seeds a placeholder plan file; exit syncs in-memory content from disk so the review panel never shows a stale/empty plan
+  - `reenterForRevision()`: Revise / a cancelled review keeps the **same** plan object (id / path / content) instead of trapping the user or losing work; review timeout 60 s → 600 s
+  - `validateRestoredState()`: a stale persisted active-plan entry with no content and no file on disk deactivates plan mode instead of silently trapping the session
+  - plan state persists on every change; goal + plan restore runs **before** the session_start badge section; tool-driven plan mode sets/clears the footer badge just like `/plan`
+- **goal** (`95bc30c`) — monotonic badge counters + pure-display tick + verified=true completion docs
+  - the footer badge no longer restores from persisted entries on every 1 s tick / `turn_end` — restore happens at session_start and (restore-if-empty) at goal tool entry points, so `turns` no longer flickers
+  - `restoreFromData` merges counters monotonically (max) for the same goalId — a stale entry can never pull turns / tokens / wall-clock backwards
+  - `clear()` appends a complete-status tombstone entry; both restore paths treat a latest `complete` entry as ended, so a completed goal can't be resurrected with stale counters
+  - `create_goal` / `update_goal` docs and parameter descriptions now state explicitly: with a declared `completion_criterion`, `status='complete'` is refused unless `verified=true` is passed in the same call
+
+### Features
+
+- **ask** — tabbed multi-question dialog (`c0f9668`): 1–4 questions in one dialog with per-question header tabs, `multi_select` checkboxes, and an automatic free-text **Other** option; plus ask dialog robustness (`02073ed`) — scrolling window for long option lists, answer deduplication, and background-question support
+
+### Internal
+
+- **core** (`6b637ed`) — cross-module `export let` state replaced with `export const` containers (jiti 2.7.0 stale-namespace snapshots made importers observe stale state)
+- **tui** (`5d0134c`) — spinner rides pi's natural renders (wall-clock frame); the keep-alive timer skips busy periods
+- **tests** — portable jiti resolution (`tests/jiti-path.mjs`, no more machine-specific absolute path), `npm test` runner (`tests/run-all.mjs`) with per-node-version TS loading, and a TypeScript-transpile ESM loader for Node 20 (`tests/ts-esm-loader.mjs`)
+- **ci** — GitHub Actions: push/PR test matrix (ubuntu + windows × node 20/22) and tag-triggered (`v*`) npm publish with the test matrix as gate
+
+## 0.7.6
+
+- README: absolute GitHub link for MusePi-PLAN.md (jsdelivr 404 on npm), softened maintenance wording, screenshot hosted via GitHub Pages (raw.githubusercontent 404s while the repo is private)
+
+## 0.7.5
+
+- Project page: 0.7.4/0.7.5 highlights, MusePi section, refreshed roadmap; eight-module zh intro
+
+## 0.7.4
+
+- Native `ask_user_question` tool and `todo_list` tool + inline panel (`alt+t`) — replaces the external rpiv companion packages
+- Approval panel with per-tool titles, number-key selection, reject-with-reason (manual permission tier)
+- Swarm permission gating with `/mode` broadcast; subagent resume guard; oversized tool results truncated to disk with `output_path`; no-UI permission blocks state NOT-executed explicitly
+- Verified against pi 0.81.x

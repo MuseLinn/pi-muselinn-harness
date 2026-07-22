@@ -8,9 +8,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { createRequire } from "node:module";
 
-const { createJiti } = await import(
-  "file:///C:/Users/unive/AppData/Roaming/npm/node_modules/@earendil-works/pi-coding-agent/node_modules/jiti/lib/jiti.cjs"
-);
+import { jitiUrl } from "./jiti-path.mjs";
+const { createJiti } = await import(jitiUrl());
 const jiti = createJiti(import.meta.url ?? __filename, { moduleCache: false });
 const nativeRequire = createRequire(import.meta.url);
 const moduleCache = new Map();
