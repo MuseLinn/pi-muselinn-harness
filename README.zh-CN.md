@@ -3,7 +3,7 @@
 
 Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills 七模块架构，全面对齐 Kimi Code 的子系统行为。
 
-> **维护模式（0.7.4 起）**：本扩展只接收 bug 修复与 Pi 兼容更新。新功能在 **MusePi**（Pi fork）开发 — 见 [MusePi-PLAN.md](MusePi-PLAN.md)。已验证兼容 pi 0.81.x。
+> **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x。
 
 ### 0.7.4 新功能
 
