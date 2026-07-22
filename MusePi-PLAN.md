@@ -187,5 +187,35 @@ Phase 4  Desktop（TUI 稳定后启动）
 - [x] **OMP 上游复查**（2026-07-21）：clone 后仅 3 commit（17.0.7 版本号/gateway id/vouch），无可吸收
 - [x] **provider extensions 评估**（用户问）：harness 模块不碰 provider，直接价值不大；其价值在生态侧（扩展可分发带 OAuth 的自定义 provider），fork 已通过 #6915 + registerProvider 改进保持兼容面
 - [x] **fallback-ask 无 UI 阻断措辞修复**（harness `e38954e` + fork `ab93674`）：block reason 明确"NOT executed"+指向权限模式，防弱模型谎报成功；harness 对 pi 0.81.0 全测试绿（401+3 断言）
-- [ ] **远期评估**（W 系列后逐个重估）：DAP 调试器（28 debug ops）、eval 双内核、/collab、mnemopi 向量记忆、advisor 旁路评审（W2 角色表已就位）
+- [ ] **远期评估**（W 系列后逐个重估）：DAP 调试器（28 debug ops）、eval 双内核、/collab、mnemopi 向量记忆、advisor 后台 watchdog（轻量工具版已落地，见 07-22 进展）
+- [ ] **W10 /move 命令**（OMP 复现，小项）：会话中切换 cwd——`handleMoveCommand`→`applyCwdChange`（reset capabilities + 刷新 slash 命令状态/skills/AGENTS.md 重扫）。参照 `oh-my-pi/docs/slash-command-internals.md:156`。pi 无此命令，fork 原生加
+- [x] **W11 MusePi 独立二进制分发 + 品牌化**（2026-07-22 完成）：bin/产物名 pi→musepi（`7b897456`）、build-binaries.sh 六平台 musepi-* 归档、release.yml tag 触发 GitHub Release（`71185683`）、--version 输出 `MusePi 0.1.0`
+
+---
+
+## 九、执行进度（2026-07-22 swarm 批次）
+
+**harness（pi-muselinn-harness，main 领先 7 提交未 push，0.7.7 待手动发布）**
+- [x] plan 修复 `dbc917c`：rtk 包装命令白名单（pi-rtk-optimizer 原地改写 command 导致只读命令被误拦）、Revise 保留 plan、评审超时 60s→600s 且取消不再静默 Revise、muselinn_plan 持久化接通（原为死代码）、restore 先于状态栏 + 陈旧激活态校验、工具触发的 plan 徽标刷新
+- [x] goal 修复 `95bc30c`：turns 闪变（clear 无墓碑→旧 goal 复活回跳；修复=墓碑 entry + max 单调合并 + 纯展示 tick）、update_goal verified=true 规则写入工具文档
+- [x] ask 三连 `02073ed`（滚动窗口/去重校验/background 后台提问/body+other 定制）+ `cac24fc`（**rpiv 吸收**：逐选项 markdown preview 双栏（≥100 列，窄屏 stacked）、n 键逐选项 notes、Chat row、结构化 kind/details 信封、保留标签校验）；测试 57→123 断言，18 套件全绿；运行时装全程同步 ~/.pi
+- [x] 0.7.7 发布准备 `3055568`+`771aaa4`+`7a16031`（version/CHANGELOG/CI 矩阵/tag 触发 publish/README 中英/Pages）——用户手动发布，仓库待转 public
+
+**MusePi（main 领先 12 提交未 push）**
+- [x] 独立身份三连 `710d368c..6a1f3372`：~/.musepi 配置 home + 0.1.0 版本线 + 首迁（只拷 4 配置文件）+ updateCheck 门控 + catalog 延迟加载提速
+- [x] k3 原生视频 `7adeea8a`：VideoContent 全管线 + video_url 线格式 + k3 能力声明 + read 工具魔数嗅探（限制：无 ms:// 上传、仅 read 路径）
+- [x] plan/goal 镜像 `2b8de88f`；CI+release `71185683`；README 品牌化 `fa67fdf8`
+- [x] **改名收尾 + 自有 update 通道** `619bc135`+`7b897456`：update 通道切到 MuseLinn/MusePi GitHub Releases（**堵死 `pi update --self` 交叉刷成上游 pi 的风险**，旧 npm self-update 整体移除）、updateCheck 默认开、bin/二进制/脚本全改名 musepi
+- [x] compat.loadPiExtensions `4173649a`（默认关，opt-in 桥接 ~/.pi 扩展）；死代码 ask 镜像删除 `30833598`
+- [x] **原生 advisor** `6b77d12b`（OMP 移植最小闭环）：advisor 工具→会话序列化→角色链选模型（advisor.model→modelRoles.advisor→会话模型）→一次性评审→`<advisory>` 块回注；后台 watchdog/严重度路由/花名册为有意不移植的"重"部分
+- [x] Pages 站点 `3b89c263`：docs/site 单页 + Actions deploy-pages（优于 gh-pages 分支：不污染 main 历史；用户需在 Settings→Pages 选 GitHub Actions source）
+
+**管理面差距矩阵**（详见 `projects/musepi-management-gap-matrix.md`）——剩余路线图按推荐顺序：
+1. ~~update 上游风险~~ ✅（07-22 已堵）
+2. **MCP 核心**（L+M）：MusePi 完全无 MCP——自研最小核心（stdio/http + tool bridge + 6 子命令；wizard/OAuth/Smithery 不做）
+3. **settings 面板**（M）：现有面板扁平单列表；基于 @musepi/core schema 做最小分组面板，不移植 omp 5381 行
+4. **agents 定义层**（M）：swarm 执行引擎已有，补 frontmatter agent 定义（2 scope）+ /agents 只读面板
+5. **skills 统一**（S–M）：七 scope scanner 已在 fork（@musepi/core/skills）但仅 swarm 用，主会话统一到七 scope
+6. extensions 管理（S）：上游 package-manager 已完整，仅文案品牌化
+7. 债：`npm run build` 的 model-data manifest 校验失败（moonshotai/kimi-k3 modalities，W4 时期遗留）——发 v0.1.0 前需 `npm run hydrate:model-data` 后正式重建验证
 - [x] **W4 hashline 哈希锚定编辑**（fork `e9af490a`）：引擎在 `@musepi/core/hashline`（store/parser/apply/recovery/format/prompt，22 断言零 pi import）；host 接缝 `coding-agent/src/musepi/hashline.ts`（per-session SnapshotStore，survives _buildRuntime rebuild）+ read/grep/edit 三工具接线（`musepi.edit.hashline` 默认开，关则零行为变化回退原生）；集成测试 8 断言（锚定/recovery/硬拒绝三路径）。实测：read 出 `[path#FCE0]` 锚 → 模型 `SWAP 3:` patch → applied → 铸造新 TAG `#431E` 并提示 re-anchor，全链路正确。另发现（非 W4 问题）：**extension 在 -p 无 UI 模式下 policy18 fallback-ask 会 block edit 且模型易误读为成功**——extension 维护项：无 UI 时应明确 isError 或 print 模式默认 auto 档
