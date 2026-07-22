@@ -1,7 +1,7 @@
 # pi-muselinn-harness
 
 
-Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills 七模块架构，全面对齐 Kimi Code 的子系统行为。
+Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task + Hooks + Skills + TUI 八模块架构，补齐 Pi 刻意不做的能力（子代理、计划模式……），全面对齐 Kimi Code 的子系统行为。
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x。
 
@@ -19,7 +19,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 [English](README.md) · [项目主页](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev 包目录](https://pi.dev/packages)
 
-![闭合框编辑器,上边框嵌入工作状态](docs/assets/img/pi-boxed-editor.png)
+![闭合框编辑器,上边框嵌入工作状态](https://raw.githubusercontent.com/MuseLinn/pi-muselinn-harness/main/docs/assets/img/pi-boxed-editor.png)
 
 ## 功能
 
@@ -99,7 +99,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 ### Todo 模块(内联任务计划)
 - **`todo_list` 工具** — update(整表重写) / read / clear；模型的计划在 turn 间对用户持续可见
-- **内联面板** — 编辑器上方 widget,采用 Kimi Code 的折叠策略（in_progress 全部优先，pending 取最早，保留一个最近完成位）;`ctrl+t` 展开/折叠
+- **内联面板** — 编辑器上方 widget,采用 Kimi Code 的折叠策略（in_progress 全部优先，pending 取最早，保留一个最近完成位）;`alt+t` 展开/折叠
 - **会话持久化** — 热重载不丢；新会话永远从空面板开始
 
 ### Web fetch 模块
@@ -160,7 +160,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `/mode` | 切换权限模式(auto/yolo/manual) |
 | `/tui` | 切换编辑器样式(plain/boxed/compact) |
 | `/plugins` | 查看已加载插件及能力 |
-| `ctrl+t` | 展开/折叠 todo 面板 |
+| `alt+t` | 展开/折叠 todo 面板 |
 | `/swarm-status` | 查看状态 |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` 均支持 Tab 子命令/参数补全。

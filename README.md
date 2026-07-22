@@ -19,7 +19,7 @@
 
 [中文文档](README.zh-CN.md) · [Project page](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev catalog](https://pi.dev/packages)
 
-![Closed-box editor with streaming state in the top border](docs/assets/img/pi-boxed-editor.png)
+![Closed-box editor with streaming state in the top border](https://raw.githubusercontent.com/MuseLinn/pi-muselinn-harness/main/docs/assets/img/pi-boxed-editor.png)
 
 ## Install
 
@@ -112,7 +112,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 
 ### Todo (inline task plan)
 - **`todo_list` tool** — update (full-list rewrite) / read / clear; the model's plan stays visible to the user between turns
-- **Inline panel** — above-editor widget with Kimi Code's folding strategy (all in_progress first, earliest pending, one slot for the most recent done); `ctrl+t` expand/collapse
+- **Inline panel** — above-editor widget with Kimi Code's folding strategy (all in_progress first, earliest pending, one slot for the most recent done); `alt+t` expand/collapse
 - **Session persistence** — survives hot-reload; a fresh session always starts with an empty panel
 
 ### Web fetch
@@ -161,7 +161,7 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `/tui` | Switch editor style (plain/boxed/compact), `/tui timing` |
 | `/plugins` | List loaded plugins and their capabilities |
 | `/swarm-status` | Show status |
-| `ctrl+t` | Expand/collapse the todo panel |
+| `alt+t` | Expand/collapse the todo panel |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` all support Tab completion.
 
