@@ -106,8 +106,9 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 > Note: a pi-spark-style BottomFiller pseudo-fullscreen was implemented, then removed — it only has visual effect when the conversation is shorter than one screen. True editor pinning needs alternate-screen support in pi-core.
 
 ### Ask (interactive questions)
-- **`ask_user_question` tool** — the agent asks the user numbered single-select questions (multi-question sequences supported); digit keys 1-9 jump straight to an option, arrows/jk navigate, Esc cancels
-- **Shared dialog component** — the same numbered component backs permission approval; in print/RPC mode the tool returns the questions as text instead of blocking
+- **`ask_user_question` tool** — the agent asks 1-4 structured questions in one tabbed dialog: per-question header tabs (`1/3 · header`, ←/→/Tab to switch), numbered options with description sub-lines, `multi_select` checkboxes (Space toggles, Enter confirms), and an automatic free-text **Other** option on every question; digit keys 1-9 jump straight to an option, arrows/jk navigate, Esc cancels
+- **Shared dialog component** — the same component backs permission approval (single-select, no Other); in print/RPC mode the tool returns the questions as text instead of blocking
+- **Answer reporting** — per-question answers (multi-select as an array); skipped questions and Esc-cancelled dialogs are reported distinctly
 - **Auto-mode safe** — auto mode denies `ask_user_question` by policy (no unattended hangs)
 
 ### Todo (inline task plan)
@@ -173,7 +174,7 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `agent` | Single subagent |
 | `create_goal` / `get_goal` / `update_goal` / `set_goal_budget` | Goal management |
 | `enter_plan_mode` / `exit_plan_mode` | Plan mode |
-| `ask_user_question` | Numbered single-select questions to the user |
+| `ask_user_question` | Tabbed structured questions (multi-select, Other free text) |
 | `todo_list` | Model-driven task plan with inline panel |
 | `fetch_url` | No-auth URL fetch with content-aware extraction |
 | `run_background` / `task_list` / `task_output` / `task_stop` | Background tasks |

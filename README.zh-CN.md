@@ -93,8 +93,9 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 > 注:曾移植 pi-spark 的 BottomFiller 伪全屏(钉底布局),因其只在短会话有视觉效果(长会话填充量恒为 0)已移除;真正的编辑器钉底需要 alternate screen,属 pi-core 范畴。
 
 ### Ask 模块(交互式提问)
-- **`ask_user_question` 工具** — agent 向用户发起编号单选提问（支持多题连问）；数字键 1-9 直选，方向键/jk 导航，Esc 取消
-- **共享对话框组件** — 权限审批复用同一编号组件；print/RPC 无 UI 模式下退化为文本提问，不阻塞
+- **`ask_user_question` 工具** — agent 一次发起 1-4 个结构化提问，共用一个标签页对话框：每题短标签页（`1/3 · header`，←/→/Tab 切换）、编号选项可带描述次行、`multi_select` 复选（空格切换、Enter 确认）、每题自动附带自由文本 **Other** 选项；数字键 1-9 直选，方向键/jk 导航，Esc 取消
+- **共享对话框组件** — 权限审批复用同一组件（单选、无 Other）；print/RPC 无 UI 模式下退化为文本提问，不阻塞
+- **结果回传** — 按题回传答案（多选为数组）；跳过的题与 Esc 取消区分上报
 - **auto 模式安全** — auto 模式下 `ask_user_question` 被策略专门拒绝（防无人值守卡死）
 
 ### Todo 模块(内联任务计划)
@@ -173,7 +174,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 | `agent` | 单个子代理 |
 | `create_goal` / `get_goal` / `update_goal` / `set_goal_budget` | 目标管理 |
 | `enter_plan_mode` / `exit_plan_mode` | Plan Mode |
-| `ask_user_question` | 向用户发起编号单选提问 |
+| `ask_user_question` | 标签页结构化提问（多选、Other 自由文本） |
 | `todo_list` | 模型驱动的任务计划（内联面板） |
 | `fetch_url` | 无鉴权 URL 抓取（内容感知提取） |
 | `run_background` / `task_list` / `task_output` / `task_stop` | 后台任务 |
