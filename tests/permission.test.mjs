@@ -212,6 +212,21 @@ permissionManager.setMode("yolo");
   check("subagent(yolo): sensitive file still blocked", r?.block === true, JSON.stringify(r));
 }
 
+// 无 UI（print/RPC）时 block reason 必须明确告知模型"未执行"，防弱模型谎报成功
+permissionManager.setMode("manual");
+{
+  const r = await permissionManager.evaluate("edit", { path: "src/app.ts" }, cleanCwd, {
+    hasUI: false,
+    sessionId: "perm-test-session",
+    ui: { confirm: async () => false },
+  });
+  check("no-UI: edit is blocked", r?.block === true, JSON.stringify(r));
+  check("no-UI: reason states NOT executed explicitly",
+    /NOT executed/i.test(r?.reason ?? ""), r?.reason);
+  check("no-UI: reason is actionable (mentions permission mode)",
+    /permission mode|interactively/i.test(r?.reason ?? ""), r?.reason);
+}
+
 permissionManager.setMode("manual");
 permissionManager.resetHistory();
 fs.rmSync(cleanCwd, { recursive: true, force: true });

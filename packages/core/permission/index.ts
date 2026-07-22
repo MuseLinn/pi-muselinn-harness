@@ -120,7 +120,13 @@ export class PermissionManager {
 
         if (result.kind === 'ask') {
           if (!policyCtx.hasUI) {
-            return { block: true, reason: `${policy.name}: no UI available for approval` };
+            return {
+              block: true,
+              reason:
+                `BLOCKED — tool "${toolName}" was NOT executed: this session is non-interactive (no UI), ` +
+                `so the required approval (${policy.name}) could not be presented. ` +
+                `Do not treat the action as completed. Ask the user to run interactively or switch permission mode (auto/yolo).`,
+            };
           }
           try { void hookEngine.fire('PermissionRequest', { tool_name: toolName, policy: policy.name, message: result.message }, { matcherText: toolName, cwd }); } catch { /* hooks fail open */ }
 
