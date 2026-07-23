@@ -6,6 +6,14 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x.
 
+### What's new in 0.7.8
+
+- **Task module reliability fixes** — the two root causes behind broken background tasks on pi ≥ 0.81:
+  - `run_background` died at spawn (`task_output` empty, `block:true` returned instantly): the subagent resource loader omitted `LoadExtensionsResult.runtime`, which pi 0.81's `ExtensionRunner.bindCore` requires — `createAgentSession` threw and every background task failed immediately. The loader now includes the runtime when the SDK provides it (still 0.80-compatible)
+  - `task_list` crashed with no arguments while `active_only:true` worked: restored persisted entries carry the task text as `description` (or not at all), and the list formatter called `prompt.slice()` on `undefined`. Restore now maps `description` → `prompt` and defaults missing prompts; `task_output` also surfaces `[task failed: <error>]` for tasks that died before producing output
+- **Plan persistence dedup** — `PlanManager.persist()` skips appends identical to the last persisted state (observed: 5 identical `muselinn_plan` entries within 25 s), and restore seeds the dedup baseline so a no-change persist doesn't re-append
+- **Tests** — new `task.test.mjs` suite (16 checks) + plan dedup regression cases; 19 suites / 580 assertions, all green
+
 ### What's new in 0.7.7
 
 - **Plan mode fixes** — the bash read-only gate now understands `rtk`-wrapped commands (pi-rtk-optimizer rewrites commands in place) and Windows `dir`; **Revise** keeps the same plan object instead of trapping you or losing work; review timeout raised 60 s → 600 s; a stale persisted plan with no file on disk deactivates cleanly instead of trapping the session; the `plan` badge now also follows tool-driven plan mode
@@ -35,7 +43,7 @@
 pi install npm:pi-muselinn-harness
 ```
 
-Already installed? Re-run the same command to upgrade to the latest release (0.7.7).
+Already installed? Re-run the same command to upgrade to the latest release (0.7.8).
 
 Or from git / local source:
 
@@ -120,6 +128,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 ### Ask (interactive questions)
 - **`ask_user_question` tool** — the agent asks 1-4 structured questions in one tabbed dialog: per-question header tabs (`1/3 · header`, ←/→/Tab to switch), numbered options with description sub-lines, `multi_select` checkboxes (Space toggles, Enter confirms), and an automatic free-text **Other** option on every question; digit keys 1-9 jump straight to an option, arrows/jk navigate, Esc cancels
 - **Robust by default** — long option lists scroll inside a bounded window, duplicate answers are deduplicated, and questions can be posed from background tasks without wedging the UI
+- **Previews, notes, chat row** — options can carry Markdown **previews** (side-by-side pane on wide terminals, stacked below on narrow ones); attach a per-option **note** with `n`; a **Chat about this** row ends the dialog with a `chat` result so the user can discuss the question instead of answering it
 - **Shared dialog component** — the same component backs permission approval (single-select, no Other); in print/RPC mode the tool returns the questions as text instead of blocking
 - **Answer reporting** — per-question answers (multi-select as an array); skipped questions and Esc-cancelled dialogs are reported distinctly
 - **Auto-mode safe** — auto mode denies `ask_user_question` by policy (no unattended hangs)
@@ -242,7 +251,7 @@ pi-muselinn-harness/
 
 ## Tests
 
-Pure node-level unit tests, no model quota needed (18 suites, 500+ assertions):
+Pure node-level unit tests, no model quota needed (19 suites, 580 assertions):
 
 ```bash
 npm test                                        # all suites (node tests/run-all.mjs)
@@ -253,13 +262,14 @@ or individually:
 ```bash
 node tests/permission.test.mjs                    # Permission policy chain + subagent gate — 22
 node tests/goal.test.mjs                          # Goal state machine + monotonic restore — 32
-node tests/plan.test.mjs                          # Plan mode round-trip + restore validation — 34
+node tests/plan.test.mjs                          # Plan mode round-trip + restore validation — 38
+node tests/task.test.mjs                          # Task restore/list/output/block + loader runtime — 16
 node tests/cron.test.mjs                          # Cron subsystem — 16
 node tests/hooks.test.mjs                         # Hooks engine — 43
 node tests/skills.test.mjs                        # Skills scan/parse/scopes/discover — 38
 node tests/tui.test.mjs                           # TUI collapse/keys/completions/spinner — 62
 node tests/tui-box.test.mjs                       # TUI box/config/probe/switch — 61
-node tests/ask.test.mjs                           # ask spec/dialog/answers/approval titles
+node tests/ask.test.mjs                           # ask spec/dialog/answers/approval titles — 123
 node tests/todo.test.mjs                          # todo model + folding strategy — 21
 node tests/shell-output.test.mjs                  # output sanitizer — 21
 node tests/truncation.test.mjs                    # tool-result spill — 13
@@ -280,7 +290,7 @@ full matrix — ubuntu + windows × node 20/22 — on every push and PR.
 Tag-driven npm publish via GitHub Actions:
 
 ```bash
-git tag v0.7.7 && git push origin v0.7.7   # test matrix gates the publish
+git tag v0.7.8 && git push origin v0.7.8   # test matrix gates the publish
 ```
 
 One-time setup: create an npm granular/automation token with publish rights

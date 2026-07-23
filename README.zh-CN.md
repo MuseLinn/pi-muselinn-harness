@@ -6,6 +6,14 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x。
 
+### 0.7.8 新功能
+
+- **Task 模块可靠性修复** — pi ≥ 0.81 上后台任务失效的两个根因：
+  - `run_background` 在 spawn 时即失败（`task_output` 为空、`block:true` 立即返回）：子代理 resource loader 缺少 `LoadExtensionsResult.runtime`，而 pi 0.81 的 `ExtensionRunner.bindCore` 需要它——`createAgentSession` 抛错，每个后台任务立即失败。loader 现在在 SDK 提供时携带 runtime（仍兼容 0.80.x）
+  - `task_list` 无参调用崩溃而 `active_only:true` 正常：恢复的持久化 entry 把任务文本放在 `description` 字段（或根本没有），列表格式化却对 `undefined` 调了 `prompt.slice()`。restore 现在映射 `description` → `prompt` 并兜底缺失 prompt；`task_output` 对产出前就失败的任务也会显示 `[task failed: <error>]`
+- **Plan 持久化去重** — `PlanManager.persist()` 跳过与上次持久化内容相同的 append（实测 25 秒内 5 条相同 `muselinn_plan` entry），restore 时播种去重基线，无变更的 persist 不再重复追加
+- **测试** — 新增 `task.test.mjs` 套件（16 项）+ plan 去重回归用例；共 19 个套件 / 580 项断言，全部通过
+
 ### 0.7.7 新功能
 
 - **Plan 模式修复** — bash 只读门禁现在能识别 `rtk` 包装命令（pi-rtk-optimizer 会原地重写命令）并接受 Windows `dir`；**Revise** 保留同一个 plan 对象，不再困住用户或丢失工作；评审超时 60s → 600s；磁盘上无文件的过期持久化 plan 会干净地退出 plan 模式而不是卡死会话；`plan` 徽标现在同样跟随工具驱动的 plan 模式
@@ -105,6 +113,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 ### Ask 模块(交互式提问)
 - **`ask_user_question` 工具** — agent 一次发起 1-4 个结构化提问，共用一个标签页对话框：每题短标签页（`1/3 · header`，←/→/Tab 切换）、编号选项可带描述次行、`multi_select` 复选（空格切换、Enter 确认）、每题自动附带自由文本 **Other** 选项；数字键 1-9 直选，方向键/jk 导航，Esc 取消
 - **默认健壮** — 超长选项列表在有界窗口内滚动，重复答案自动去重，后台任务也能发起提问而不卡死 UI
+- **预览、备注、Chat 行** — 选项可携带 Markdown **预览**（宽终端双栏并排，窄终端堆叠在选项下方）；`n` 键给选项附加**备注**；**Chat about this** 行以 `chat` 结果结束对话框，让用户先讨论再回答
 - **共享对话框组件** — 权限审批复用同一组件（单选、无 Other）；print/RPC 无 UI 模式下退化为文本提问，不阻塞
 - **结果回传** — 按题回传答案（多选为数组）；跳过的题与 Esc 取消区分上报
 - **auto 模式安全** — auto 模式下 `ask_user_question` 被策略专门拒绝（防无人值守卡死）
@@ -149,7 +158,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 pi install npm:pi-muselinn-harness
 ```
 
-已安装过？再跑一次同样的命令即可升级到最新版（0.7.7）。
+已安装过？再跑一次同样的命令即可升级到最新版（0.7.8）。
 
 也可以从 git 或本地源码安装：
 
@@ -242,7 +251,7 @@ pi-muselinn-harness/
 
 ## 测试
 
-无需模型额度的 node 级单元测试（18 个套件，500+ 项断言）：
+无需模型额度的 node 级单元测试（19 个套件，580 项断言）：
 
 ```bash
 npm test                                        # 全部套件(node tests/run-all.mjs)
@@ -253,13 +262,14 @@ npm test                                        # 全部套件(node tests/run-al
 ```bash
 node tests/permission.test.mjs                    # Permission 策略链 + 子代理门控 22 项
 node tests/goal.test.mjs                          # Goal 状态机 + 单调恢复 32 项
-node tests/plan.test.mjs                          # Plan 模式往返 + 恢复校验 34 项
+node tests/plan.test.mjs                          # Plan 模式往返 + 恢复校验 38 项
+node tests/task.test.mjs                          # Task 恢复/列表/输出/阻塞 + loader runtime 16 项
 node tests/cron.test.mjs                          # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
 node tests/skills.test.mjs                        # Skills 扫描/解析/作用域/discover 38 项
 node tests/tui.test.mjs                           # TUI 折叠/键位/补全/spinner 62 项
 node tests/tui-box.test.mjs                       # TUI 闭合框/配置/探针/切换 61 项
-node tests/ask.test.mjs                           # ask 规格/对话框/答案/审批标题
+node tests/ask.test.mjs                           # ask 规格/对话框/答案/审批标题 123 项
 node tests/todo.test.mjs                          # todo 模型 + 折叠策略 21 项
 node tests/shell-output.test.mjs                  # 输出净化器 21 项
 node tests/truncation.test.mjs                    # 结果落盘截断 13 项
@@ -280,7 +290,7 @@ ESM loader；22.6+ 原生擦除类型）。CI 在每次 push 和 PR 上跑完整
 打 tag 触发 npm 自动发布（GitHub Actions）：
 
 ```bash
-git tag v0.7.7 && git push origin v0.7.7   # 测试矩阵作为发布门禁
+git tag v0.7.8 && git push origin v0.7.8   # 测试矩阵作为发布门禁
 ```
 
 一次性配置：在 npm 创建对 `pi-muselinn-harness` 有发布权限的

@@ -54,7 +54,23 @@ title: pi-muselinn-harness
   </div>
 </div>
 
-<h2><span data-l="en">New in 0.7.7</span><span data-l="zh">0.7.7 新功能</span></h2>
+<h2><span data-l="en">New in 0.7.8</span><span data-l="zh">0.7.8 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Background tasks, fixed at the root</span><span data-l="zh">后台任务，从根上修好</span>
+<span data-l="en">Two root causes behind broken tasks on pi ≥ 0.81: <code>run_background</code> died at spawn because the subagent loader omitted <code>LoadExtensionsResult.runtime</code> (<code>createAgentSession</code> threw — empty <code>task_output</code>, <code>block:true</code> returning instantly); and <code>task_list</code> crashed on restored entries whose text lived in <code>description</code>, not <code>prompt</code>. Both fixed — runtime included (0.80-compatible), <code>description → prompt</code> mapped, and failed tasks now surface <code>[task failed: …]</code>.</span><span data-l="zh">pi ≥ 0.81 上任务失效的两个根因：<code>run_background</code> 因子代理 loader 缺少 <code>LoadExtensionsResult.runtime</code> 在 spawn 即抛错（<code>task_output</code> 为空、<code>block:true</code> 立即返回）；<code>task_list</code> 对文本存在 <code>description</code> 而非 <code>prompt</code> 的恢复 entry 直接崩溃。现已双修复——loader 携带 runtime（兼容 0.80）、<code>description → prompt</code> 映射，失败任务显示 <code>[task failed: …]</code>。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Plan persistence dedup</span><span data-l="zh">Plan 持久化去重</span>
+<span data-l="en"><code>PlanManager.persist()</code> no longer appends duplicate entries (observed: 5 identical <code>muselinn_plan</code> entries within 25 s) — a serialized state identical to the last persisted one is skipped, and restore seeds the dedup baseline.</span><span data-l="zh"><code>PlanManager.persist()</code> 不再追加重复 entry（实测 25 秒内 5 条相同 <code>muselinn_plan</code>）——与上次持久化内容相同的序列化状态直接跳过，restore 时播种去重基线。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Regression-locked</span><span data-l="zh">回归锁定</span>
+<span data-l="en">New <code>task.test.mjs</code> suite (16 checks): restore prompt defaulting, prompt-less list rendering, <code>block:true</code> waiting, failed-task surfacing, loader runtime shape. 19 suites, 580 assertions — all green in CI.</span><span data-l="zh">新增 <code>task.test.mjs</code> 套件（16 项）：恢复 prompt 兜底、无 prompt 列表渲染、<code>block:true</code> 等待、失败任务报错、loader runtime 结构。共 19 个套件、580 项断言，CI 全绿。</span>
+</div>
+</div>
+
+<h2><span data-l="en">Previously — 0.7.7</span><span data-l="zh">此前 — 0.7.7</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
 ### <span data-l="en">Plan &amp; Goal, de-glitch’d</span><span data-l="zh">Plan 与 Goal 除颤</span>
@@ -66,11 +82,11 @@ title: pi-muselinn-harness
 </div>
 <div class="card reveal" markdown="1">
 ### <span data-l="en">CI/CD on GitHub Actions</span><span data-l="zh">GitHub Actions CI/CD</span>
-<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 20/22, 18 suites, 500+ assertions). Tag <code>v*</code> and the same matrix gates an automatic npm publish.</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 20/22，18 个套件，500+ 断言）。打 <code>v*</code> tag 即由同一矩阵门禁触发 npm 自动发布。</span>
+<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 20/22, 19 suites, 580 assertions). Tag <code>v*</code> and the same matrix gates an automatic npm publish.</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 20/22，19 个套件，580 断言）。打 <code>v*</code> tag 即由同一矩阵门禁触发 npm 自动发布。</span>
 </div>
 </div>
 
-<h2><span data-l="en">Previously — 0.7.4 / 0.7.5</span><span data-l="zh">此前 — 0.7.4 / 0.7.5</span></h2>
+<h2><span data-l="en">Earlier — 0.7.4 / 0.7.5</span><span data-l="zh">更早 — 0.7.4 / 0.7.5</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
 ### <span data-l="en">Native companion tools</span><span data-l="zh">原生伴随工具</span>
