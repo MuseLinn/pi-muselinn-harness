@@ -183,6 +183,8 @@ function isReadOnlyBashCommand(cmd: string): boolean {
 export class PlanManager {
   private persistFn: ((data: PlanModeState) => void) | null = null;
   private sessionDir: string = '';
+  /** Serialized state of the last appended entry — dedup baseline. */
+  private lastPersistedJson: string | null = null;
 
   /** Bind a persistence callback */
   setPersistence(fn: (data: PlanModeState) => void): void {
@@ -194,9 +196,23 @@ export class PlanManager {
     this.sessionDir = dir;
   }
 
-  /** Persist current state */
+  private static safeStringify(value: unknown): string | null {
+    try { return JSON.stringify(value); } catch { return null; }
+  }
+
+  /**
+   * Persist current state.
+   * Dedup: skip the append when the serialized state is identical to the
+   * last persisted one. Restore validation and repeat lifecycle calls
+   * (e.g. exitPlanMode on an already-exited plan) retrigger persist without
+   * changing state, which previously appended duplicate muselinn_plan entries.
+   */
   private persist(): void {
-    if (this.persistFn) this.persistFn(planModeState);
+    if (!this.persistFn) return;
+    const json = PlanManager.safeStringify(planModeState);
+    if (json !== null && json === this.lastPersistedJson) return;
+    if (json !== null) this.lastPersistedJson = json;
+    this.persistFn(planModeState);
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -554,6 +570,9 @@ export class PlanManager {
    */
   restoreFromData(data: PlanModeState): void {
     setCurrentPlanMode(data);
+    // The restored state is already persisted — seed the dedup baseline so a
+    // subsequent no-change persist doesn't append a duplicate entry.
+    this.lastPersistedJson = PlanManager.safeStringify(planModeState);
   }
 
   /**

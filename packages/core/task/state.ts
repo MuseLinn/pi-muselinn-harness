@@ -108,8 +108,16 @@ export function computeRestoredTask(e: any, now: number): BackgroundTaskEntry {
     completedAtMs = now;
   }
 
+  // Persisted entries from older/foreign writers may carry the task text as
+  // `description` (or lack it entirely). task_list renders prompt.slice(),
+  // so a missing/non-string prompt must not survive restore.
+  const prompt = typeof e.prompt === "string" ? e.prompt
+    : typeof e.description === "string" ? e.description
+    : "";
+
   return {
     ...e,
+    prompt,
     status,
     stopReason,
     endTime,

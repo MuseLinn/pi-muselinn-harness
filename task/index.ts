@@ -18,6 +18,10 @@ import {
   createAgentSession,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
+// Namespace import: createExtensionRuntime only exists on pi >= 0.81 — a
+// named static import would fail module instantiation on 0.80.x (peer range
+// is >=0.80.0), so it is looked up dynamically in createSubagentResourceLoader.
+import * as piCodingAgent from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { loadSkillsForCwd } from "../packages/core/skills/index";
@@ -88,6 +92,11 @@ class BackgroundTaskManager {
     const task = this.tasks.get(taskId);
     if (!task) return "[task not found]";
     const lines = task.outputLines;
+    // A task that died before producing output (e.g. session spawn failure)
+    // would otherwise report a bare empty string — surface the error instead.
+    if (lines.length === 0 && task.error) {
+      return `[task ${task.status}: ${task.error}]`;
+    }
     const totalLines = lines.length;
 
     const hasPaging = (offset !== undefined && offset > 0) || (limit !== undefined && limit > 0);
@@ -349,7 +358,10 @@ export function registerBackgroundTools(pi: any): void {
       const lines = tasks.map(t => {
         const dur = t.startTime ? (t.endTime ? `${Math.floor((t.endTime - t.startTime) / 1000)}s` : "running") : "—";
         const reason = t.stopReason ? ` (${t.stopReason})` : "";
-        return `  ${t.id} [${t.status}${reason}] ${t.prompt.slice(0, 60)} (${dur})`;
+        // Restored legacy entries may lack a usable prompt (see
+        // computeRestoredTask) — never let one bad row kill the whole list.
+        const promptText = typeof t.prompt === "string" ? t.prompt : "";
+        return `  ${t.id} [${t.status}${reason}] ${promptText.slice(0, 60)} (${dur})`;
       });
       return { content: [{ type: "text", text: `Background tasks:\n${lines.join("\n")}` }] };
     },
@@ -512,9 +524,21 @@ async function runBackgroundSession(
   }
 }
 
-function createSubagentResourceLoader(ctx: any): any {
+// Exported for tests; production callers use it internally per run_background.
+export function createSubagentResourceLoader(ctx: any): any {
+  // pi >= 0.81 requires LoadExtensionsResult.runtime — AgentSession passes it
+  // straight into ExtensionRunner, whose bindCore() crashes on undefined
+  // ("Cannot set properties of undefined (setting 'sendMessage')"), which
+  // previously failed every background task at createAgentSession time.
+  // pi 0.80.x neither exports createExtensionRuntime nor reads .runtime, so
+  // include it only when available.
+  const createExtRuntime = (piCodingAgent as any).createExtensionRuntime as (() => unknown) | undefined;
   return {
-    getExtensions: () => ({ extensions: [], errors: [] }),
+    getExtensions: () => ({
+      extensions: [],
+      errors: [],
+      ...(createExtRuntime ? { runtime: createExtRuntime() } : {}),
+    }),
     // Kimi Code-style Agent Skills (project + user scopes) for background tasks.
     getSkills: () => loadSkillsForCwd(ctx?.cwd || process.cwd()) as { skills: any[]; diagnostics: any[] },
     getPrompts: () => ({ prompts: [], diagnostics: [] }),

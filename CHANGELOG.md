@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.8
+
+### Fixes
+
+- **task** — `run_background` tasks died at spawn on pi ≥ 0.81 (`task_output` empty, `block:true` returned immediately): the subagent resource loader's `getExtensions()` omitted `LoadExtensionsResult.runtime`, which pi 0.81 passes straight into `ExtensionRunner.bindCore()` (`Cannot set properties of undefined (setting 'sendMessage')`), so `createAgentSession` threw and every background task failed instantly. The loader now includes `createExtensionRuntime()` when the SDK provides it (still compatible with pi 0.80.x, which neither exports it nor reads it)
+- **task** — `task_list` with no arguments threw `Cannot read properties of undefined (reading 'slice')` while `active_only:true` worked: restored legacy/foreign persisted entries carry the task text as `description` (or not at all), and the full-list formatter called `prompt.slice()` on `undefined`. `computeRestoredTask` now maps `description` → `prompt` and defaults missing/non-string prompts to `""`; the list formatter is additionally defensive per row
+- **task** — `task_output` on a task that failed before producing output now surfaces `[task failed: <error>]` instead of a bare empty string
+- **plan** — duplicate `muselinn_plan` appends eliminated (observed: 5 identical entries within 25 s): `PlanManager.persist()` now skips the append when the serialized state is identical to the last persisted one, and `restoreFromData()` seeds the dedup baseline so a post-restore no-change persist doesn't re-append
+
+### Tests
+
+- **task** — new `tests/task.test.mjs` (16 checks): restore prompt defaulting, full-list rendering of prompt-less restored tasks, `block:true` waits for completion and returns the real report, timeout returns partial output, failed-task error surfacing, resource-loader runtime shape
+- **plan** — `tests/plan.test.mjs` gains persist-dedup cases (repeat lifecycle persists skipped, real changes still persist, post-restore no-change deduped, stale-restore correction persists exactly once)
+
 ## 0.7.7
 
 ### Fixes

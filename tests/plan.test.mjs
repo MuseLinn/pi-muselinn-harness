@@ -161,6 +161,50 @@ check("memory stale before exit", planManager.getCurrentPlan()?.content === "");
 const syncExited = planManager.exitPlanMode();
 check("exitPlanMode syncs content from disk", syncExited?.content === diskContent);
 
+// ── Bug: muselinn_plan duplicate entries — persist() must dedup identical state ──
+// Production symptom: 5 identical muselinn_plan entries appended within 25s
+// (repeat lifecycle calls / post-restore persists with no state change).
+{
+  const { PlanManager } = loadTs(`${EXT}/packages/core/plan/index.ts`);
+  const mgr = new PlanManager();
+  mgr.setSessionDir(cleanCwd);
+  const appends = [];
+  mgr.setPersistence((data) => appends.push(JSON.stringify(data)));
+
+  mgr.enterPlanMode("dedup test");
+  mgr.exitPlanMode();   // state change → appended
+  mgr.exitPlanMode();   // no state change (already reviewing/inactive) → deduped
+  mgr.exitPlanMode();   // ditto
+  check("identical repeat persists are skipped", appends.length === 2, `appends=${appends.length}`);
+
+  // A real change after deduping still persists.
+  mgr.enterPlanMode("dedup test 2");
+  check("real state change still persists", appends.length === 3, `appends=${appends.length}`);
+
+  // Restore seeds the baseline: a no-change persist right after restore
+  // must not re-append the state that was just read from the session.
+  const mgr2 = new PlanManager();
+  mgr2.setSessionDir(cleanCwd);
+  const appends2 = [];
+  mgr2.setPersistence((data) => appends2.push(JSON.stringify(data)));
+  mgr2.restoreFromData({
+    isActive: false,
+    currentPlan: { id: "rest-1", content: "# Plan\n", path: path.join(cleanCwd, "plans", "gone.md"), status: "reviewing", createdAt: 1 },
+    history: [],
+  });
+  mgr2.exitPlanMode(); // no-op state-wise (path missing → content kept, already reviewing/inactive)
+  check("post-restore no-change persist is deduped", appends2.length === 0, `appends=${appends2.length}`);
+
+  // Stale validation DOES change state → persists exactly once.
+  mgr2.restoreFromData({
+    isActive: true,
+    currentPlan: { id: "rest-2", content: "", path: path.join(cleanCwd, "plans", "gone2.md"), status: "exploring", createdAt: 1 },
+    history: [],
+  });
+  mgr2.validateRestoredState();
+  check("stale-restore correction persists once", appends2.length === 1, `appends=${appends2.length}`);
+}
+
 fs.rmSync(cleanCwd, { recursive: true, force: true });
 
 console.log(`\n${pass} passed, ${fail} failed`);
