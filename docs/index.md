@@ -54,6 +54,18 @@ title: pi-muselinn-harness
   </div>
 </div>
 
+<h2><span data-l="en">New in 0.7.9</span><span data-l="zh">0.7.9 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Revise feedback input</span><span data-l="zh">Revise 反馈输入</span>
+<span data-l="en">Plan approval's <strong>Revise</strong> now opens a text input dialog before returning to plan mode. Your revision feedback is persisted into <code>PlanData.revisionFeedback</code> and injected into the plan-mode system prompt — the model sees exactly what you want changed, every time.</span><span data-l="zh">Plan 审批的 <strong>Revise</strong> 现在先弹文本输入框，再回到 plan mode。你的修改意见持久化到 <code>PlanData.revisionFeedback</code> 并注入 plan mode system prompt——模型每次都清楚地知道你要改什么。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Same plan, now with direction</span><span data-l="zh">同一计划，有方向地改</span>
+<span data-l="en"><code>reenterForRevision(feedback)</code> keeps the same plan id/path/content while injecting user feedback. Three files changed: <code>types.ts</code>, <code>index.ts</code>, <code>tools.ts</code>. All 19 suites, 580+ assertions — green.</span><span data-l="zh"><code>reenterForRevision(feedback)</code> 保留同一 plan id/path/content，同时注入用户反馈。改了三个文件：<code>types.ts</code>、<code>index.ts</code>、<code>tools.ts</code>。全部 19 套件、580+ 断言——全绿。</span>
+</div>
+</div>
+
 <h2><span data-l="en">New in 0.7.8</span><span data-l="zh">0.7.8 新功能</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
@@ -82,7 +94,7 @@ title: pi-muselinn-harness
 </div>
 <div class="card reveal" markdown="1">
 ### <span data-l="en">CI/CD on GitHub Actions</span><span data-l="zh">GitHub Actions CI/CD</span>
-<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 20/22, 19 suites, 580 assertions). Tag <code>v*</code> and the same matrix gates an automatic npm publish.</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 20/22，19 个套件，580 断言）。打 <code>v*</code> tag 即由同一矩阵门禁触发 npm 自动发布。</span>
+<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 20/22, 19 suites, 580 assertions). Tag <code>v*</code> and the same matrix gates an automatic npm publish.</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 20/22，19 个套件，580 项断言）。打 <code>v*</code> tag 即由同一矩阵门禁触发 npm 自动发布。</span>
 </div>
 </div>
 
