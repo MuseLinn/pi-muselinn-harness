@@ -209,10 +209,23 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
           ctx.ui.notify("Plan rejected.", "info");
           return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
         } else {
-          // Revise: re-enter plan mode with the SAME plan (id/path/content
-          // preserved) so the LLM can keep editing what was reviewed.
-          planManager.reenterForRevision();
+          // Revise: collect user feedback first, then re-enter plan mode.
+          // The user types what changes they want, and the feedback is
+          // injected into the plan context so the model has direction.
+          const feedback = await ctx.ui.input(
+            `Plan Review — What changes would you like?`,
+            "",
+            { timeout: 600000 }
+          );
+          const trimmed = feedback?.trim?.() ?? "";
+          planManager.reenterForRevision(trimmed || undefined);
           setPlanBadge();
+          if (trimmed) {
+            ctx.ui.notify(`Plan revision requested. Feedback: ${trimmed.slice(0, 60)}`, "info");
+            return {
+              content: [{ type: "text", text: `Plan revision requested.\nYour feedback: ${trimmed}\n\nModify your plan based on the feedback above, then call exit_plan_mode when ready.` }],
+            };
+          }
           ctx.ui.notify("Plan revision requested. Continue editing.", "info");
           return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
         }
@@ -242,10 +255,23 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         ctx.ui.notify("Plan rejected.", "info");
         return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
       } else {
-        // Revise: re-enter plan mode with the SAME plan (id/path/content
-        // preserved) so the LLM can keep editing what was reviewed.
-        planManager.reenterForRevision();
+        // Revise: collect user feedback first, then re-enter plan mode.
+        // The user types what changes they want, and the feedback is
+        // injected into the plan context so the model has direction.
+        const feedback = await ctx.ui.input(
+          `Plan Review — What changes would you like?`,
+          "",
+          { timeout: 600000 }
+        );
+        const trimmed = feedback?.trim?.() ?? "";
+        planManager.reenterForRevision(trimmed || undefined);
         setPlanBadge();
+        if (trimmed) {
+          ctx.ui.notify(`Plan revision requested. Feedback: ${trimmed.slice(0, 60)}`, "info");
+          return {
+            content: [{ type: "text", text: `Plan revision requested.\nYour feedback: ${trimmed}\n\nModify your plan based on the feedback above, then call exit_plan_mode when ready.` }],
+          };
+        }
         ctx.ui.notify("Plan revision requested. Continue editing.", "info");
         return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
       }

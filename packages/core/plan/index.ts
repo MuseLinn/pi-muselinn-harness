@@ -313,8 +313,10 @@ export class PlanManager {
    * file path, same content — so the user's review context and everything
    * already written survive the round-trip. Falls back to enterPlanMode()
    * only when there is no current plan to revise.
+   *
+   * @param feedback Optional user feedback from the Revise dialog.
    */
-  reenterForRevision(): PlanData {
+  reenterForRevision(feedback?: string): PlanData {
     const plan = planModeState.currentPlan;
     if (!plan) {
       return this.enterPlanMode("Plan revision requested");
@@ -322,6 +324,9 @@ export class PlanManager {
 
     plan.status = 'writing';
     plan.updatedAt = Date.now();
+    if (feedback) {
+      plan.revisionFeedback = feedback;
+    }
     setCurrentPlan(plan);
     setPlanActive(true);
     this.persist();
@@ -386,6 +391,20 @@ export class PlanManager {
     const plan = planModeState.currentPlan;
     if (!plan) return;
     plan.content = '';
+    plan.updatedAt = Date.now();
+    setCurrentPlan(plan);
+    this.persist();
+  }
+
+  /**
+   * Set user revision feedback on the current plan.
+   * This is used when the user selects Revise and provides
+   * textual feedback on what needs to change.
+   */
+  setRevisionFeedback(feedback: string): void {
+    const plan = planModeState.currentPlan;
+    if (!plan) return;
+    plan.revisionFeedback = feedback;
     plan.updatedAt = Date.now();
     setCurrentPlan(plan);
     this.persist();
@@ -538,6 +557,19 @@ export class PlanManager {
         `---`,
         plan.content.slice(0, 500),
         `---`,
+      );
+    }
+
+    // Inject user's revision feedback when in revision mode
+    if (plan && plan.revisionFeedback) {
+      parts.push(
+        ``,
+        `## User Revision Feedback`,
+        ``,
+        `The user requested the following changes to the plan:`,
+        `> ${plan.revisionFeedback}`,
+        ``,
+        `Please update the plan accordingly.`,
       );
     }
 

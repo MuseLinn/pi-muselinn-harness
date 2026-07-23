@@ -14,6 +14,8 @@ export interface PlanData {
   approvedAt?: number;
   rejectedAt?: number;
   rejectionReason?: string;
+  /** User's revision feedback collected during Revise flow */
+  revisionFeedback?: string;
 }
 
 export interface PlanModeState {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.9
+
+### Features
+
+- **plan** — Revise 反馈输入：审批面板选 Revise 后弹出文本输入框收集用户修改意见，
+  反馈内容持久化到 `PlanData.revisionFeedback` 并注入到 plan mode system prompt，
+  模型回到 plan mode 后有方向地修改（`packages/core/plan/types.ts` / `index.ts` / `tools.ts`）
+
 ## 0.7.8
 
 ### Fixes
