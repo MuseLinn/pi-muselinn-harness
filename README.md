@@ -6,7 +6,23 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
 
-### What's new in 0.8.3
+### What's new in 0.9.0
+
+**TODO Phase Model — phased task planning with reminders built in.**
+
+The todo system is rewritten with an oh-my-pi-style phase model (`TodoPhase`):
+per-task status (`pending`/`in_progress`/`completed`/`abandoned`), 7 ops
+(`init`/`start`/`done`/`drop`/`rm`/`append`/`view`), and auto-promote of the
+first task on phase init. The widget renders a roman-numeral phase tree
+(`Ⅰ. Scanner · 2/4`) with collapse/expand.
+
+**Reminder system:** When the agent stops with incomplete todos, a
+`<system-reminder>` injects the task list into the next turn (max 3
+reminders, debounced).
+
+**Markdown round-trip:** `/todo export/import` serializes and restores phases
+as Markdown for sharing and persistence between sessions.
+
 
 **Plan Mode — Kimi Code permission model alignment.**
 
@@ -27,7 +43,7 @@ like `cd` were blocked by the bash whitelist, and plan file writes using the
 
 **Plan mode bash permission model:**
 
-| Before (0.8.2) | After (0.8.3) |
+| Before (0.8.2) | After (0.9.0) |
 |---|---|
 | Static regex whitelist (~35 commands) | No bash restriction — follows permission mode |
 | `cd` not in whitelist → blocked | `cd`, `git push`, `npm install` all allowed (permission mode decides) |
@@ -111,7 +127,7 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 pi install npm:pi-muselinn-harness
 ```
 
-Already installed? Re-run the same command to upgrade to the latest release (0.8.3).
+Already installed? Re-run the same command to upgrade to the latest release (0.9.0).
 
 Or from git / local source:
 
@@ -355,16 +371,11 @@ full matrix — ubuntu + windows × node 20/22 — on every push and PR.
 
 ## Releasing (maintainers)
 
-Tag-driven npm publish via GitHub Actions:
+Tag to mark the release (CI publish removed — publish locally with OTP):
 
 ```bash
-git tag v0.8.3 && git push origin v0.8.3   # test matrix gates the publish
+npm run version && git tag v0.9.0 && git push origin v0.9.0
 ```
-
-One-time setup: create an npm granular/automation token with publish rights
-on `pi-muselinn-harness` and store it as the **`NPM_TOKEN`** repository
-secret (Settings → Secrets and variables → Actions). Without it the publish
-workflow fails at the `npm publish` step.
 
 ## Experimental branches
 

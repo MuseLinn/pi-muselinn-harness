@@ -6,7 +6,22 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x 和 0.82.x。
 
-### 0.8.3 新功能
+### 0.9.0 新功能
+
+**TODO Phase Model — 带阶段管理和提醒机制的 todo 重写。**
+
+Todo 系统全面重写为 oh-my-pi 风格的阶段模型（`TodoPhase`）：
+每个任务有 `pending`/`in_progress`/`completed`/`abandoned` 状态，
+7 种操作（`init`/`start`/`done`/`drop`/`rm`/`append`/`view`），
+初始化阶段时自动 promote 第一个任务。
+Widget 渲染罗马数字阶段树（`Ⅰ. Scanner · 2/4`），支持折叠/展开。
+
+**提醒系统：** 当 agent 停下时若有未完成 todo，向下一轮 context
+注入 `<system-reminder>` 列出任务（最多 3 次，去抖）。
+
+**Markdown 双向导出：** `/todo export/import` 将阶段序列化为
+Markdown，可在会话间共享和恢复。
+
 
 **Plan Mode — 对齐 Kimi Code 权限模型。**
 
@@ -22,7 +37,7 @@ Plan 文件路径支持三种匹配方式：精确路径、`local://` scheme 文
 这消除了「卡在 plan mode」的根本原因——以前 `cd` 等常见命令被 bash 白名单拦截，
 `local://` 写 plan 也被拒绝。
 
-| 对比 | 0.8.2（之前） | 0.8.3（之后） |
+| 对比 | 0.8.2（之前） | 0.9.0（之后） |
 |------|------|------|
 | bash 拦截 | 静态正则白名单 ~35 命令 | 不拦截——走 permission mode |
 | `cd` 命令 | ❌ 不在白名单 | ✅ 放行（permission mode 控制） |
@@ -181,7 +196,7 @@ Plan 文件路径支持三种匹配方式：精确路径、`local://` scheme 文
 pi install npm:pi-muselinn-harness
 ```
 
-已安装过？再跑一次同样的命令即可升级到最新版（0.8.3）。
+已安装过？再跑一次同样的命令即可升级到最新版（0.9.0）。
 
 也可以从 git 或本地源码安装：
 
@@ -310,16 +325,11 @@ ESM loader；22.6+ 原生擦除类型）。CI 在每次 push 和 PR 上跑完整
 
 ## 发布流程(维护者)
 
-打 tag 触发 npm 自动发布（GitHub Actions）：
+打 tag 标记发布（已移除 CI 发布 — 本地 OTP 发布）：
 
 ```bash
-git tag v0.8.3 && git push origin v0.8.3   # 测试矩阵作为发布门禁
+npm run version && git tag v0.9.0 && git push origin v0.9.0
 ```
-
-一次性配置：在 npm 创建对 `pi-muselinn-harness` 有发布权限的
-granular/automation token，并存为仓库的 **`NPM_TOKEN`** secret
-（Settings → Secrets and variables → Actions)。未配置时 publish
-workflow 会在 `npm publish` 步骤失败。
 
 ## 下一步(Roadmap)
 

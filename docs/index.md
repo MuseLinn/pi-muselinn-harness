@@ -54,8 +54,12 @@ title: pi-muselinn-harness
   </div>
 </div>
 
-<h2><span data-l="en">New in 0.8.3</span><span data-l="zh">0.8.3 新功能</span></h2>
+<h2><span data-l="en">New in 0.9.0</span><span data-l="zh">0.9.0 新功能</span></h2>
 <div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">TODO Phase Model</span><span data-l="zh">TODO Phase Model — 分阶段管理</span>
+<span data-l="en">The todo system is rewritten with oh-my-pi-style phases: <code>TodoPhase</code> with per-task status (<code>pending</code>/<code>in_progress</code>/<code>completed</code>/<code>abandoned</code>), 7 ops, auto-promote, roman-numeral phase tree (<code>Ⅰ. Scanner · 2/4</code>) with collapse/expand, a reminder system that injects pending todos when the agent stops, and Markdown round-trip for <code>/todo export/import</code>.</span><span data-l="zh">Todo 系统全面重写为 oh-my-pi 风格阶段模型：<code>TodoPhase</code> 管理任务状态（<code>pending</code>/<code>in_progress</code>/<code>completed</code>/<code>abandoned</code>），7 种操作，自动 promote，罗马数字阶段树（<code>Ⅰ. Scanner · 2/4</code>）支持折叠展开，agent 停下时未完成 todo 自动注入提醒，支持 <code>/todo export/import</code> Markdown 双向导出。</span>
+</div>
 <div class="card reveal" markdown="1">
 ### <span data-l="en">Plan Mode — Kimi Code Permission Model</span><span data-l="zh">Plan Mode — 对齐 Kimi Code 权限模型</span>
 <span data-l="en">Plan mode no longer maintains its own bash command whitelist. Bash follows the normal permission mode (auto/yolo/manual) — the same design as Kimi Code. Only Write/Edit (outside plan file), TaskStop, and CronCreate/CronDelete are blocked. The plan file path is matched by exact path, <code>local://</code> basename, and resolved absolute path under <code>sessionDir/plans/</code>.</span><span data-l="zh">Plan mode 不再维护自己的 bash 命令白名单。bash 遵循正常的 permission mode（auto/yolo/manual）——与 Kimi Code 设计一致。只拦截 Write/Edit（非 plan 文件）、TaskStop 和 CronCreate/CronDelete。Plan 文件路径支持精确路径、<code>local://</code> 文件名匹配和 <code>sessionDir/plans/</code> 下的解析绝对路径三种方式。</span>
