@@ -1515,6 +1515,7 @@ function registerAgentFileTools(pi: ExtensionAPI): void {
  * Call after registerTodoList.
  */
 export function registerTodoCommand(pi: any): void {
+  pi.registerCommand("todo", {
     description: "Manage todo list manually (append / start / done / drop / rm / import / export)",
     usage: [
       "/todo import [<path>]              Replace todos from file (default: TODO.md)",
