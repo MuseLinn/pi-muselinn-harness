@@ -6,6 +6,12 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x 和 0.82.x。
 
+### 0.9.2 新功能
+
+**Bug 修复：**
+- 修复 `Extension "command:todo" error: rt is not defined` — `index.ts` 中的 `registerTodoCommand` 需访问 `todo/index.ts` 作用域的 `rt`；已导出 `rt` 并导入
+- 全部 12 个测试套件通过
+
 ### 0.9.1 新功能
 
 **Bug 修复：**
@@ -203,8 +209,7 @@ Plan 文件路径支持三种匹配方式：精确路径、`local://` scheme 文
 ```bash
 pi install npm:pi-muselinn-harness
 ```
-
-已安装过？再跑一次同样的命令即可升级到最新版（0.9.1）。
+已安装过？再跑一次同样的命令即可升级到最新版（0.9.3）。
 
 也可以从 git 或本地源码安装：
 
@@ -212,7 +217,6 @@ pi install npm:pi-muselinn-harness
 pi install git:github.com/MuseLinn/pi-muselinn-harness
 pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 ```
-
 ## 命令
 
 | 命令 | 说明 |

@@ -6,6 +6,12 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
 
+### What's new in 0.9.2
+
+**Bug fixes:**
+- Fixed `Extension "command:todo" error: rt is not defined` — `registerTodoCommand` in `index.ts` references `rt` from `todo/index.ts` scope; exported `rt` and imported it
+- All 12 test suites green
+
 ### What's new in 0.9.1
 
 **Bug fixes:**
@@ -135,7 +141,7 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 pi install npm:pi-muselinn-harness
 ```
 
-Already installed? Re-run the same command to upgrade to the latest release (0.9.1).
+Already installed? Re-run the same command to upgrade to the latest release (0.9.3).
 
 Or from git / local source:
 

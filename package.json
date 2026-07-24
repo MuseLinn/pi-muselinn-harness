@@ -1,6 +1,6 @@
 {
   "name": "pi-muselinn-harness",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Kimi Code-style agent orchestration harness for Pi coding agent — Swarm (concurrent subagents + braille TUI), Goal (lifecycle + budget + queue), Plan (plan mode + tool restrictions), Permission (18-level policy chain: auto/yolo/manual), Task (background + cron), Hooks (config.toml [[hooks]] engine: 16 events, blockable PreToolUse/Stop/UserPromptSubmit), Skills (pi-native seven-scope scanner), TUI (Kimi-style boxed editor chrome: plain/boxed/compact + /tui + render timing probe)",
   "type": "module",
   "main": "index.ts",

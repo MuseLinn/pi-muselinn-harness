@@ -54,6 +54,14 @@ title: pi-muselinn-harness
   </div>
 </div>
 
+<h2><span data-l="en">New in 0.9.2</span><span data-l="zh">0.9.2 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Bug fixes</span><span data-l="zh">Bug 修复</span>
+<span data-l="en">Fixed <code>rt is not defined</code> in <code>/todo</code> command — exported <code>rt</code> from <code>todo/index.ts</code> for <code>registerTodoCommand</code> in <code>index.ts</code>.</span><span data-l="zh">修复 <code>/todo</code> 命令的 <code>rt is not defined</code> 错误 — 从 <code>todo/index.ts</code> 导出 <code>rt</code> 供 <code>index.ts</code> 中的 <code>registerTodoCommand</code> 使用。</span>
+</div>
+</div>
+
 <h2><span data-l="en">New in 0.9.1</span><span data-l="zh">0.9.1 新功能</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
