@@ -336,6 +336,7 @@ export default function (pi: ExtensionAPI) {
     // Restore the todo panel (before binding so the first refresh shows it)
     try { restoreTodos(ctx.sessionManager.getEntries()); } catch { /* ok */ }
     bindTodoSession(ctx, (type, data) => { try { pi.appendEntry(type, data); } catch { /* stale ctx */ } });
+    refreshWidget();
 
     // Restore background tasks from persisted entries. Pass the raw entry
     // list: restore() understands both the legacy full-array entry type and
