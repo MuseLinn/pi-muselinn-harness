@@ -353,28 +353,19 @@
       var kind = scene.lines[li][0];
       var text = scene.lines[li][1];
       if (kind === "box") {
-        // Consecutive "box" lines accumulate into one .demo-box div
-        if (curBox && ci === 0) {
-          // Starting a new line in the same box — append <br> then the new text
-          text = "\n" + text;
+        // Box lines appear instantly (no typewriter); consecutive boxes accumulate
+        // into one .demo-box div.
+        if (!curBox) {
+          curBox = document.createElement("div");
+          curBox.className = "demo-box";
+          pre.appendChild(curBox);
         }
-        curBox = curBox || (function() {
-          var d = document.createElement("div");
-          d.className = "demo-box";
-          pre.appendChild(d);
-          return d;
-        })();
-        curBox.textContent = curBox.textContent.slice(0, curBox.textContent.length - (ci > 0 ? 1 : 0)) + text.slice(0, ++ci);
-        if (ci >= text.length) {
-          // Check if next line is also a box — keep curBox if so
-          var nextKind = scene.lines[li + 1] && scene.lines[li + 1][0];
-          if (nextKind !== "box") { curBox = null; }
-          li++; ci = 0;
-          pre.appendChild(document.createTextNode(nextKind === "box" ? "" : "\n"));
-          typeTimer = setTimeout(step, 260);
-        } else {
-          typeTimer = setTimeout(step, 12);
-        }
+        curBox.textContent = (curBox.textContent ? curBox.textContent + "\n" : "") + text;
+        var nextKind = scene.lines[li + 1] && scene.lines[li + 1][0];
+        if (nextKind !== "box") { curBox = null; }
+        li++;
+        pre.appendChild(document.createTextNode(nextKind === "box" ? "" : "\n"));
+        typeTimer = setTimeout(step, 260);
       } else {
         if (!cur) {
           cur = document.createElement("span");
