@@ -1,8 +1,15 @@
-// todo_list core logic unit tests (pure, no pi runtime needed).
+// todo phase model unit tests (pure, no pi runtime needed).
 const {
-  normalizeTodos,
-  summarizeTodos,
+  applyOp,
+  applyOpsToPhases,
+  clonePhases,
+  summarizePhases,
+  formatSummary,
   selectVisibleTodos,
+  phaseRomanNumeral,
+  formatPhaseDisplayName,
+  phasesToMarkdown,
+  markdownToPhases,
   MAX_VISIBLE_TODOS,
 } = await import("../packages/core/todo/types.ts");
 
@@ -12,71 +19,258 @@ function check(name, cond, extra = "") {
   else { fail++; console.log(`FAIL ${name} ${extra}`); }
 }
 
-const T = (id, status, title = `task ${id}`) => ({ id, title, status });
+function makePhases() {
+  return [
+    { name: "Scanner", tasks: [
+      { content: "Create claude-scanner", status: "in_progress" },
+      { content: "Create codex-scanner", status: "pending" },
+    ]},
+    { name: "Picker", tasks: [
+      { content: "Build picker UI", status: "pending" },
+      { content: "Add search", status: "pending" },
+      { content: "Style results", status: "pending" },
+    ]},
+  ];
+}
 
-// 1. normalizeTodos
-const n1 = normalizeTodos([{ title: "write tests" }, { title: "ship", status: "in_progress" }]);
-check("ids auto-assigned", n1[0].id === "t1" && n1[1].id === "t2");
-check("status kept", n1[1].status === "in_progress");
-check("default status pending", n1[0].status === "pending");
-check("bad status → pending", normalizeTodos([{ title: "x", status: "weird" }])[0].status === "pending");
-check("dup id disambiguated", (() => { const l = normalizeTodos([{ id: "a", title: "1" }, { id: "a", title: "2" }]); return l[0].id !== l[1].id; })());
+// ── 1. init ────────────────────────────────────────────────────
 
-let threw = 0;
-try { normalizeTodos("nope"); } catch { threw++; }
-try { normalizeTodos([{ title: "" }]); } catch { threw++; }
-try { normalizeTodos([{ title: "  " }]); } catch { threw++; }
-check("3 invalid shapes throw", threw === 3, `threw=${threw}`);
+const r1 = applyOp([], { op: "init", list: [{ phase: "Setup", items: ["install deps", "config"] }] });
+check("init: creates phase", r1.phases.length === 1 && r1.phases[0].name === "Setup");
+check("init: creates tasks", r1.phases[0].tasks.length === 2);
+check("init: first in_progress rest pending", r1.phases[0].tasks[0].status === "in_progress" && r1.phases[0].tasks[1].status === "pending");
+check("init: no errors", r1.errors.length === 0);
 
-// 2. summarizeTodos
-const s = summarizeTodos([T("1", "done"), T("2", "done"), T("3", "in_progress"), T("4", "pending")]);
-check("summarize counts", s.done === 2 && s.in_progress === 1 && s.pending === 1);
+// Init with flat items fallback
+const r2 = applyOp([], { op: "init", items: ["task a", "task b"] });
+check("init flat: creates Tasks phase", r2.phases.length === 1 && r2.phases[0].name === "Tasks");
+check("init flat: 2 tasks", r2.phases[0].tasks.length === 2);
 
-// 3. selectVisibleTodos — short list passes through
-const short = [T("1", "pending"), T("2", "done")];
+// Init with flat items + custom phase
+const r3 = applyOp([], { op: "init", items: ["x"], phase: "MyPhase" });
+check("init flat+phase: custom name", r3.phases[0].name === "MyPhase");
+
+// Init: missing list
+const r4 = applyOp([], { op: "init" });
+check("init: error on missing list", r4.errors.length > 0);
+
+// Init: duplicate phase
+const r5 = applyOp([], { op: "init", list: [{ phase: "A", items: ["1"] }, { phase: "A", items: ["2"] }] });
+check("init: duplicate phase error", r5.errors.length > 0 && r5.phases.length === 0);
+
+// Init: duplicate task
+const r6 = applyOp([], { op: "init", list: [{ phase: "A", items: ["same", "same"] }] });
+check("init: duplicate task error", r6.errors.length > 0);
+
+// Init: empty content trimmed
+const r7 = applyOp([], { op: "init", list: [{ phase: "A", items: ["valid", "", "  "] }] });
+check("init: empty content errors", r7.errors.length > 0);
+
+// ── 2. start ───────────────────────────────────────────────────
+
+const p1 = makePhases();
+const r8 = applyOp(p1, { op: "start", task: "Create codex-scanner" });
+check("start: marks in_progress", r8.phases[0].tasks[1].status === "in_progress");
+check("start: de-escalates others", r8.phases[0].tasks[0].status === "pending");
+check("start: preserves other phases", r8.phases[1].tasks[0].status === "pending");
+
+// Start non-existent
+const r9 = applyOp(p1, { op: "start", task: "nonexistent" });
+check("start: not found error", r9.errors.length > 0);
+
+// Start missing task
+const r10 = applyOp(p1, { op: "start" });
+check("start: missing task error", r10.errors.length > 0);
+
+// ── 3. done ────────────────────────────────────────────────────
+
+const p2 = makePhases();
+const r11 = applyOp(p2, { op: "done", task: "Create claude-scanner" });
+check("done: marks completed", r11.phases[0].tasks[0].status === "completed");
+
+// Done all (no task/phase)
+const p3 = makePhases();
+const r12 = applyOp(p3, { op: "done" });
+check("done all: marks everything completed",
+  r12.phases.every(p => p.tasks.every(t => t.status === "completed")));
+
+// Done phase
+const p4 = makePhases();
+const r13 = applyOp(p4, { op: "done", phase: "Scanner" });
+check("done phase: Scanner tasks completed", r13.phases[0].tasks.every(t => t.status === "completed"));
+check("done phase: Picker untouched", r13.phases[1].tasks.some(t => t.status === "pending"));
+
+// ── 4. drop (abandon) ──────────────────────────────────────────
+
+const p5 = makePhases();
+const r14 = applyOp(p5, { op: "drop", task: "Create claude-scanner" });
+check("drop: marks abandoned", r14.phases[0].tasks[0].status === "abandoned");
+
+// Drop phase
+const p6 = makePhases();
+const r15 = applyOp(p6, { op: "drop", phase: "Picker" });
+check("drop phase: all Picker abandoned", r15.phases[1].tasks.every(t => t.status === "abandoned"));
+
+// ── 5. rm (remove) ─────────────────────────────────────────────
+
+const p7 = makePhases();
+const r16 = applyOp(p7, { op: "rm", task: "Create claude-scanner" });
+check("rm task: removes task", r16.phases[0].tasks.length === 1);
+check("rm task: correct task kept", r16.phases[0].tasks[0].content === "Create codex-scanner");
+
+// Rm phase
+const p8 = makePhases();
+const r17 = applyOp(p8, { op: "rm", phase: "Scanner" });
+check("rm phase: removes Scanner", r17.phases.length === 1);
+check("rm phase: Picker stays", r17.phases[0].name === "Picker");
+
+// Rm all (no task/phase)
+const p9 = makePhases();
+const r18 = applyOp(p9, { op: "rm" });
+check("rm all: empty phases", r18.phases.length === 0);
+
+// ── 6. append ──────────────────────────────────────────────────
+
+const p10 = makePhases();
+const r19 = applyOp(p10, { op: "append", phase: "Scanner", items: ["new task"] });
+check("append: adds to existing phase", r19.phases[0].tasks.length === 3);
+check("append: new task is pending", r19.phases[0].tasks[2].status === "pending");
+
+// Append to new phase
+const p11 = makePhases();
+const r20 = applyOp(p11, { op: "append", phase: "NewPhase", items: ["first item"] });
+check("append: creates new phase", r20.phases.length === 3);
+check("append: new phase name", r20.phases[2].name === "NewPhase");
+// Append duplicate
+const p12 = makePhases();
+const r21 = applyOp(p12, { op: "append", phase: "Scanner", items: ["Create claude-scanner"] });
+check("append: duplicate error", r21.errors.length > 0);
+
+// Append missing phase
+const r22 = applyOp(p12, { op: "append", items: ["x"] });
+check("append: missing phase error", r22.errors.length > 0);
+
+// ── 7. view ────────────────────────────────────────────────────
+
+const p13 = makePhases();
+const r23 = applyOp(p13, { op: "view" });
+check("view: clones phases", r23.phases.length === 2);
+check("view: content preserved", r23.phases[0].tasks[0].content === "Create claude-scanner");
+check("view: no mutations", p13[0].tasks[0].content === "Create claude-scanner");
+
+// ── 8. summarizePhases ─────────────────────────────────────────
+
+// makePhases has 1 in_progress, 4 pending
+const s = summarizePhases(makePhases());
+check("summarize: counts", s.in_progress === 1 && s.pending === 4 && s.completed === 0 && s.abandoned === 0);
+
+// Complete a task and re-summarize
+const pDone = applyOp(makePhases(), { op: "done", task: "Create claude-scanner" });
+const s2 = summarizePhases(pDone.phases);
+check("summarize: after done", s2.completed === 1 && s2.in_progress === 1);
+
+// ── 9. formatSummary ───────────────────────────────────────────
+
+const p14 = makePhases();
+const summary = formatSummary(p14, []);
+check("formatSummary: contains phase name", summary.includes("Scanner"));
+check("formatSummary: contains overall", summary.includes("Overall"));
+check("formatSummary: contains Remaining", summary.includes("Remaining"));
+
+const emptySummary = formatSummary([], []);
+check("formatSummary: empty list", emptySummary === "Todo list cleared.");
+
+// ── 10. selectVisibleTodos ─────────────────────────────────────
+
+const short = [{ name: "P", tasks: [{ content: "a", status: "pending" }, { content: "b", status: "completed" }] }];
 const v1 = selectVisibleTodos(short);
-check("short list: all rows, no hidden", v1.rows.length === 2 && v1.hidden === 0);
-check("MAX_VISIBLE is 5", MAX_VISIBLE_TODOS === 5);
+check("selectVisible: short list passes all", v1.rows.length === 2 && v1.hidden === 0);
 
-// 4. >5: in_progress all visible
-const long1 = [
-  T("1", "pending"), T("2", "pending"), T("3", "pending"),
-  T("4", "in_progress"), T("5", "in_progress"),
-  T("6", "pending"), T("7", "pending"),
+// Long list (>5)
+const manyTasks = [
+  { name: "P", tasks: [
+    { content: "a", status: "pending" },
+    { content: "b", status: "pending" },
+    { content: "c", status: "pending" },
+    { content: "d", status: "in_progress" },
+    { content: "e", status: "pending" },
+    { content: "f", status: "pending" },
+    { content: "g", status: "completed" },
+  ]},
 ];
-const v2 = selectVisibleTodos(long1);
-const v2ids = v2.rows.map((t) => t.id);
-check("both in_progress visible", v2ids.includes("4") && v2ids.includes("5"));
-check("folded to 5 rows", v2.rows.length === 5);
-check("hidden counts pending", v2.hidden === 2 && v2.hiddenCounts.pending === 2);
+const v2 = selectVisibleTodos(manyTasks);
+check("selectVisible: max 5", v2.rows.length <= MAX_VISIBLE_TODOS);
+check("selectVisible: in_progress visible", v2.rows.some(t => t.status === "in_progress"));
+check("selectVisible: hidden count correct", v2.hidden === manyTasks[0].tasks.length - v2.rows.length);
 
-// 5. >5 with done items: one slot kept for most recent done
-const long2 = [
-  T("1", "done"), T("2", "done"), T("3", "done"),
-  T("4", "pending"), T("5", "pending"), T("6", "pending"), T("7", "pending"),
-];
-const v3 = selectVisibleTodos(long2);
-const v3ids = v3.rows.map((t) => t.id);
-check("most recent done kept", v3ids.includes("3") && !v3ids.includes("1"));
-check("earliest pending kept", v3ids.includes("4") && v3ids.includes("5"));
-check("row order by original index", v3ids.join(",") === ["3", "4", "5", "6", "7"].filter((x) => v3ids.includes(x)).join(","));
+// ── 11. phaseRomanNumeral ──────────────────────────────────────
 
-// 6. all in_progress > 5: first 5 in_progress
-const long3 = Array.from({ length: 7 }, (_, i) => T(`t${i + 1}`, "in_progress"));
-const v4 = selectVisibleTodos(long3);
-check("5 in_progress shown", v4.rows.length === 5 && v4.rows.every((t) => t.status === "in_progress"));
-check("hidden 2 in_progress", v4.hiddenCounts.in_progress === 2);
+check("roman: 1=I", phaseRomanNumeral(1) === "I");
+check("roman: 4=IV", phaseRomanNumeral(4) === "IV");
+check("roman: 5=V", phaseRomanNumeral(5) === "V");
+check("roman: 9=IX", phaseRomanNumeral(9) === "IX");
+check("roman: 10=X", phaseRomanNumeral(10) === "X");
+check("roman: 14=XIV", phaseRomanNumeral(14) === "XIV");
+check("roman: 20=XX", phaseRomanNumeral(20) === "XX");
+check("roman: 49=XLIX", phaseRomanNumeral(49) === "XLIX");
+check("roman: 50=L", phaseRomanNumeral(50) === "L");
+check("roman: 99=XCIX", phaseRomanNumeral(99) === "XCIX");
+check("roman: 100=C", phaseRomanNumeral(100) === "C");
+check("roman: >100 numeric", phaseRomanNumeral(101) === "101");
+check("roman: 0 numeric", phaseRomanNumeral(0) === "0");
 
-// 7. no pending candidates: done fills remaining
-const long4 = [T("1", "done"), T("2", "done"), T("3", "done"), T("4", "done"), T("5", "done"), T("6", "done")];
-const v5 = selectVisibleTodos(long4);
-check("all-done folds to 5", v5.rows.length === 5 && v5.hidden === 1);
-check("most recent done visible", v5.rows.some((t) => t.id === "6"));
+// ── 12. formatPhaseDisplayName ─────────────────────────────────
 
-// 8. maxVisible parameter honored
-const long5 = Array.from({ length: 8 }, (_, i) => T(`t${i + 1}`, "pending"));
-check("maxVisible=3 folds to 3", selectVisibleTodos(long5, 3).rows.length === 3);
-check("maxVisible=8 shows all", selectVisibleTodos(long5, 8).rows.length === 8);
+check("formatDisplayName: works", formatPhaseDisplayName("Setup", 1) === "I. Setup");
+check("formatDisplayName: index 3", formatPhaseDisplayName("Test", 3) === "III. Test");
+
+// ── 13. markdown round-trip ────────────────────────────────────
+
+const p15 = makePhases();
+const md = phasesToMarkdown(p15);
+check("markdown: contains Scanner heading", md.includes("# Scanner"));
+check("markdown: contains task", md.includes("Create claude-scanner"));
+check("markdown: uses markers", md.includes("[ ]") || md.includes("[/]"));
+
+const parsed = markdownToPhases(md);
+check("markdown round-trip: same phase count", parsed.phases.length === 2);
+check("markdown round-trip: tasks restored", parsed.phases[0].tasks.length === 2);
+
+// ── 14. applyOpsToPhases (batch) ───────────────────────────────
+
+const p16 = makePhases();
+const batch = applyOpsToPhases(p16, [
+  { op: "start", task: "Build picker UI" },
+  { op: "done", task: "Create claude-scanner" },
+]);
+check("batch: start applied", batch.phases[1].tasks[0].status === "in_progress");
+check("batch: done applied", batch.phases[0].tasks[0].status === "completed");
+check("batch: no errors", batch.errors.length === 0);
+
+// Batch with error rolls back
+const p17 = makePhases();
+const batchErr = applyOpsToPhases(p17, [
+  { op: "done", task: "Create claude-scanner" },
+  { op: "start", task: "nonexistent" },
+]);
+check("batch error: rolls back", batchErr.errors.length > 0);
+check("batch error: original unchanged", batchErr.phases === p17);
+
+// ── 15. clonePhases immutability ───────────────────────────────
+
+const p18 = makePhases();
+const cloned = clonePhases(p18);
+cloned[0].name = "Hacked";
+check("clone: original name unchanged", p18[0].name === "Scanner");
+cloned[0].tasks[0].status = "completed";
+check("clone: original status unchanged", p18[0].tasks[0].status === "in_progress");
+
+// ── 16. Error edge cases ───────────────────────────────────────
+
+check("unknown op error", applyOp([], { op: "invalid" }).errors.length > 0);
+check("rm missing task error", applyOp(makePhases(), { op: "rm", task: "nope" }).errors.length > 0);
+check("rm missing phase error", applyOp(makePhases(), { op: "rm", phase: "Nope" }).errors.length > 0);
+check("done missing task not found", applyOp(makePhases(), { op: "done", task: "nope" }).errors.length > 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

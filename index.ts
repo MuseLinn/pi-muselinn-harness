@@ -51,7 +51,7 @@ import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { approvalTitleFor } from "./packages/core/ask/types";
 import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
-import { registerTodoList, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
+import { registerTodoList, registerTodoReminders, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
 import { registerFetchUrl } from "./webfetch/index";
 import { loadPlugins, injectPluginSessionStart, registerPluginCommand, getPluginSkillFiles } from "./plugin/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
@@ -526,6 +526,7 @@ export default function (pi: ExtensionAPI) {
   goalManager.registerTools(pi);
   registerAskUserQuestion(pi);
   registerTodoList(pi);
+  registerTodoReminders(pi);
   registerFetchUrl(pi);
   registerAgentFileTools(pi);
   registerPluginCommand(pi);
