@@ -1515,16 +1515,15 @@ function registerAgentFileTools(pi: ExtensionAPI): void {
  * Call after registerTodoList.
  */
 export function registerTodoCommand(pi: any): void {
-  pi.registerCommand("todo", {
-    description: "Manage todo list manually (append / start / done / drop / rm / import / view)",
+    description: "Manage todo list manually (append / start / done / drop / rm / import / export)",
     usage: [
       "/todo import [<path>]              Replace todos from file (default: TODO.md)",
       "/todo append [<phase>] <task...>   Append a task; phase fuzzy-matched or auto-created",
       "/todo start  <task>                Mark task in_progress (fuzzy content match)",
       "/todo done   [<task|phase>]        Mark task/phase/all completed",
       "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
-      "/todo rm     [<task|phase>]        Remove task/phase/all",
-      "/todo view                         Show current todo list",
+      "/todo export [<path>]               Export todos to file (default: TODO.md)",
+      "/todo help                          Show this usage",
     ].join("\n"),
     getArgumentCompletions: (prefix: string): { value: string; label: string; description?: string }[] | null => {
       const subcmds = [
@@ -1532,9 +1531,8 @@ export function registerTodoCommand(pi: any): void {
         { value: "append", label: "/todo append", description: "Append a task" },
         { value: "start", label: "/todo start", description: "Mark task in_progress" },
         { value: "done", label: "/todo done", description: "Mark task/phase/all completed" },
-        { value: "drop", label: "/todo drop", description: "Mark task/phase/all abandoned" },
-        { value: "rm", label: "/todo rm", description: "Remove task/phase/all" },
-        { value: "view", label: "/todo view", description: "Show current todo list" },
+        { value: "export", label: "/todo export", description: "Export todos to file" },
+        { value: "help", label: "/todo help", description: "Show usage" },
       ];
       if (!prefix) return subcmds;
       const lower = prefix.toLowerCase();
@@ -1704,18 +1702,38 @@ export function registerTodoCommand(pi: any): void {
           return;
         }
 
-        case "view":
-        default: {
-          if (rt.phases.length === 0) { ctx?.showStatus?.("Todo list is empty."); return; }
+        case "export": {
+          const { writeFileSync, existsSync } = await import("node:fs");
+          const { resolve } = await import("node:path");
+          const cwd = ctx?.cwd || process.cwd();
+          const filePath = rest || "TODO.md";
+          if (rt.phases.length === 0) { ctx?.showStatus?.("No todos to export."); return; }
           const md = phasesToMarkdown(rt.phases);
-          ctx?.showStatus?.(md ? `Todo list:\n${md}` : "Todo list is empty.");
+          try {
+            writeFileSync(resolve(cwd, filePath), md, "utf-8");
+            ctx?.showStatus?.(`Exported ${rt.phases.length} phase(s) to ${filePath}`);
+          } catch (e: any) {
+            ctx?.showStatus?.(`Export failed: ${e?.message || e}`);
+          }
+          return;
+        }
+
+        case "help": {
+          ctx?.showStatus?.(`Usage:\n${[
+            "/todo import [<path>]              Replace todos from file (default: TODO.md)",
+            "/todo append [<phase>] <task...>   Append a task; phase fuzzy-matched or auto-created",
+            "/todo start  <task>                Mark task in_progress (fuzzy content match)",
+            "/todo done   [<task|phase>]        Mark task/phase/all completed",
+            "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
+            "/todo rm     [<task|phase>]        Remove task/phase/all",
+            "/todo export [<path>]               Export todos to file (default: TODO.md)",
+          ].join("\n")}`);
           return;
         }
       }
     },
   });
 }
-
 // ── Fuzzy helpers for /todo command ────────────────────────────
 
 function findPhaseFuzzy(phases: TodoPhase[], query: string): TodoPhase | undefined {
