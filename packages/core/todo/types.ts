@@ -6,7 +6,7 @@
 // ============================================================
 
 export type TodoStatus = "pending" | "in_progress" | "completed" | "abandoned";
-export type TodoOperation = "init" | "start" | "done" | "rm" | "drop" | "append" | "view";
+export type TodoOperation = "init" | "start" | "done" | "rm" | "drop" | "append" | "add_notes" | "view";
 
 export interface TodoItem {
   content: string;
@@ -41,6 +41,8 @@ export type TodoOpParams = {
   list?: InitListEntry[];
   task?: string;
   phase?: string;
+  notes?: string[];
+  details?: string;
   items?: string[];
 };
 
@@ -282,7 +284,6 @@ function applyEntry(phases: TodoPhase[], entry: TodoOpParams, errors: string[]):
       return initPhases(entry, errors);
     case "start": {
       if (!entry.task) { errors.push("Missing task content for start"); return phases; }
-      // De-escalate all existing in_progress first, then set target
       const deEscalated = clonePhases(phases);
       for (const p of deEscalated) {
         for (const t of p.tasks) {
@@ -302,6 +303,18 @@ function applyEntry(phases: TodoPhase[], entry: TodoOpParams, errors: string[]):
       return removeTasks(phases, entry, errors);
     case "append":
       return appendItems(phases, entry, errors);
+    case "add_notes": {
+      if (!entry.task) { errors.push("Missing task content for add_notes"); return phases; }
+      if (!entry.notes || entry.notes.length === 0) { errors.push("No notes to add"); return phases; }
+      const resolved = findTaskByContent(phases, entry.task);
+      if (!resolved) { errors.push(`Task "${entry.task}" not found`); return phases; }
+      const clone = clonePhases(phases);
+      const t = findTaskByContent(clone, entry.task);
+      if (t) {
+        t.task.notes = [...(t.task.notes || []), ...entry.notes];
+      }
+      return clone;
+    }
     case "view":
       return clonePhases(phases);
     default:
@@ -310,10 +323,6 @@ function applyEntry(phases: TodoPhase[], entry: TodoOpParams, errors: string[]):
   }
 }
 
-/**
- * Apply an array of todo operations to existing phases.
- * Clones the phases first; on any error the whole batch is discarded.
- */
 export function applyOpsToPhases(
   currentPhases: TodoPhase[],
   ops: TodoOpParams[],
@@ -604,4 +613,40 @@ export function selectVisibleTodos(
   const hidden = todos.length - rows.length;
 
   return { rows, hidden, hiddenCounts };
+}
+
+// ── Subagent task matching ───────────────────────────────────
+
+const TODO_DESCRIPTION_MIN_OVERLAP = 6;
+
+function normalizeForTodoMatch(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9\u00C0-\u024F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+/g, " ").trim();
+}
+
+export function todoMatchesAnyDescription(content: string, descriptions: readonly string[]): boolean {
+  if (descriptions.length === 0) return false;
+  const normalContent = normalizeForTodoMatch(content);
+  for (const desc of descriptions) {
+    const normalDesc = normalizeForTodoMatch(desc);
+    if (normalDesc === normalContent) return true;
+    // Substring fallback with minimum overlap
+    if (normalDesc.length >= TODO_DESCRIPTION_MIN_OVERLAP && normalContent.length >= TODO_DESCRIPTION_MIN_OVERLAP) {
+      // Exact substring check
+      if (normalDesc.includes(normalContent) || normalContent.includes(normalDesc)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export type TodoActiveDescriptionsProvider = () => readonly string[];
+let activeTodoDescriptions: TodoActiveDescriptionsProvider = () => [];
+
+export function setActiveTodoDescriptionsProvider(provider: TodoActiveDescriptionsProvider): void {
+  activeTodoDescriptions = provider;
+}
+
+export function getActiveTodoDescriptions(): readonly string[] {
+  return activeTodoDescriptions();
 }

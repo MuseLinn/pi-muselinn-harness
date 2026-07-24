@@ -7,6 +7,9 @@
 // ============================================================
 
 import {
+  todoMatchesAnyDescription,
+  setActiveTodoDescriptionsProvider,
+  getActiveTodoDescriptions,
   type TodoItem,
   type TodoPhase,
   type TodoOpParams,
@@ -61,14 +64,15 @@ function statusMarker(status: TodoItem["status"], theme: any): string {
   }
 }
 
-function styleContent(content: string, status: TodoItem["status"], theme: any): string {
-  if (status === "completed" || status === "abandoned") return theme.fg("dim", content);
-  if (status === "in_progress") return theme.fg("bright", content);
+function styleContent(content: string, status: TodoItem["status"], theme: any, hasNotes?: number): string {
+  if (status === "completed" || status === "abandoned") return theme.fg("dim", "\x1b[9m" + content + "\x1b[29m");
+  if (status === "in_progress") return theme.fg("bright", content + (hasNotes ? " \x1b[2m+\x1b[22m" + hasNotes : ""));
   return content;
 }
 
 function buildWidgetLines(theme: any): string[] | undefined {
   const { phases } = rt;
+  const activeDescriptions = getActiveTodoDescriptions();
   if (phases.length === 0) return undefined;
 
   const counts = summarizePhases(phases);
@@ -87,7 +91,12 @@ function buildWidgetLines(theme: any): string[] | undefined {
       const highlighted = phase.tasks.some((t) => t.status === "in_progress");
       lines.push(highlighted ? theme.fg("accent", theme.bold(phaseLine)) : phaseLine);
       for (const task of phase.tasks) {
-        lines.push(`  ${statusMarker(task, theme)} ${styleContent(task.content, task.status, theme)}`);
+        const notesCount = task.notes?.length ?? 0;
+      const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
+      const marker = agentMatch ? theme.fg("success", theme.spinnerFrame?.() ?? "◔") : statusMarker(task, theme);
+      const styled = styleContent(task.content, task.status, theme, notesCount);
+      const line = agentMatch ? `${marker} ${theme.fg("success", styled)}` : `  ${marker} ${styled}`;
+      lines.push(line);
       }
     }
     lines.push(theme.fg("dim", "alt+t collapse"));
@@ -97,7 +106,12 @@ function buildWidgetLines(theme: any): string[] | undefined {
     const { rows, hidden, hiddenCounts } = selectVisibleTodos(phases);
     // Show phase header for first visible item's phase
     for (const task of rows) {
-      lines.push(`  ${statusMarker(task, theme)} ${styleContent(task.content, task.status, theme)}`);
+      const notesCount = task.notes?.length ?? 0;
+      const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
+      const marker = agentMatch ? theme.fg("success", theme.spinnerFrame?.() ?? "◔") : statusMarker(task, theme);
+      const styled = styleContent(task.content, task.status, theme, notesCount);
+      const line = agentMatch ? `${marker} ${theme.fg("success", styled)}` : `  ${marker} ${styled}`;
+      lines.push(line);
     }
     if (hidden > 0) {
       lines.push(theme.fg("dim", `… +${hidden} more · alt+t expand`));
@@ -199,7 +213,7 @@ export function registerTodoList(pi: any): void {
       properties: {
         op: {
           type: "string",
-          enum: ["init", "start", "done", "rm", "drop", "append", "view"],
+          enum: ["init", "start", "done", "rm", "drop", "append", "add_notes", "view"],
           description: "Operation to apply",
         },
         list: {
@@ -226,6 +240,11 @@ export function registerTodoList(pi: any): void {
           type: "array",
           items: { type: "string" },
           description: "Tasks to append (for append, or flat init fallback)",
+        notes: {
+          type: "array",
+          items: { type: "string" },
+          description: "Notes to attach (for add_notes op)",
+        },
         },
       },
       required: ["op"],
@@ -235,6 +254,7 @@ export function registerTodoList(pi: any): void {
       const entry: TodoOpParams = {
         op: op as TodoOpParams["op"],
         list: params.list,
+        notes: params.notes,
         task: params.task,
         phase: params.phase,
         items: params.items,
@@ -259,6 +279,43 @@ export function registerTodoList(pi: any): void {
   });
 
   // alt+t toggles the panel's expanded view (ctrl+t is pi built-in thinking toggle).
+
+  // Wire default subagent descriptions provider to swarm state
+  try {
+    const { swarmState } = require("../packages/core/swarm/types");
+    setActiveTodoDescriptionsProvider(() => {
+      const tasks = swarmState.currentSwarm?.tasks;
+      if (!tasks) return [];
+      return tasks
+        .filter((t) => t.status === "running" || t.status === "pending")
+        .map((t) => t.task ?? t.description ?? "")
+        .filter(Boolean);
+    });
+  } catch { /* swarm module not available */ }
+
+  // Wire event-driven widget refresh for subagent matching
+  pi.on("tool_result", () => { refreshWidget(); });
+  pi.on("agent_start", () => { refreshWidget(); });
+  pi.on("agent_end", () => { refreshWidget(); });
+
+  // Wire default subagent descriptions provider to swarm state
+  try {
+    const { swarmState } = require("../packages/core/swarm/types");
+    setActiveTodoDescriptionsProvider(() => {
+      const tasks = swarmState.currentSwarm?.tasks;
+      if (!tasks) return [];
+      return tasks
+        .filter((t) => t.status === "running" || t.status === "pending")
+        .map((t) => t.task ?? t.description ?? "")
+        .filter(Boolean);
+    });
+  } catch { /* swarm module not available */ }
+
+  // Wire event-driven widget refresh for subagent matching
+  pi.on("tool_result", () => { try { refreshWidget(); } catch {} });
+  pi.on("agent_start", () => { try { refreshWidget(); } catch {} });
+  pi.on("agent_end", () => { try { refreshWidget(); } catch {} });
+
   pi.registerShortcut("alt+t", {
     description: "Expand/collapse the todo panel",
     handler: () => {
