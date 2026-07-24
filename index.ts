@@ -51,7 +51,7 @@ import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { approvalTitleFor } from "./packages/core/ask/types";
 import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
-import { registerTodoList, registerTodoReminders, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
+import { registerTodoList, registerTodoReminders, registerTodoCommand, bindTodoSession, clearTodoSession, restoreTodos } from "./todo/index";
 import { registerFetchUrl } from "./webfetch/index";
 import { loadPlugins, injectPluginSessionStart, registerPluginCommand, getPluginSkillFiles } from "./plugin/index";
 import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
@@ -539,6 +539,9 @@ export default function (pi: ExtensionAPI) {
 
   // ── Register permission commands ──
   registerPermissionCommands(pi, permissionManager);
+
+  // ── Register /todo slash command ──
+  registerTodoCommand(pi);
 
   // ── tool_call: 18-level policy chain + plan mode restrictions ──
   pi.on("tool_call", async (event, ctx) => {
@@ -1502,4 +1505,247 @@ function registerAgentFileTools(pi: ExtensionAPI): void {
       };
     },
   });
+}
+
+// ── /todo slash command ────────────────────────────────────────
+
+/**
+ * Register the /todo user slash command for manual todo management.
+ * Call after registerTodoList.
+ */
+export function registerTodoCommand(pi: any): void {
+  pi.registerCommand("todo", {
+    description: "Manage todo list manually (append / start / done / drop / rm / import / view)",
+    usage: [
+      "/todo import [<path>]              Replace todos from file (default: TODO.md)",
+      "/todo append [<phase>] <task...>   Append a task; phase fuzzy-matched or auto-created",
+      "/todo start  <task>                Mark task in_progress (fuzzy content match)",
+      "/todo done   [<task|phase>]        Mark task/phase/all completed",
+      "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
+      "/todo rm     [<task|phase>]        Remove task/phase/all",
+      "/todo view                         Show current todo list",
+    ].join("\n"),
+    handler: async (args: string, ctx: any) => {
+      rt.ctx = ctx;
+      const trimmed = (args || "").trim();
+      const spaceIdx = trimmed.indexOf(" ");
+      const subcmd = spaceIdx >= 0 ? trimmed.slice(0, spaceIdx) : trimmed;
+      const rest = spaceIdx >= 0 ? trimmed.slice(spaceIdx + 1).trim() : "";
+
+      switch (subcmd) {
+        case "import": {
+          const { readFileSync, existsSync } = await import("node:fs");
+          const { resolve } = await import("node:path");
+          const cwd = ctx?.cwd || process.cwd();
+          let filePath = rest || "TODO.md";
+          if (!existsSync(filePath)) filePath = resolve(cwd, filePath);
+          if (!existsSync(filePath)) {
+            ctx?.showStatus?.(`File not found: ${filePath}`);
+            return;
+          }
+          const md = readFileSync(filePath, "utf-8");
+          const { phases, errors } = markdownToPhases(md);
+          if (errors.length > 0) {
+            ctx?.showStatus?.(`Import errors: ${errors.join("; ")}`);
+          }
+          if (phases.length === 0) {
+            ctx?.showStatus?.("No tasks found in file.");
+            return;
+          }
+          rt.phases = phases;
+          persist();
+          refreshWidget();
+          const taskCount = phases.reduce((sum, p) => sum + p.tasks.length, 0);
+          ctx?.showStatus?.(`Imported ${phases.length} phase(s), ${taskCount} task(s) from ${filePath}.`);
+          return;
+        }
+
+        case "append": {
+          if (!rest) { ctx?.showStatus?.("Usage: /todo append [<phase>] <task...>"); return; }
+          const tokens = parseTokens(rest);
+          // First token might be a phase name (fuzzy match), rest is the task
+          const phases = rt.phases;
+          const { phases: next, errors } = applyOp(phases, { op: "append", phase: tokens.length > 1 ? tokens[0] : "Tasks", items: [tokens.length > 1 ? tokens.slice(1).join(" ") : tokens[0]] });
+          if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+          rt.phases = next;
+          persist();
+          refreshWidget();
+          ctx?.showStatus?.(`Appended: ${tokens[tokens.length - 1]}`);
+          return;
+        }
+
+        case "start": {
+          if (!rest) { ctx?.showStatus?.("Usage: /todo start <task>"); return; }
+          const found = findTaskFuzzy(rt.phases, rest);
+          if (!found) { ctx?.showStatus?.(`Task not found: ${rest}`); return; }
+          const { phases: next, errors } = applyOp(rt.phases, { op: "start", task: found.task.content });
+          if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+          rt.phases = next;
+          persist();
+          refreshWidget();
+          ctx?.showStatus?.(`Started: ${found.task.content}`);
+          return;
+        }
+
+        case "done": {
+          if (!rest) {
+            // No args → mark all done
+            const { phases: next, errors } = applyOp(rt.phases, { op: "done" });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.("All tasks completed.");
+            return;
+          }
+          // Try task first, then phase
+          const taskMatch = findTaskFuzzy(rt.phases, rest);
+          if (taskMatch) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "done", task: taskMatch.task.content });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.(`Completed: ${taskMatch.task.content}`);
+            return;
+          }
+          const phaseMatch = findPhaseFuzzy(rt.phases, rest);
+          if (phaseMatch) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "done", phase: phaseMatch.name });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.(`Phase completed: ${phaseMatch.name}`);
+            return;
+          }
+          ctx?.showStatus?.(`Task/phase not found: ${rest}`);
+          return;
+        }
+
+        case "drop": {
+          if (!rest) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "drop" });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.("All tasks abandoned.");
+            return;
+          }
+          const taskMatch = findTaskFuzzy(rt.phases, rest);
+          if (taskMatch) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "drop", task: taskMatch.task.content });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.(`Dropped: ${taskMatch.task.content}`);
+            return;
+          }
+          const phaseMatch = findPhaseFuzzy(rt.phases, rest);
+          if (phaseMatch) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "drop", phase: phaseMatch.name });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.(`Phase abandoned: ${phaseMatch.name}`);
+            return;
+          }
+          ctx?.showStatus?.(`Task/phase not found: ${rest}`);
+          return;
+        }
+
+        case "rm": {
+          if (!rest) {
+            rt.phases = [];
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.("Todo list cleared.");
+            return;
+          }
+          const taskMatch = findTaskFuzzy(rt.phases, rest);
+          if (taskMatch) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "rm", task: taskMatch.task.content });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.(`Removed: ${taskMatch.task.content}`);
+            return;
+          }
+          const phaseMatch = findPhaseFuzzy(rt.phases, rest);
+          if (phaseMatch) {
+            const { phases: next, errors } = applyOp(rt.phases, { op: "rm", phase: phaseMatch.name });
+            if (errors.length > 0) { ctx?.showStatus?.(`Error: ${errors.join("; ")}`); return; }
+            rt.phases = next;
+            persist();
+            refreshWidget();
+            ctx?.showStatus?.(`Phase removed: ${phaseMatch.name}`);
+            return;
+          }
+          ctx?.showStatus?.(`Task/phase not found: ${rest}`);
+          return;
+        }
+
+        case "view":
+        default: {
+          if (rt.phases.length === 0) { ctx?.showStatus?.("Todo list is empty."); return; }
+          const md = phasesToMarkdown(rt.phases);
+          ctx?.showStatus?.(md ? `Todo list:\n${md}` : "Todo list is empty.");
+          return;
+        }
+      }
+    },
+  });
+}
+
+// ── Fuzzy helpers for /todo command ────────────────────────────
+
+function findPhaseFuzzy(phases: TodoPhase[], query: string): TodoPhase | undefined {
+  const q = query.trim().toLowerCase();
+  if (!q) return undefined;
+  // Exact name (case-insensitive)
+  const exact = phases.find((p) => p.name.toLowerCase() === q);
+  if (exact) return exact;
+  // Prefix match
+  return phases.find((p) => p.name.toLowerCase().startsWith(q) || p.name.toLowerCase().includes(q));
+}
+
+function findTaskFuzzy(phases: TodoPhase[], query: string): { task: TodoItem; phase: TodoPhase } | undefined {
+  const q = query.trim().toLowerCase();
+  if (!q) return undefined;
+  // Exact content (case-insensitive)
+  for (const phase of phases) {
+    const task = phase.tasks.find((t) => t.content.toLowerCase() === q);
+    if (task) return { task, phase };
+  }
+  // Substring match
+  const matches: Array<{ task: TodoItem; phase: TodoPhase }> = [];
+  for (const phase of phases) {
+    for (const task of phase.tasks) {
+      if (task.content.toLowerCase().includes(q)) {
+        matches.push({ task, phase });
+      }
+    }
+  }
+  return matches[0];
+}
+
+/** Parse quoted tokens from a command string (e.g. /todo append "My Phase" task) */
+function parseTokens(input: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let inQuote = false;
+  for (const ch of input) {
+    if (ch === '"') { inQuote = !inQuote; continue; }
+    if (ch === " " && !inQuote) {
+      if (current) { tokens.push(current); current = ""; }
+      continue;
+    }
+    current += ch;
+  }
+  if (current) tokens.push(current);
+  return tokens;
 }
