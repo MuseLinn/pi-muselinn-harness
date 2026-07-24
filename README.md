@@ -2,9 +2,9 @@
 
 [![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
 
-**Kimi Code-style agent orchestration harness for the [Pi coding agent](https://pi.dev)** — Swarm + Goal + Plan + Permission + Task + Hooks + Skills + TUI, an eight-module architecture that builds the features Pi deliberately skips (sub-agents, plan mode, …) and aligns them with Kimi Code's subsystem behavior.
+**Kimi Code-style agent orchestration harness for the [Pi coding agent](https://pi.dev)** — Swarm · Goal · Plan · Permission · Ask · Task · Cron · Todo · Hooks · Skills · TUI, an eleven-module architecture that builds the features Pi deliberately skips (sub-agents, plan mode, todo, …) and aligns them with Kimi Code's subsystem behavior.
 
-> **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
+> **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x–0.82.x, Node 22/24 on ubuntu + windows.
 
 ### What's new in 0.9.9
 
@@ -244,7 +244,6 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 - **Inline panel** — above-editor widget with roman-numeral phase tree (`Ⅰ. Scanner · 2/4`), `/todo toggle` expand/collapse, empty list hides widget entirely
 - **`/todo` command** — full oh-my-pi phase model: `init`, `start`, `done`, `drop`, `rm`, `append`, `export`, `import`, `copy`, `edit`, `add_notes`, `update_details`, bare `/todo` prints Markdown
 - **`todo_list` tool** — model-driven task management with same ops
-- **Inline panel** — above-editor widget with roman-numeral phase tree (`Ⅰ. Scanner · 2/4`), `alt+t` collapse/expand, empty list hides widget entirely
 - **Reminder system** — incomplete todos injected as `<system-reminder>` when agent stops (max 3 reminders, debounced)
 - **Subagent matching** — pending tasks matching swarm subagent descriptions get highlighted with `◔` spinner
 - **Markdown round-trip** — `/todo export/import` for persistence and sharing between sessions
@@ -294,7 +293,6 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `/todo toggle` | Expand/collapse the todo panel (replaces former `alt+t`) |
 | `/plugins` | List loaded plugins and their capabilities |
 | `/swarm-status` | Show status |
-| `alt+t` | Expand/collapse the todo panel |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` all support Tab completion.
 
