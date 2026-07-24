@@ -394,9 +394,9 @@
     currentScene = "swarm";
     bodyEl.innerHTML = CUE_HTML;
   }
-  // ── Version constellation (star atlas) ──
+  // ── Version galaxy (milky‑way cluster) ──
 
-  function initVersionConstellation() {
+  function initVersionGalaxy() {
     var heads = document.querySelectorAll('h2');
     var entries = [];
     for (var i = 0; i < heads.length; i++) {
@@ -409,105 +409,72 @@
     }
     if (!entries.length) return;
 
-    // Hide original headings and grids, read version labels
     var verse = document.createElement('div');
     verse.className = 'v-verse';
     var labels = [];
     for (var j = 0; j < entries.length; j++) {
       var h2 = entries[j].h2;
       var en = h2.querySelector('[data-l="en"]');
-      labels.push(en ? en.textContent.replace('New in ', '').replace('Previously — ', '').replace('Earlier — ', '') : h2.textContent);
+      labels.push(en ? en.textContent.replace(/New in |Previously — |Earlier — /g, '') : h2.textContent);
       h2.style.display = 'none';
       entries[j].grid.style.display = 'none';
     }
 
-    // Insert constellation before the first entry's h2 position
     var refNode = entries[0].h2;
     refNode.parentNode.insertBefore(verse, refNode);
 
-    // Constellation SVG + star container
-    verse.innerHTML = '<div class="v-web-wrap"><svg class="v-web" viewBox="0 0 600 360"></svg><div class="v-stars"></div></div><div class="v-stage"></div>';
+    verse.innerHTML = '<div class="v-web-wrap"><div class="v-nebula"></div><div class="v-stars"></div></div><div class="v-stage"></div>';
 
-    var svg = verse.querySelector('.v-web');
     var starContainer = verse.querySelector('.v-stars');
     var stage = verse.querySelector('.v-stage');
 
-    var W = 600, H = 360;
-    var cx = W / 2, cy = H / 2;
-
-    // Position stars in a spiral / orbital pattern
+    var W = 600, H = 320, cx = W/2, cy = H/2;
     var stars = [];
     var total = entries.length;
+
     for (var k = 0; k < total; k++) {
-      var t = k / total;
-      var angle = t * Math.PI * 2 * 3; // 3 orbits
-      var radius = 40 + t * 140;
-      var x = cx + Math.cos(angle) * radius;
-      var y = cy + Math.sin(angle) * radius * 0.7; // squash vertically
+      var t = (k + 0.5) / total;
+      var angle = t * Math.PI * 4 + 0.8;
+      // Galaxy disk: concentration toward centre, wider toward edges
+      var r = Math.pow(t, 0.55) * 140;
+      var rx = r + (Math.random() - 0.5) * r * 0.18;
+      var ry = (r + (Math.random() - 0.5) * r * 0.18) * 0.5;
+      var aOff = (Math.random() - 0.5) * 0.35;
+
+      var x = cx + Math.cos(angle + aOff) * rx;
+      var y = cy + Math.sin(angle + aOff) * ry;
 
       var star = document.createElement('div');
       star.className = 'v-star';
-      var size = 38 + (1 - t) * 18; // larger for newer versions
-      var opacity = 0.5 + (1 - t) * 0.5;
-      star.style.cssText = 'left:' + x.toFixed(0) + 'px;top:' + y.toFixed(0) + 'px;width:' + size + 'px;height:' + size + 'px;opacity:' + opacity.toFixed(2) + ';';
+      var size = 34 + (1 - t) * 24;
+      var glow = 0.45 + (1 - t) * 0.55;
+      var animDelay = (Math.random() * 4).toFixed(1);
+
+      star.style.cssText = 'left:' + x.toFixed(0) + 'px;top:' + y.toFixed(0) + 'px;width:' + size + 'px;height:' + size + 'px;opacity:' + glow.toFixed(2) + ';--delay:' + animDelay + 's;';
       star.innerHTML = '<span class="v-label">' + labels[k] + '</span>';
       star.dataset.idx = k;
       starContainer.appendChild(star);
       stars.push({ el: star, x: x, y: y, idx: k });
 
-      // Click to show this version
-      star.addEventListener('click', function(idx) {
-        return function() { showVersion(idx, entries, stage, stars, labels); };
-      }(k));
+      star.addEventListener('click', (function(idx) {
+        return function() { showGalaxyVersion(idx, entries, stage, stars); };
+      })(k));
     }
 
-    // Draw constellation lines (connect each star to 2 nearest)
-    for (var m = 0; m < stars.length; m++) {
-      var dists = [];
-      for (var n = 0; n < stars.length; n++) {
-        if (n === m) continue;
-        var dx = stars[n].x - stars[m].x;
-        var dy = stars[n].y - stars[m].y;
-        dists.push({ idx: n, d: dx * dx + dy * dy });
-      }
-      dists.sort(function(a, b) { return a.d - b.d; });
-      for (var c = 0; c < Math.min(2, dists.length); c++) {
-        var s2 = stars[dists[c].idx];
-        // Only draw each edge once (from lower idx to higher)
-        if (m < s2.idx) {
-          var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', stars[m].x);
-          line.setAttribute('y1', stars[m].y);
-          line.setAttribute('x2', s2.x);
-          line.setAttribute('y2', s2.y);
-          svg.appendChild(line);
-        }
-      }
-    }
-
-    // Show first version by default
-    showVersion(0, entries, stage, stars, labels);
+    showGalaxyVersion(0, entries, stage, stars);
   }
 
-  var _activeStar = null;
-  function showVersion(idx, entries, stage, stars, labels) {
-    if (_activeStar) _activeStar.classList.remove('active');
-    _activeStar = stars[idx].el;
-    _activeStar.classList.add('active');
-
-    // Cloned card content from the roadmap-grid
-    stage.innerHTML = '';
-    var clone = entries[idx].grid.cloneNode(true);
-    clone.style.display = '';
-    clone.classList.add('v-reveal');
-    stage.appendChild(clone);
-
-    // Scroll into view smoothly
+  var _activeGalaxy = null;
+  function showGalaxyVersion(idx, entries, stage, stars) {
+    if (_activeGalaxy) _activeGalaxy.classList.remove('active');
+    _activeGalaxy = stars[idx].el;
+    _activeGalaxy.classList.add('active');
+    // Copy card content into stage (innerHTML to avoid cloneNode quirks)
+    stage.innerHTML = '<div class="roadmap-grid v-reveal">' + entries[idx].grid.innerHTML + '</div>';
     setTimeout(function() {
       stage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 100);
   }
 
-  // Wire into DOMContentLoaded
-  document.addEventListener('DOMContentLoaded', initVersionConstellation);
+  document.addEventListener('DOMContentLoaded', initVersionGalaxy);
 })();
