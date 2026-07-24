@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.9.0
+
+### Features
+
+- **todo phase model** — Full oh-my-pi-style phased TODO: `TodoPhase` with per-task status
+  (`pending`/`in_progress`/`completed`/`abandoned`), 7 ops (`init`/`start`/`done`/`drop`/`rm`/`append`/`view`),
+  auto-promote first task on init, per-phase progress display, roman numeral phase numbering.
+  Widget renders phase tree (`Ⅰ. Scanner · 2/4`) with collapse/expand. (`packages/core/todo/types.ts`, `todo/index.ts`)
+
+- **todo reminder system** — When agent stops with incomplete todos, injects `<system-reminder>`
+  with the task list into the next turn's context (max 3 reminders, debounced).
+  (`todo/index.ts`)
+
+- **todo markdown round-trip** — `phasesToMarkdown` / `markdownToPhases` for `/todo` export/import.
+  (`packages/core/todo/types.ts`)
+
+### Changes
+
+- **Tool rename** — Remains `todo_list` (backward-compatible with permission system / stream-rules /
+  tool-policy). Schema changed from `{action, todos}` to `{op, list?, task?, phase?, items?}`.
+
+- **Session persistence** — Format changed from `{todos}` to `{phases}`; `restoreTodos` auto-converts
+  old flat format to a single `Tasks` phase on hot-reload.
+
+### CI
+
+- **Test matrix** — Bumped from `[20, 22]` to `[22, 24]` (Node 20 deprecated on runner).
+  (`.github/workflows/test.yml`)
+
+- **Remove CI publish** — `npm publish` job removed from `publish.yml`; publish done locally with OTP
+  (npm granular token bypass-2FA deprecated for direct publishing).
+  (`.github/workflows/publish.yml`)
+
 ## 0.8.2
 
 ### Features (kimi-code 0.29.0 alignment)
