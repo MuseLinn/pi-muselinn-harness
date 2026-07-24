@@ -384,6 +384,11 @@ export default function (pi: ExtensionAPI) {
     try { agentLifecycle.reset(); } catch { /* ok */ }
   });
 
+  // ── session_end: clear todo state ──
+  pi.on("session_end", () => {
+    try { clearTodoSession(); } catch { /* stale ctx */ }
+  });
+
   // ── session_before_compact: preserve goal across compaction (@narumitw style) ──
   pi.on("session_before_compact", (event, _ctx) => {
     const goal = goalManager.getGoal();
@@ -1682,7 +1687,7 @@ export function registerTodoCommand(pi: any): void {
             rt.phases = [];
             persist();
             refreshWidget();
-            ctx?.showStatus?.("Todo list cleared.");
+            ctx?.showStatus?.("Cleared all todos.");
             return;
           }
           const taskMatch = findTaskFuzzy(rt.phases, rest);

@@ -24,7 +24,9 @@ import {
   phaseRomanNumeral,
   TODO_ENTRY_TYPE,
   type PhaseCounts,
+
 } from "../packages/core/todo/types";
+import { swarmState } from "../packages/core/swarm/types";
 
 // ── Runtime state ──────────────────────────────────────────────
 
@@ -281,19 +283,14 @@ export function registerTodoList(pi: any): void {
   // alt+t toggles the panel's expanded view (ctrl+t is pi built-in thinking toggle).
 
   // Wire default subagent descriptions provider to swarm state
-  try {
-    const { swarmState } = require("../packages/core/swarm/types");
-    setActiveTodoDescriptionsProvider(() => {
-      const tasks = swarmState.currentSwarm?.tasks;
-      if (!tasks) return [];
-      return tasks
-        .filter((t) => t.status === "running" || t.status === "pending")
-        .map((t) => t.task ?? t.description ?? "")
-        .filter(Boolean);
-    });
-  } catch { /* swarm module not available */ }
-
-  // Wire event-driven widget refresh for subagent matching
+  setActiveTodoDescriptionsProvider(() => {
+    const tasks = swarmState.currentSwarm?.tasks;
+    if (!tasks) return [];
+    return tasks
+      .filter((t) => t.status === "running" || t.status === "pending")
+      .map((t) => t.task ?? t.description ?? "")
+      .filter(Boolean);
+  });
   pi.on("tool_result", () => { refreshWidget(); });
   pi.on("agent_start", () => { refreshWidget(); });
   pi.on("agent_end", () => { refreshWidget(); });
