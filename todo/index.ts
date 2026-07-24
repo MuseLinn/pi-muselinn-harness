@@ -213,7 +213,7 @@ export function registerTodoList(pi: any): void {
       properties: {
         op: {
           type: "string",
-          enum: ["init", "start", "done", "rm", "drop", "append", "add_notes", "view"],
+          enum: ["init", "start", "done", "rm", "drop", "append", "add_notes", "update_details", "view"],
           description: "Operation to apply",
         },
         list: {
@@ -298,23 +298,6 @@ export function registerTodoList(pi: any): void {
   pi.on("agent_start", () => { refreshWidget(); });
   pi.on("agent_end", () => { refreshWidget(); });
 
-  // Wire default subagent descriptions provider to swarm state
-  try {
-    const { swarmState } = require("../packages/core/swarm/types");
-    setActiveTodoDescriptionsProvider(() => {
-      const tasks = swarmState.currentSwarm?.tasks;
-      if (!tasks) return [];
-      return tasks
-        .filter((t) => t.status === "running" || t.status === "pending")
-        .map((t) => t.task ?? t.description ?? "")
-        .filter(Boolean);
-    });
-  } catch { /* swarm module not available */ }
-
-  // Wire event-driven widget refresh for subagent matching
-  pi.on("tool_result", () => { try { refreshWidget(); } catch {} });
-  pi.on("agent_start", () => { try { refreshWidget(); } catch {} });
-  pi.on("agent_end", () => { try { refreshWidget(); } catch {} });
 
   pi.registerShortcut("alt+t", {
     description: "Expand/collapse the todo panel",

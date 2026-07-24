@@ -272,5 +272,58 @@ check("rm missing task error", applyOp(makePhases(), { op: "rm", task: "nope" })
 check("rm missing phase error", applyOp(makePhases(), { op: "rm", phase: "Nope" }).errors.length > 0);
 check("done missing task not found", applyOp(makePhases(), { op: "done", task: "nope" }).errors.length > 0);
 
+// ── 17. add_notes ──────────────────────────────────────────────
+
+const p19 = makePhases();
+const n1 = applyOp(p19, { op: "add_notes", task: "Create claude-scanner", notes: ["needs more thought", "check API docs"] });
+check("add_notes: success", n1.errors.length === 0 && n1.phases[0].tasks[0].notes?.length === 2);
+check("add_notes: preserves other data", n1.phases[0].tasks[0].content === "Create claude-scanner");
+
+// Accumulate notes
+const n2 = applyOp(n1.phases, { op: "add_notes", task: "Create claude-scanner", notes: ["third note"] });
+check("add_notes: accumulate", n2.phases[0].tasks[0].notes?.length === 3);
+
+// Missing task
+const n3 = applyOp(makePhases(), { op: "add_notes", task: "nonexistent", notes: ["nope"] });
+check("add_notes: missing task error", n3.errors.length > 0);
+
+// Empty notes
+const n4 = applyOp(makePhases(), { op: "add_notes", task: "Create claude-scanner" });
+check("add_notes: missing notes error", n4.errors.length > 0);
+
+const n5 = applyOp(makePhases(), { op: "add_notes", task: "Create claude-scanner", notes: [] });
+check("add_notes: empty notes error", n5.errors.length > 0);
+
+// Missing task field
+const n6 = applyOp(makePhases(), { op: "add_notes", notes: ["x"] });
+check("add_notes: missing task field error", n6.errors.length > 0);
+
+// ── 18. update_details ─────────────────────────────────────────
+
+const p20 = makePhases();
+const d1 = applyOp(p20, { op: "update_details", task: "Create claude-scanner", details: "Scan ~/.claude/projects for .jsonl files" });
+check("update_details: success", d1.errors.length === 0 && d1.phases[0].tasks[0].details === "Scan ~/.claude/projects for .jsonl files");
+
+// Missing task
+const d2 = applyOp(makePhases(), { op: "update_details", task: "nonexistent", details: "x" });
+check("update_details: missing task error", d2.errors.length > 0);
+
+// Missing details
+const d3 = applyOp(makePhases(), { op: "update_details", task: "Create claude-scanner" });
+check("update_details: missing details error", d3.errors.length > 0);
+
+// ── 19. todoMatchesAnyDescription ───────────────────────────────
+
+const {
+  todoMatchesAnyDescription,
+} = await import("../packages/core/todo/types.ts");
+
+check("match: exact match", todoMatchesAnyDescription("Create scanner", ["Create scanner", "Build UI"]));
+check("match: contained in desc", todoMatchesAnyDescription("scanner module", ["Build the scanner module for claude"]));
+check("no match: different", !todoMatchesAnyDescription("Create scanner", ["Build picker UI"]));
+check("no match: empty descriptions", !todoMatchesAnyDescription("Create scanner", []));
+check("no match: short substring filtered", !todoMatchesAnyDescription("test", ["testing something"]));
+check("match: desc contained in content", todoMatchesAnyDescription("Create scanner module for AI", ["scanner module"]));
+check("match: CJK contained", todoMatchesAnyDescription("构建扫描器模块", ["快速构建扫描器模块的方法"]));
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

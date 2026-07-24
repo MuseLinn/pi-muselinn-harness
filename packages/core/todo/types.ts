@@ -6,7 +6,7 @@
 // ============================================================
 
 export type TodoStatus = "pending" | "in_progress" | "completed" | "abandoned";
-export type TodoOperation = "init" | "start" | "done" | "rm" | "drop" | "append" | "add_notes" | "view";
+export type TodoOperation = "init" | "start" | "done" | "rm" | "drop" | "append" | "add_notes" | "update_details" | "view";
 
 export interface TodoItem {
   content: string;
@@ -306,14 +306,22 @@ function applyEntry(phases: TodoPhase[], entry: TodoOpParams, errors: string[]):
     case "add_notes": {
       if (!entry.task) { errors.push("Missing task content for add_notes"); return phases; }
       if (!entry.notes || entry.notes.length === 0) { errors.push("No notes to add"); return phases; }
-      const resolved = findTaskByContent(phases, entry.task);
-      if (!resolved) { errors.push(`Task "${entry.task}" not found`); return phases; }
-      const clone = clonePhases(phases);
-      const t = findTaskByContent(clone, entry.task);
-      if (t) {
-        t.task.notes = [...(t.task.notes || []), ...entry.notes];
-      }
-      return clone;
+      const aResolved = findTaskByContent(phases, entry.task);
+      if (!aResolved) { errors.push(`Task "${entry.task}" not found`); return phases; }
+      const aClone = clonePhases(phases);
+      const aT = findTaskByContent(aClone, entry.task);
+      if (aT) { aT.task.notes = [...(aT.task.notes || []), ...entry.notes]; }
+      return aClone;
+    }
+    case "update_details": {
+      if (!entry.task) { errors.push("Missing task content for update_details"); return phases; }
+      if (!entry.details) { errors.push("Missing details value"); return phases; }
+      const dResolved = findTaskByContent(phases, entry.task);
+      if (!dResolved) { errors.push(`Task "${entry.task}" not found`); return phases; }
+      const dClone = clonePhases(phases);
+      const dT = findTaskByContent(dClone, entry.task);
+      if (dT) { dT.task.details = entry.details; }
+      return dClone;
     }
     case "view":
       return clonePhases(phases);
@@ -339,7 +347,6 @@ export function applyOpsToPhases(
   }
   normalizeInProgressTask(next);
   return { phases: next, errors };
-  completed: number;
 }
 
 /**
@@ -632,7 +639,7 @@ export function todoMatchesAnyDescription(content: string, descriptions: readonl
     // Substring fallback with minimum overlap
     if (normalDesc.length >= TODO_DESCRIPTION_MIN_OVERLAP && normalContent.length >= TODO_DESCRIPTION_MIN_OVERLAP) {
       // Exact substring check
-      if (normalDesc.includes(normalContent) || normalContent.includes(normalDesc)) {
+      if (normalDesc.length >= normalContent.length ? normalDesc.includes(normalContent) : normalContent.includes(normalDesc)) {
         return true;
       }
     }
