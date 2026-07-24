@@ -429,6 +429,17 @@ tr:nth-child(2n) { background: var(--bg-soft); }
 
 .demo-pre { white-space: pre; }
 
+.demo-box {
+  display: inline-block;
+  border: 1px solid var(--accent2);
+  border-radius: 6px;
+  padding: 0.1rem 0.6rem;
+  margin: 0.1rem 0;
+  color: var(--accent2);
+  font-size: inherit;
+  line-height: 1.6;
+}
+
 .demo-footer {
   margin-top: 0.8rem;
   padding-top: 0.6rem;
@@ -479,11 +490,17 @@ tr:nth-child(2n) { background: var(--bg-soft); }
     width: 100%;
     margin-left: 0;
   }
-  .split-term { position: static; min-height: 0; }
-  .split-sections { padding-top: 1rem; padding-bottom: 0; }
+  .split-term {
+    position: sticky;
+    top: var(--sticky-top, 4px);
+    min-height: 0;
+    z-index: 1;
+    background: var(--bg);
+  }
+  .split-sections { padding-top: 0.5rem; padding-bottom: 0; }
   .split-section { min-height: 0; padding: 1.2rem 0; opacity: 1; }
+  .demo-term { aspect-ratio: 4 / 3; }
 }
-
 /* ── Footer ── */
 
 footer {

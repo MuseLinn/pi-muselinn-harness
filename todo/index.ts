@@ -19,7 +19,6 @@ import {
   summarizePhases,
   summarizeTodos,
   formatSummary,
-  selectVisibleTodos,
   formatPhaseDisplayName,
   phaseRomanNumeral,
   TODO_ENTRY_TYPE,
@@ -103,21 +102,27 @@ function buildWidgetLines(theme: any): string[] | undefined {
     }
     lines.push(theme.fg("dim", "alt+t collapse"));
   } else {
-    // Collapsed: active phase tasks + summary
-    const flat = phases.flatMap((p) => p.tasks);
-    const { rows, hidden, hiddenCounts } = selectVisibleTodos(phases);
-    // Show phase header for first visible item's phase
-    for (const task of rows) {
-      const notesCount = task.notes?.length ?? 0;
+    // Collapsed: phase headers with only active tasks
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i];
+      const doneCount = phase.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+      const total = phase.tasks.length;
+      const label = phases.length > 1 ? formatPhaseDisplayName(phase.name, i + 1) : phase.name;
+      const count = total > 0 ? ` ${doneCount}/${total}` : "";
+      const phaseLine = `${label}${count}`;
+      const highlighted = phase.tasks.some((t) => t.status === "in_progress");
+      lines.push(highlighted ? theme.fg("accent", theme.bold(phaseLine)) : phaseLine);
+      for (const task of phase.tasks) {
+        if (task.status === "completed") continue;
+        const notesCount = task.notes?.length ?? 0;
       const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
       const marker = agentMatch ? theme.fg("success", theme.spinnerFrame?.() ?? "◔") : statusMarker(task, theme);
       const styled = styleContent(task.content, task.status, theme, notesCount);
       const line = agentMatch ? `${marker} ${theme.fg("success", styled)}` : `  ${marker} ${styled}`;
       lines.push(line);
+      }
     }
-    if (hidden > 0) {
-      lines.push(theme.fg("dim", `… +${hidden} more · alt+t expand`));
-    }
+    lines.push(theme.fg("dim", "alt+t expand"));
   }
 
   return lines;

@@ -6,6 +6,12 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
 
+### What's new in 0.9.9
+
+**Pages & box-style fix:**
+- Terminal box now uses dynamic CSS `border` instead of hardcoded Unicode box-drawing characters
+- Mobile layout: sticky terminal with scene switching, `aspect-ratio: 4/3` adapted for small screens
+
 ### What's new in 0.9.3–0.9.8
 
 **Integration & consistency fixes:**
@@ -138,9 +144,8 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 [中文文档](README.zh-CN.md) · [Project page](https://muselinn.github.io/pi-muselinn-harness/) · [pi.dev catalog](https://pi.dev/packages)
 
 ![Closed-box editor with streaming state in the top border](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
-
 ## Install
-Already installed? Re-run the same command to upgrade to the latest release (0.9.8).
+Already installed? Re-run the same command to upgrade to the latest release (0.9.9).
 ```bash
 pi install npm:pi-muselinn-harness
 ```

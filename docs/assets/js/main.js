@@ -106,18 +106,17 @@
 
   // ── Scroll progress (pi.dev intro controller) ──
   function updateGeometry() {
-    if (!shell || !term) return;
     if (!wide.matches) {
       shell.style.setProperty("--dx", "0px");
-      return;
     }
     var nav = document.querySelector(".topnav");
     var navH = nav ? nav.getBoundingClientRect().height : 0;
     // Parent (.split-term) is sticky and untransformed — its rect is the
-    // docked position; shift from there to the viewport center.
     var pr = term.parentElement.getBoundingClientRect();
     var cx = pr.left + pr.width / 2;
-    shell.style.setProperty("--dx", Math.round(window.innerWidth / 2 - cx) + "px");
+    if (wide.matches) {
+      shell.style.setProperty("--dx", Math.round(window.innerWidth / 2 - cx) + "px");
+    }
     // Sticky top that parks the terminal vertically centered in the
     // viewport (pi.dev's --home-stage-sticky-top-target).
     var figH = term.offsetHeight || 0;
@@ -309,9 +308,8 @@
     tui: {
       title: "tui · boxed editor",
       lines: [
-        ["box", "╭ ⠋ Streaming ─ plan ─────────────────────────╮"],
-        ["box", "│  tell me about the swarm module               │"],
-        ["box", "╰──────────────────────────────────────────────╯"],
+        ["box", "⠋ Streaming · plan"],
+        ["box", "tell me about the swarm module"],
         ["cmd", "$ /tui style compact"],
         ["dim", "─ ⣾ Running tools ──────────── deepseek-v4 ─"],
         ["cmd", "$ /tui timing"],
@@ -344,28 +342,54 @@
     var pre = document.createElement("pre");
     pre.className = "demo-pre";
     bodyEl.appendChild(pre);
-    var li = 0, ci = 0, cur = null;
+    var li = 0, ci = 0, cur = null, curBox = null;
     function step() {
       if (li >= scene.lines.length) {
         typeTimer = setTimeout(function () {
           if (runningScene === name) startTypeScene(name);
-        }, 7000); // loop
+        }, 7000);
         return;
       }
-      if (!cur) {
-        cur = document.createElement("span");
-        cur.style.color = typeColor(scene.lines[li][0]);
-        pre.appendChild(cur);
-        ci = 0;
-      }
+      var kind = scene.lines[li][0];
       var text = scene.lines[li][1];
-      cur.textContent = text.slice(0, ++ci);
-      if (ci >= text.length) {
-        pre.appendChild(document.createTextNode("\n"));
-        cur = null; li++;
-        typeTimer = setTimeout(step, 260);
+      if (kind === "box") {
+        // Consecutive "box" lines accumulate into one .demo-box div
+        if (curBox && ci === 0) {
+          // Starting a new line in the same box — append <br> then the new text
+          text = "\n" + text;
+        }
+        curBox = curBox || (function() {
+          var d = document.createElement("div");
+          d.className = "demo-box";
+          pre.appendChild(d);
+          return d;
+        })();
+        curBox.textContent = curBox.textContent.slice(0, curBox.textContent.length - (ci > 0 ? 1 : 0)) + text.slice(0, ++ci);
+        if (ci >= text.length) {
+          // Check if next line is also a box — keep curBox if so
+          var nextKind = scene.lines[li + 1] && scene.lines[li + 1][0];
+          if (nextKind !== "box") { curBox = null; }
+          li++; ci = 0;
+          pre.appendChild(document.createTextNode(nextKind === "box" ? "" : "\n"));
+          typeTimer = setTimeout(step, 260);
+        } else {
+          typeTimer = setTimeout(step, 12);
+        }
       } else {
-        typeTimer = setTimeout(step, 12);
+        if (!cur) {
+          cur = document.createElement("span");
+          cur.style.color = typeColor(kind);
+          pre.appendChild(cur);
+          ci = 0;
+        }
+        cur.textContent = text.slice(0, ++ci);
+        if (ci >= text.length) {
+          pre.appendChild(document.createTextNode("\n"));
+          cur = null; li++;
+          typeTimer = setTimeout(step, 260);
+        } else {
+          typeTimer = setTimeout(step, 12);
+        }
       }
     }
     step();

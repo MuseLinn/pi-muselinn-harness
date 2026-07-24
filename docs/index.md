@@ -52,6 +52,14 @@ title: pi-muselinn-harness
       <p data-l="zh">Kimi 式闭合框(<code>╭─╮ │ ╰─╯</code>),上边框嵌入 spinner 与工作状态,三种样式,<code>/tui</code> 热切换,内置渲染耗时探针。</p>
     </section>
   </div>
+
+<h2><span data-l="en">New in 0.9.9</span><span data-l="zh">0.9.9 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Pages mobile & box-style fix</span><span data-l="zh">Pages 手机端 & box 样式修复</span>
+<span data-l="en">Terminal box now uses dynamic CSS <code>border</code> instead of hardcoded Unicode box-drawing characters. Mobile layout fixed: sticky terminal with scene switching, <code>aspect-ratio: 4/3</code> adapted for small screens.</span><span data-l="zh">终端框用动态 CSS <code>border</code> 替代硬编码 Unicode 绘框字符。手机端布局修复：sticky 终端随段落切换场景，<code>aspect-ratio: 4/3</code> 适配小屏。</span>
+</div>
+</div>
 </div>
 
 <h2><span data-l="en">New in 0.9.3–0.9.8</span><span data-l="zh">0.9.3–0.9.8 新功能</span></h2>
