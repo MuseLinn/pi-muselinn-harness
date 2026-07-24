@@ -52,6 +52,7 @@ title: pi-muselinn-harness
       <p data-l="zh">Kimi 式闭合框(<code>╭─╮ │ ╰─╯</code>),上边框嵌入 spinner 与工作状态,三种样式,<code>/tui</code> 热切换,内置渲染耗时探针。</p>
     </section>
   </div>
+</div>
 
 <h2><span data-l="en">New in 0.9.9</span><span data-l="zh">0.9.9 新功能</span></h2>
 <div class="roadmap-grid">
