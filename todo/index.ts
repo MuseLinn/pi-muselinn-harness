@@ -66,7 +66,7 @@ function statusMarker(status: TodoItem["status"], theme: any): string {
 
 function styleContent(content: string, status: TodoItem["status"], theme: any, hasNotes?: number): string {
   if (status === "completed" || status === "abandoned") return theme.fg("dim", "\x1b[9m" + content + "\x1b[29m");
-  if (status === "in_progress") return theme.fg("bright", content + (hasNotes ? " \x1b[2m+\x1b[22m" + hasNotes : ""));
+  if (status === "in_progress") return theme.fg("accent", content + (hasNotes ? " \x1b[2m+\x1b[22m" + hasNotes : ""));
   return content;
 }
 
@@ -123,13 +123,13 @@ function buildWidgetLines(theme: any): string[] | undefined {
 
 export function refreshWidget(): void {
   const ctx = rt.ctx;
-  if (!ctx || !ctx.widget) return;
+  if (!ctx?.ui?.setWidget) return;
   if (rt.phases.length === 0) {
-    ctx.widget(["─ todo (empty) ─"]);
+    ctx.ui.setWidget("todo", ["─ todo (empty) ─"]);
     return;
   }
-  const theme = ctx.theme || {};
-  ctx.widget(buildWidgetLines(theme));
+  const theme = ctx.ui?.theme || {};
+  ctx.ui.setWidget("todo", buildWidgetLines(theme));
 }
 
 // ── Persistence ────────────────────────────────────────────────

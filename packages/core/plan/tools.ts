@@ -176,26 +176,75 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         const altLabels = validAlternatives.map((a) => a.label);
         const allOptions = [...altLabels, "Approve", "Reject", "Revise"];
 
+        // Loop: select → revise input (Esc/empty → back to select)
+        while (true) {
+          const choice = await ctx.ui.select(
+            `Plan Review:\n\n${planPreview}\n\nChoose an approach:`,
+            allOptions,
+            { timeout: 600000 } // a human needs more than 60s to review a plan
+          );
+
+          // Cancelled / timed out: preserve the plan, keep plan mode active.
+          if (choice === undefined || choice === null) {
+            return handleReviewCancelled();
+          }
+
+          // If user selected an alternative, approve with that approach
+          if (choice && altLabels.includes(choice)) {
+            const selected = validAlternatives.find((a) => a.label === choice)!;
+            planManager.approvePlan();
+            clearPlanBadge();
+            ctx.ui.notify(`Plan approved with approach: ${choice}`, "success");
+            return {
+              content: [{ type: "text", text: `Plan approved with approach: ${choice}\n${selected.description}\n\nYou can now execute the plan.` }],
+            };
+          }
+
+          if (choice === "Approve") {
+            planManager.approvePlan();
+            clearPlanBadge();
+            ctx.ui.notify("Plan approved! Execution can begin.", "success");
+            return { content: [{ type: "text", text: `Plan approved. You can now execute the plan.` }] };
+          } else if (choice === "Reject") {
+            planManager.rejectPlan("User rejected");
+            clearPlanBadge();
+            ctx.ui.notify("Plan rejected.", "info");
+            return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
+          } else {
+            // Revise: collect user feedback, then re-enter plan mode.
+            const feedback = await ctx.ui.input(
+              `Plan Review — What changes would you like?`,
+              "",
+              { timeout: 600000 }
+            );
+            // User cancelled input (Esc) → loop back to the approval panel
+            if (feedback === undefined || feedback === null) continue;
+            const trimmed = feedback.trim();
+            if (!trimmed) continue; // empty input → loop back
+            planManager.reenterForRevision(trimmed);
+            setPlanBadge();
+            ctx.ui.notify(`Plan revision requested. Feedback: ${trimmed.slice(0, 60)}`, "info");
+            return {
+              content: [{ type: "text", text: `Plan revision requested.\nYour feedback: ${trimmed}\n\nModify your plan based on the feedback above, then call exit_plan_mode when ready.` }],
+            };
+          }
+        }
+      }
+
+      // No alternatives: simple Approve/Reject/Revise
+      const options = ["Approve", "Reject", "Revise"];
+
+      // Loop: select → revise input (Esc/empty → back to select)
+      while (true) {
         const choice = await ctx.ui.select(
-          `Plan Review:\n\n${planPreview}\n\nChoose an approach:`,
-          allOptions,
+          `Plan Review:\n\n${planPreview}`,
+          options,
           { timeout: 600000 } // a human needs more than 60s to review a plan
         );
 
         // Cancelled / timed out: preserve the plan, keep plan mode active.
         if (choice === undefined || choice === null) {
           return handleReviewCancelled();
-        }
-
-        // If user selected an alternative, approve with that approach
-        if (choice && altLabels.includes(choice)) {
-          const selected = validAlternatives.find((a) => a.label === choice)!;
-          planManager.approvePlan();
-          clearPlanBadge();
-          ctx.ui.notify(`Plan approved with approach: ${choice}`, "success");
-          return {
-            content: [{ type: "text", text: `Plan approved with approach: ${choice}\n${selected.description}\n\nYou can now execute the plan.` }],
-          };
         }
 
         if (choice === "Approve") {
@@ -209,71 +258,23 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
           ctx.ui.notify("Plan rejected.", "info");
           return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
         } else {
-          // Revise: collect user feedback first, then re-enter plan mode.
-          // The user types what changes they want, and the feedback is
-          // injected into the plan context so the model has direction.
+          // Revise: collect user feedback, then re-enter plan mode.
           const feedback = await ctx.ui.input(
             `Plan Review — What changes would you like?`,
             "",
             { timeout: 600000 }
           );
-          const trimmed = feedback?.trim?.() ?? "";
-          planManager.reenterForRevision(trimmed || undefined);
+          // User cancelled input (Esc) → loop back to the approval panel
+          if (feedback === undefined || feedback === null) continue;
+          const trimmed = feedback.trim();
+          if (!trimmed) continue; // empty input → loop back
+          planManager.reenterForRevision(trimmed);
           setPlanBadge();
-          if (trimmed) {
-            ctx.ui.notify(`Plan revision requested. Feedback: ${trimmed.slice(0, 60)}`, "info");
-            return {
-              content: [{ type: "text", text: `Plan revision requested.\nYour feedback: ${trimmed}\n\nModify your plan based on the feedback above, then call exit_plan_mode when ready.` }],
-            };
-          }
-          ctx.ui.notify("Plan revision requested. Continue editing.", "info");
-          return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
-        }
-      }
-
-      // No alternatives: simple Approve/Reject/Revise
-      const options = ["Approve", "Reject", "Revise"];
-      const choice = await ctx.ui.select(
-        `Plan Review:\n\n${planPreview}`,
-        options,
-        { timeout: 600000 } // a human needs more than 60s to review a plan
-      );
-
-      // Cancelled / timed out: preserve the plan, keep plan mode active.
-      if (choice === undefined || choice === null) {
-        return handleReviewCancelled();
-      }
-
-      if (choice === "Approve") {
-        planManager.approvePlan();
-        clearPlanBadge();
-        ctx.ui.notify("Plan approved! Execution can begin.", "success");
-        return { content: [{ type: "text", text: `Plan approved. You can now execute the plan.` }] };
-      } else if (choice === "Reject") {
-        planManager.rejectPlan("User rejected");
-        clearPlanBadge();
-        ctx.ui.notify("Plan rejected.", "info");
-        return { content: [{ type: "text", text: `Plan rejected. Modify your plan and try again.` }] };
-      } else {
-        // Revise: collect user feedback first, then re-enter plan mode.
-        // The user types what changes they want, and the feedback is
-        // injected into the plan context so the model has direction.
-        const feedback = await ctx.ui.input(
-          `Plan Review — What changes would you like?`,
-          "",
-          { timeout: 600000 }
-        );
-        const trimmed = feedback?.trim?.() ?? "";
-        planManager.reenterForRevision(trimmed || undefined);
-        setPlanBadge();
-        if (trimmed) {
           ctx.ui.notify(`Plan revision requested. Feedback: ${trimmed.slice(0, 60)}`, "info");
           return {
             content: [{ type: "text", text: `Plan revision requested.\nYour feedback: ${trimmed}\n\nModify your plan based on the feedback above, then call exit_plan_mode when ready.` }],
           };
         }
-        ctx.ui.notify("Plan revision requested. Continue editing.", "info");
-        return { content: [{ type: "text", text: `Plan revision requested. Continue editing your plan.` }] };
       }
     },
   });
