@@ -295,22 +295,6 @@ export function registerTodoReminders(pi: any): void {
     }
   });
 
-  // turn_end: evaluate whether to fire a reminder next context
-  pi.on("turn_end", () => {
-    if (rt.reminderCount >= MAX_REMINDERS) return;
-    if (rt.awaitingProgress) return;
-
-    const incomplete = countIncomplete(rt.phases);
-    if (incomplete === 0) {
-      rt.reminderCount = 0;
-      return;
-    }
-
-    // Only nudge if the agent hasn't touched the todo tool recently
-    // or if there's been some work done since last todo touch
-    rt.reminderCount++;
-    rt.reminderPending = true;
-  });
 
   // context: inject system-reminder if flag is set
   pi.on("context", (event: any) => {
