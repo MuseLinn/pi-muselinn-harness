@@ -276,7 +276,7 @@ export function registerTodoList(pi: any): void {
  * Call this after registerTodoList.
  *
  * The reminder flow:
- *   turn_end → check incomplete → set flag + increment counter (if ≤ MAX_REMINDERS)
+ *   agent_settled → check incomplete → set flag + increment counter (if ≤ MAX_REMINDERS)
  *   context (next turn) → if flag set, inject <system-reminder> into system message, clear flag
  *   tool_result → reset counter, clear flags
  */
