@@ -54,11 +54,11 @@ title: pi-muselinn-harness
   </div>
 </div>
 
-<h2><span data-l="en">New in 0.9.2</span><span data-l="zh">0.9.2 新功能</span></h2>
+<h2><span data-l="en">New in 0.9.3–0.9.8</span><span data-l="zh">0.9.3–0.9.8 新功能</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
-### <span data-l="en">Bug fixes</span><span data-l="zh">Bug 修复</span>
-<span data-l="en">Fixed <code>rt is not defined</code> in <code>/todo</code> command — exported <code>rt</code> from <code>todo/index.ts</code> for <code>registerTodoCommand</code> in <code>index.ts</code>.</span><span data-l="zh">修复 <code>/todo</code> 命令的 <code>rt is not defined</code> 错误 — 从 <code>todo/index.ts</code> 导出 <code>rt</code> 供 <code>index.ts</code> 中的 <code>registerTodoCommand</code> 使用。</span>
+### <span data-l="en">Integration & consistency</span><span data-l="zh">集成与一致性</span>
+<span data-l="en">Widget API fixed: <code>ctx.widget()</code> → <code>ctx.ui.setWidget</code>, empty list hides widget. <code>/todo</code> subcommands aligned with oh-my-pi: <code>view</code> → <code>export</code>, added <code>copy</code>/<code>edit</code>, bare <code>/todo</code> prints Markdown. Every subcommand has status feedback. <code>clearTodoSession</code> now wired to <code>session_end</code>. <code>require()</code> → ES <code>import</code> for <code>swarmState</code> — subagent matching finally works.</span><span data-l="zh">Widget API 修复：<code>ctx.widget()</code> → <code>ctx.ui.setWidget</code>，空列表隐藏 widget。<code>/todo</code> 子命令对齐 oh-my-pi：<code>view</code> → <code>export</code>，添加 <code>copy</code>/<code>edit</code>，裸 <code>/todo</code> 打印 Markdown。每个子命令都有状态反馈。<code>clearTodoSession</code> 接入 <code>session_end</code>。<code>require()</code> → ES <code>import</code> 导入 <code>swarmState</code>——子 agent 匹配终于可用了。</span>
 </div>
 </div>
 
@@ -205,7 +205,7 @@ title: pi-muselinn-harness
 ```
 /swarm on|off        /cancel      /resume       /tasks (ctrl+shift+t)
 /goal <objective>    /goal pause|resume|cancel|replace|budget|queue
-/plan [on|off|clear] /mode        /tui style plain|boxed|compact
+/todo                /plan [on|off|clear] /mode        /tui style plain|boxed|compact
 ```
 
 <span data-l="en">All commands support Tab completion for subcommands and arguments.</span><span data-l="zh">所有命令均支持 Tab 子命令/参数补全。</span>

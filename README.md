@@ -6,11 +6,16 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
 
-### What's new in 0.9.2
+### What's new in 0.9.3–0.9.8
 
-**Bug fixes:**
-- Fixed `Extension "command:todo" error: rt is not defined` — `registerTodoCommand` in `index.ts` references `rt` from `todo/index.ts` scope; exported `rt` and imported it
-- All 12 test suites green
+**Integration & consistency fixes:**
+- Widget API fixed: `ctx.widget()` → `ctx.ui.setWidget("todo", content)`, empty list clears widget instead of showing "(empty)" clutter
+- `/todo` subcommands aligned with oh-my-pi: `view` → `export`, added `copy`, `edit`, bare `/todo` prints Markdown
+- Every `/todo` subcommand produces status feedback via `ctx.showStatus`
+- Removed redundant `/todo help` / `?` (command registry provides discoverability)
+- `clearTodoSession` now wired to `session_end` event (was imported but never called)
+- `require()` → ES `import` for `swarmState` (require silently failed in bundled ESM runtime — subagent matching finally works)
+- All 12 test suites green at every commit
 
 ### What's new in 0.9.1
 
@@ -36,7 +41,6 @@ reminders, debounced).
 
 **Markdown round-trip:** `/todo export/import` serializes and restores phases
 as Markdown for sharing and persistence between sessions.
-
 
 **Plan Mode — Kimi Code permission model alignment.**
 
@@ -136,12 +140,10 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 ![Closed-box editor with streaming state in the top border](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
 
 ## Install
-
+Already installed? Re-run the same command to upgrade to the latest release (0.9.8).
 ```bash
 pi install npm:pi-muselinn-harness
 ```
-
-Already installed? Re-run the same command to upgrade to the latest release (0.9.3).
 
 Or from git / local source:
 
@@ -232,9 +234,15 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 - **Auto-mode safe** — auto mode denies `ask_user_question` by policy (no unattended hangs)
 
 ### Todo (inline task plan)
-- **`todo_list` tool** — update (full-list rewrite) / read / clear; the model's plan stays visible to the user between turns
-- **Inline panel** — above-editor widget with Kimi Code's folding strategy (all in_progress first, earliest pending, one slot for the most recent done); `alt+t` expand/collapse
-- **Session persistence** — survives hot-reload; a fresh session always starts with an empty panel
+- **`/todo` command** — full oh-my-pi phase model: `init`, `start`, `done`, `drop`, `rm`, `append`, `export`, `import`, `copy`, `edit`, `add_notes`, `update_details`, bare `/todo` prints Markdown
+- **`todo_list` tool** — model-driven task management with same ops
+- **Inline panel** — above-editor widget with roman-numeral phase tree (`Ⅰ. Scanner · 2/4`), `alt+t` collapse/expand, empty list hides widget entirely
+- **Reminder system** — incomplete todos injected as `<system-reminder>` when agent stops (max 3 reminders, debounced)
+- **Subagent matching** — pending tasks matching swarm subagent descriptions get highlighted with `◔` spinner
+- **Markdown round-trip** — `/todo export/import` for persistence and sharing between sessions
+- **Notes** — per-task notes via `add_notes` / `update_details`
+- **Phase counts** — widget header shows `N active · M pending · K done`
+- **Session persistence** — survives hot-reload and session restart
 
 ### Web fetch
 - **`fetch_url` tool** — no-auth URL fetch (20s timeout, 5MB stream cap, redirect follow); HTML → readable text (dependency-free extractor), JSON → pretty-print, everything else raw; 20k char cap with `max_chars` tuning
@@ -277,7 +285,8 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `/goal pause\|resume\|cancel\|replace` | Manage the goal |
 | `/goal budget <n> <unit>` | Set a budget (turns/tokens/ms/s/minutes/hours) |
 | `/goal queue` / `/goal add\|prioritize\|drop\|skip` | Queue operations |
-| `/plan` / `/plan on\|off\|clear` | Plan-mode control |
+| `/todo` | Task plan with phase model; shortcuts: `start` `done` `drop` `export` `import` `copy` `edit` |
+| `/plan` / `/plan on|off|clear` | Plan-mode control |
 | `/mode` | Switch permission mode (auto/yolo/manual) |
 | `/tui` | Switch editor style (plain/boxed/compact), `/tui timing` |
 | `/plugins` | List loaded plugins and their capabilities |
