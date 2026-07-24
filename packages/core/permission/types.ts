@@ -30,9 +30,20 @@ export interface Policy {
   evaluate(ctx: PolicyContext): PolicyResult | null | Promise<PolicyResult | null>;
 }
 
-// Read-only tools (auto-approved in all modes)
+// Read-only tools (auto-approved in all modes and plan mode)
+// Kimi Code-aligned set: all safe/read-only tools are auto-approved
+// so the model can explore without friction.
 export const READ_ONLY_TOOLS = new Set([
-  'read', 'grep', 'find', 'ls', 'get_goal', 'web_search', 'fetch_content',
+  'read', 'grep', 'glob', 'find', 'ls',
+  'get_goal', 'web_search', 'fetch_content',
+  'read_media_file', 'read_media',
+  'task_list', 'task_output',
+  'cron_list',
+  'agent_file_list', 'agent_file_info',
+  'todo_list',
+  'enter_plan_mode', 'exit_plan_mode',
+  'skill',
+  'select_tools',
 ]);
 
 // Sensitive file patterns

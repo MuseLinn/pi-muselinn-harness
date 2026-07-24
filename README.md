@@ -6,6 +6,46 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x.
 
+### What's new in 0.8.2
+
+**Custom Agent Files** — Define agent profiles as Markdown files with YAML frontmatter:
+```markdown
+---
+name: my-coder
+description: Custom coding agent with restricted tools
+tools:
+  - Read
+  - Grep
+  - Edit
+  - Bash
+disallowedTools:
+  - Bash
+---
+You are a specialized coding agent.
+${base_prompt}
+```
+Place them in `.pi/agents/`, `.kimi-code/agents/`, or `.agents/agents/` (project or user scope).
+Use `agent_file_list` to browse, and pass `agent_file="my-coder"` to `agent` or `agent_swarm`.
+
+**Tool Gating** — Three-layer tool policy integrated into the permission chain.
+Agent profiles can restrict which tools a subagent may use; the policy is enforced
+at the `tool_call` event level, before the 18-level permission chain.
+
+**Agent Lifecycle Events** — `agent.created` / `agent.disposed` events tracked
+per subagent. Active agent count shown in the status bar (`[3 agents running]`).
+
+**Permission Mode Rework (kimi-code aligned):**
+- **Auto** — truly automatic: no dialogs for any tool (including destructive/sensitive).
+  `AskUserQuestion` is disabled. `ExitPlanMode` auto-approves with a warning.
+- **YOLO** — fast but still safe: destructive commands, `.env` access, `.git` paths
+  still require approval. `AskUserQuestion` is allowed. `ExitPlanMode` shows review.
+- **Manual** — full 18-level policy chain with fallback-ask.
+
+**Plan Mode improvements:**
+- `task_stop` / `cron_create` / `cron_delete` blocked during planning
+- Sparse/full injection reminders (less prompt bloat on long planning sessions)
+- Auto-mode ExitPlanMode warns "user has NOT explicitly approved"
+
 ### What's new in 0.7.8
 
 - **Task module reliability fixes** — the two root causes behind broken background tasks on pi ≥ 0.81:

@@ -486,8 +486,17 @@ export class PlanManager {
 
     // Pi built-in tools: bash, edit, find, grep, ls, read, write
     // Read-only tools are always allowed (Pi built-in + our extensions)
-    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'get_goal'];
+    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'glob', 'get_goal', 'web_search', 'fetch_content',
+      'agent_file_list', 'agent_file_info', 'todo_list',
+      'task_list', 'task_output', 'cron_list',
+      'enter_plan_mode', 'exit_plan_mode',
+      'select_tools', 'skill'];
     if (readOnlyTools.includes(toolName)) return false;
+
+    // Kimi Code-style: block task/cron mutations during plan mode
+    if (toolName === 'task_stop' || toolName === 'cron_create' || toolName === 'cron_delete') {
+      return true;
+    }
 
     // Bash: apply a conservative read-only whitelist. Commands that do not
     // match are blocked — Plan Mode is restrictive by design. Extend
@@ -526,16 +535,33 @@ export class PlanManager {
 
   // ── Context Injection ──────────────────────────────────────────────────
 
+  /** Turn counter for plan mode injection dedup */
+  private injectionTurnCount = 0;
+
   /**
    * Build plan mode injection for system prompt (Kimi Code-style).
+   * Full variant on first injection or after user message; sparse variant
+   * on subsequent assistant turns to avoid repetition.
    */
-  buildInjection(): string | undefined {
+  buildInjection(sparse = false): string | undefined {
     if (!planModeState.isActive) return undefined;
 
     const plan = planModeState.currentPlan;
-    // Use plan path or default to sessionDir-based path
     const planPath = plan?.path || (this.sessionDir ? `${this.sessionDir}/plans/` : "plans/");
 
+    if (sparse) {
+      // Sparse reminder: short, just enough to keep the model oriented
+      return [
+        `## Plan Mode Active`,
+        ``,
+        `You are still in Plan Mode. Keep exploring and updating the plan file.`,
+        `Plan file: ${planPath}`,
+        `Only read-only tools and plan file edits are allowed.`,
+        `ExitPlanMode submits the plan for review.`,
+      ].join('\n');
+    }
+
+    // Full reminder
     const parts = [
       `## Plan Mode Active`,
       ``,
@@ -548,6 +574,9 @@ export class PlanManager {
       ``,
       `**IMPORTANT**: You can ONLY use read-only tools and write/edit the plan file.`,
       `Do NOT modify any source code files until the plan is approved.`,
+      ``,
+      `**AskUserQuestion** is available — ask the user for clarification when needed.`,
+      `When your plan is complete, call **exit_plan_mode** to submit it for review.`,
     ];
 
     if (plan && plan.content) {
@@ -577,10 +606,27 @@ export class PlanManager {
   }
 
   /**
-   * Inject plan into system prompt messages.
+   * Inject plan mode reminder into messages (Kimi Code-style).
+   * Uses full injection on the first call or when the last message is
+   * from the user; sparse injection on subsequent assistant turns.
    */
   injectIntoMessages(messages: Array<{ role: string; content?: any }>): void {
-    const injection = this.buildInjection();
+    if (!planModeState.isActive) return;
+
+    // Detect if this is a consecutive injection (user just replied vs ongoing)
+    const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+    const isAfterUserInput = lastMsg?.role === 'user' || lastMsg?.role === 'developer';
+
+    // Reset counter on user input; increment otherwise
+    if (isAfterUserInput) {
+      this.injectionTurnCount = 0;
+    } else {
+      this.injectionTurnCount++;
+    }
+
+    // Use sparse variant after 2+ consecutive assistant turns
+    const sparse = this.injectionTurnCount >= 2;
+    const injection = this.buildInjection(sparse);
     if (!injection) return;
 
     for (const msg of messages) {

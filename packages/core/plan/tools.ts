@@ -130,7 +130,7 @@ export function registerPlanTools(pi: any, planManager: PlanManager): void {
         clearPlanBadge();
         ctx.ui.notify("Plan auto-approved (auto mode).", "success");
         return {
-          content: [{ type: "text", text: `Plan auto-approved. You can now execute the plan.` }],
+          content: [{ type: "text", text: `Plan auto-approved. All tools are now available.\nNote: this plan was auto-approved without user review — the user has NOT explicitly approved it. Follow the user's original instructions on whether to proceed, but do NOT start editing source files unless the user's request explicitly asked for code changes.\n\nExecute the plan when the user confirms.` }],
         };
       }
 

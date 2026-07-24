@@ -54,6 +54,26 @@ title: pi-muselinn-harness
   </div>
 </div>
 
+<h2><span data-l="en">New in 0.8.2</span><span data-l="zh">0.8.2 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Custom Agent Files</span><span data-l="zh">自定义 Agent 文件</span>
+<span data-l="en">Define agent profiles as Markdown files with YAML frontmatter — <code>name</code>, <code>description</code>, <code>tools</code>/<code>disallowedTools</code>, <code>subagents</code>, and a system prompt template with <code>${base_prompt}</code> support. Discovered from <code>.pi/agents/</code>, <code>.kimi-code/agents/</code>, and <code>.agents/agents/</code>. Use <code>agent_file_list</code> to browse, and pass <code>agent_file</code> to <code>agent</code> or <code>agent_swarm</code>.</span><span data-l="zh">用 Markdown 文件 + YAML frontmatter 定义 agent 配置文件——<code>name</code>、<code>description</code>、<code>tools</code>/<code>disallowedTools</code>、<code>subagents</code>，支持 <code>${base_prompt}</code> 占位符。自动从 <code>.pi/agents/</code>、<code>.kimi-code/agents/</code>、<code>.agents/agents/</code> 发现。<code>agent_file_list</code> 浏览，<code>agent</code>/<code>agent_swarm</code> 传 <code>agent_file</code> 即可加载。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Tool Gating</span><span data-l="zh">工具门控</span>
+<span data-l="en">Three-layer tool policy (Profile → Session runtime) integrated into the 18-level permission chain. Agent file profiles can restrict which tools a subagent may use. The gate is checked before any policy rule runs.</span><span data-l="zh">三层工具策略（Profile → Session 运行时）集成到 18 级权限链。Agent 文件可以限制子代理能用的工具。门控在权限规则之前执行。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Agent Lifecycle</span><span data-l="zh">Agent 生命周期</span>
+<span data-l="en"><code>agent.created</code> / <code>agent.disposed</code> events emitted by every subagent run. Active agent count shown in the status bar — just like Kimi Code's <code>[3 agents running]</code>.</span><span data-l="zh">子代理运行时会触发 <code>agent.created</code> / <code>agent.disposed</code> 事件。状态栏实时显示活动 agent 数量——和 Kimi Code 的 <code>[3 agents running]</code> 一样的体验。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Permission &amp; Plan Mode Alignment</span><span data-l="zh">权限与 Plan 模式对齐</span>
+<span data-l="en">Policy chain reordered: Auto mode is truly automatic (no dialogs), YOLO still guards destructive/sensitive ops. Plan mode blocks <code>task_stop</code>/<code>cron_create</code>/<code>cron_delete</code>. Sparse/full injection variants reduce prompt bloat. Auto ExitPlanMode warns <em>"user has NOT explicitly approved"</em>.</span><span data-l="zh">策略链重排：Auto 模式真正全自动（无对话框），YOLO 仍保护破坏性/敏感操作。Plan 模式阻断 <code>task_stop</code>/<code>cron_create</code>/<code>cron_delete</code>。Full/Sparse 注入变体减少 prompt 膨胀。Auto 模式 ExitPlanMode 输出 <em>"user has NOT explicitly approved"</em> 警告。</span>
+</div>
+</div>
+
 <h2><span data-l="en">New in 0.7.9</span><span data-l="zh">0.7.9 新功能</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">

@@ -77,20 +77,24 @@ function makeCtx(confirmAnswer) {
 const evalIn = (tool, input, cwd, approve) =>
   permissionManager.evaluate(tool, input, cwd, makeCtx(approve));
 
-// ── 1. auto 模式: write .env 不能被 auto 短路 ────────────────────────────
+// ── 1. auto 模式: write .env 全自动批准（不弹对话框）────────────────────────
 permissionManager.resetHistory();
 permissionManager.setMode("auto");
 {
   const blocked = await evalIn("write", { path: ".env", content: "SECRET=1" }, cleanCwd, false);
-  check("auto: write .env is intercepted (not auto-approved)", blocked?.block === true, JSON.stringify(blocked));
-  check("auto: write .env interception reason mentions destructive/sensitive",
-    /destructive|sensitive|denied/i.test(blocked?.reason ?? ""), blocked?.reason);
+  check("auto: write .env is auto-approved (no interception)", blocked === undefined, JSON.stringify(blocked));
 }
 
-// ── 2. auto 模式: bash rm -rf 必问 ───────────────────────────────────────
+// ── 2. auto 模式: bash rm -rf 也全自动批准 ──────────────────────────────────
 {
   const blocked = await evalIn("bash", { command: "rm -rf /tmp/x" }, cleanCwd, false);
-  check("auto: bash 'rm -rf' requires explicit approval", blocked?.block === true, JSON.stringify(blocked));
+  check("auto: bash 'rm -rf' is auto-approved (no interception)", blocked === undefined, JSON.stringify(blocked));
+}
+
+// ── 2b. auto 模式: AskUserQuestion 必须被拒绝 ───────────────────────────────
+{
+  const blocked = await evalIn("ask_user_question", { question: "Should I?" }, cleanCwd, false);
+  check("auto: ask_user_question is denied in auto mode", blocked?.block === true, JSON.stringify(blocked));
 }
 
 // ── 3. 批准过 bash ls 之后, rm -rf 仍必须问(destructive 不被 sessionApprovals 短路)

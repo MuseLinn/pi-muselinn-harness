@@ -347,24 +347,38 @@ export const policy18FallbackAsk: Policy = {
 };
 
 // ── Policy Chain ─────────────────────────────────────────────────────────
-// Array order == evaluation order. Safety guards (destructive, sensitive file,
-// .git control) MUST run before auto/yolo/session-history short-circuits so
-// that dangerous or secret-bearing operations always require an explicit ask.
+// Array order == evaluation order.
+//
+// AUTO mode:  AskUserQuestion denied (#2) → UserDeny (#4) → AutoApprove (#5).
+//             AutoApprove fires BEFORE destructive/sensitive/git safety checks,
+//             so auto mode is truly automatic — no dialogs. User-configured
+//             deny rules are still respected.
+//
+// YOLO mode:  Safety checks (destructive, sensitive file, .git control) run
+//             BEFORE YoloApprove (#15). So yolo still asks for dangerous ops
+//             but approves everything else. AskUserQuestion is allowed.
+//
+// MANUAL mode: Runs through the entire chain; fallback-ask catches anything
+//              not explicitly allowed or denied.
 export const policyChain: Policy[] = [
   policy01SwarmDeny,
   policy02AutoAskDeny,
   policy03PlanGuard,
   policy04UserDeny,
+  // AutoApprove fires early — auto mode is fully automatic
+  policy05AutoApprove,
+  // Safety checks (only effective in non-auto modes)
   policy04bDestructiveAsk,
   policy12SensitiveFile,
   policy13GitControl,
-  policy05AutoApprove,
+  // Session and user policies
   policy06SessionHistory,
   policy07UserAsk,
   policy08UserAllow,
   policy09ExitPlanReview,
   policy10GoalStartReview,
   policy11PlanToolApprove,
+  // YoloApprove fires after safety checks — yolo still protects dangerous ops
   policy14YoloApprove,
   policy15SwarmApprove,
   policy16DefaultApprove,

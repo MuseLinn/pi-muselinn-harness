@@ -22,6 +22,9 @@ import type { SubAgentType, SubAgentTask } from "../packages/core/swarm/types";
 import { swarmState, setSwarmCancelled, setResumeResult, clearResumeResults, MAX_OUTPUT_LINES, OUTPUT_TRUNCATED_MARKER } from "../packages/core/swarm/types";
 import { hookEngine } from "../packages/core/hooks/index";
 import { loadSkillsForCwd } from "../packages/core/skills/index";
+import type { AgentProfile } from "../packages/core/agent-file/types.ts";
+import { toolPolicyService } from "../packages/core/tool-policy/index.ts";
+import { agentLifecycle } from "../packages/core/agent-lifecycle/index.ts";
 
 // Append one output line with a hard array-length cap (oldest dropped first).
 function pushOutputLine(task: SubAgentTask, line: string): void {
@@ -113,8 +116,21 @@ function combineAbortSignals(signals: AbortSignal[]): { signal: AbortSignal; cle
 export function createSubagentResourceLoader(ctx: {
   getSystemPrompt?: () => string | undefined;
   cwd: string;
+  /** Optional agent profile — overrides system prompt with profile's prompt template. */
+  agentProfile?: AgentProfile;
 }): ResourceLoader {
-  const basePrompt = ctx.getSystemPrompt?.() || "";
+  // Use agent profile's system prompt when provided (with ${base_prompt} expansion)
+  let basePrompt: string;
+  if (ctx.agentProfile?.systemPrompt) {
+    basePrompt = ctx.agentProfile.systemPrompt;
+    // Replace ${base_prompt} with the session's default prompt
+    const sessionPrompt = ctx.getSystemPrompt?.() || "";
+    if (basePrompt.includes("${base_prompt}") && sessionPrompt) {
+      basePrompt = basePrompt.replace(/\$\{base_prompt\}/g, sessionPrompt);
+    }
+  } else {
+    basePrompt = ctx.getSystemPrompt?.() || "";
+  }
   const systemPrompt = basePrompt
     .replace(/\nCurrent date and time:[^\n]*(?:\nCurrent working directory:[^\n]*)?$/u, "")
     .replace(/\nCurrent working directory:[^\n]*$/u, "")
@@ -232,10 +248,15 @@ export async function runSubAgent(
   },
   signal: AbortSignal,
   onProgress: () => void,
+  /** Optional agent profile to apply tool gating and custom system prompt. */
+  agentProfile?: AgentProfile,
 ): Promise<void> {
+  const agentId = task.id;
+  const agentType = task.type;
+  agentLifecycle.emit({ type: "agent.created", agentId, agentType, parentToolCallId: task.id });
   try { void hookEngine.fire("SubagentStart", { subagent_type: task.type, task_id: task.id }, { matcherText: task.type, cwd: ctx.cwd }); } catch { /* hooks fail open */ }
   try {
-  const resourceLoader = createSubagentResourceLoader(ctx);
+  const resourceLoader = createSubagentResourceLoader({ ...ctx, agentProfile });
   const models = ctx.modelRegistry.getAvailable();
   // Kimi Code-aligned built-in subagent tool sets:
   //  - coder:  full read/write + shell (default general-purpose agent)
@@ -279,6 +300,7 @@ export async function runSubAgent(
   await runWithModel(model, task, ctx, resourceLoader, gatedTools, signal, onProgress);
   } finally {
     try { void hookEngine.fire("SubagentStop", { subagent_type: task.type, task_id: task.id, status: task.status }, { matcherText: task.type, cwd: ctx.cwd }); } catch { /* hooks fail open */ }
+    agentLifecycle.emit({ type: "agent.disposed", agentId, agentType, parentToolCallId: task.id, status: task.status });
   }
 }
 

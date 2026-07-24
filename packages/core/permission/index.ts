@@ -7,6 +7,7 @@ import { setMode, sessionApprovals } from './types.ts';
 import { policyChain, isDestructive, inputFingerprint } from './policies.ts';
 import { loadAgentsMd } from './config.ts';
 import { hookEngine } from '../hooks/index.ts';
+import { toolPolicyService } from '../tool-policy/index.ts';
 
 /** Adapter-injected approval dialog outcome. */
 export interface ApprovalDialogResult {
@@ -101,6 +102,11 @@ export class PermissionManager {
       sessionId,
       agentsMd: loadAgentsMd(cwd),
     };
+
+    // Tool policy gate: check if tool is active before running policy chain
+    if (!toolPolicyService.isActive(toolName)) {
+      return { block: true, reason: `Tool "${toolName}" is disabled by the active tool policy.` };
+    }
 
     for (const policy of policyChain) {
       try {
@@ -226,7 +232,11 @@ Auto permission mode is no longer active. Tool approvals and permission checks a
       case 'yolo':
         return `## Permission Mode: YOLO
 
-YOLO permission mode is active. All actions are unconditionally allowed. You have full control over tool execution.`;
+YOLO permission mode is active. Actions are unconditionally allowed, but destructive operations, sensitive file access, and .git control paths still require approval.
+  - You CAN call AskUserQuestion for clarifications — it is NOT disabled in YOLO mode.
+  - Safety checks (destructive commands, sensitive files, git control paths) still run before auto-approval.
+  - ExitPlanMode still shows the plan review panel — the user needs to approve the plan before execution.
+  - This is "trust but verify": fast execution with guards for dangerous operations.`;
       default:
         return undefined;
     }

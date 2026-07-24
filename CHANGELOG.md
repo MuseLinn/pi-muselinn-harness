@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.8.2
+
+### Features (kimi-code 0.29.0 alignment)
+
+- **agent-file** — Custom Agent Files: Markdown agent profiles with YAML frontmatter.
+  Discovery from project scope (`.pi/agents/`, `.kimi-code/agents/`, `.agents/agents/`)
+  and user scope (`~/.pi/agent/agents/`, `~/.kimi-code/agents/`, `~/.agents/agents/`).
+  Profiles support `tools`/`disallowedTools`/`subagents` restrictions and `${base_prompt}`
+  expansion. Two new tools: `agent_file_list` (browse profiles) and `agent_file_info`
+  (inspect a profile). The `agent` and `agent_swarm` tools accept an `agent_file` parameter
+  to load a profile, which overrides the subagent's system prompt and applies tool gating.
+  (`packages/core/agent-file/` — 5 files, 1.7 KB total)
+
+- **tool-gating** — Three-layer tool policy (Profile → Session runtime) integrated into
+  the existing 18-level permission chain. Agent file profiles can restrict which tools
+  a subagent may use via `tools` (allow-list) and `disallowedTools` (deny-list). The
+  `PermissionManager.evaluate()` checks `ToolPolicyService.isActive()` first before
+  running the policy chain, so tool gating applies to all tool calls including direct
+  LLM invocations. (`packages/core/tool-policy/` — 3 files)
+
+- **agent-lifecycle** — Event bus for agent lifecycle tracking: `agent.created` and
+  `agent.disposed` events emitted by `runSubAgent`. Active agent count displayed in
+  the status bar (`[N agents running]`). The `AgentLifecycle` service supports
+  subscriptions and active agent enumeration.
+  (`packages/core/agent-lifecycle/` — 2 files)
+
+### Permission & Plan Mode Overhaul (kimi-code alignment)
+
+- **Policy chain reordered** — `AutoApprove` now fires BEFORE destructive/sensitive/git
+  safety checks, making auto mode truly automatic (no dialogs). YOLO mode still respects
+  safety checks (destructive commands, `.env` access, `.git` paths) before auto-approving.
+  Aligned with kimi-code's auto-vs-yolo semantics. (`packages/core/permission/policies.ts`)
+
+- **READ_ONLY_TOOLS expanded** — From 6 to 20 tools, matching kimi-code's default-tool-approve
+  set: added `glob`, `read_media_file`, `task_list`, `task_output`, `cron_list`,
+  `agent_file_list`, `agent_file_info`, `todo_list`, `enter_plan_mode`, `exit_plan_mode`,
+  `skill`, `select_tools`. (`packages/core/permission/types.ts`)
+
+- **Plan mode gates `task_stop`/`cron_create`/`cron_delete`** — Kimi Code-style: planning
+  sessions cannot stop tasks or modify cron schedules. (`packages/core/plan/index.ts`)
+
+- **Plan mode injection variants** — Full reminder on first injection or after user message;
+  sparse (short) reminder on consecutive assistant turns to avoid prompt bloat.
+  (`packages/core/plan/index.ts`)
+
+- **Auto-mode ExitPlanMode warning** — When auto-approved, the tool output now warns
+  "the user has NOT explicitly approved it" (kimi-code parity).
+  (`packages/core/plan/tools.ts`)
+
 ## 0.7.9
 
 ### Features

@@ -110,6 +110,11 @@ check("windows dir is read-only", planManager.shouldBlockTool("bash", "", "dir")
 check("rtk rm -rf still blocked", planManager.shouldBlockTool("bash", "", "rtk rm -rf x") === true);
 check("unwrapped write still blocked", planManager.shouldBlockTool("bash", "", "rm -rf x") === true);
 check("unwrapped read-only still allowed", planManager.shouldBlockTool("bash", "", "ls /tmp | head -5") === false);
+check("plan mode blocks task_stop", planManager.shouldBlockTool("task_stop") === true);
+check("plan mode blocks cron_create", planManager.shouldBlockTool("cron_create") === true);
+check("plan mode blocks cron_delete", planManager.shouldBlockTool("cron_delete") === true);
+check("plan mode allows cron_list", planManager.shouldBlockTool("cron_list") === false);
+check("plan mode allows agent_file_list", planManager.shouldBlockTool("agent_file_list") === false);
 planManager.exitPlanMode();
 
 // ── Bug 2: reenterForRevision preserves the current plan ──
