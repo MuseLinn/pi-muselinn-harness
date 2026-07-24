@@ -56,9 +56,20 @@ title: pi-muselinn-harness
 <h2><span data-l="en">New in 0.9.9</span><span data-l="zh">0.9.9 新功能</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
+### <span data-l="en">Keyboard shortcut removed</span><span data-l="zh">快捷键移除</span>
+<span data-l="en"><code>alt+t</code>/<code>opt+t</code> removed — Windows SSH misinterprets bare <code>t</code> as <code>alt+t</code>. Use <code>/todo toggle</code> instead.</span><span data-l="zh"><code>alt+t</code>/<code>opt+t</code> 已移除——Windows SSH 会误把打字时的 <code>t</code> 识别为 <code>alt+t</code>。改用 <code>/todo toggle</code>。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Collapsed widget phase tree</span><span data-l="zh">折叠 widget 阶段树</span>
+<span data-l="en">Default collapsed view now shows roman-numeral phase headers with active tasks only — no longer a flat list.</span><span data-l="zh">默认折叠视图现在显示罗马数字阶段标头+仅进行中任务——不再是无结构的平铺列表。</span>
+</div>
+<div class="card reveal" markdown="1">
 ### <span data-l="en">Pages mobile & box-style fix</span><span data-l="zh">Pages 手机端 & box 样式修复</span>
 <span data-l="en">Terminal box now uses dynamic CSS <code>border</code> instead of hardcoded Unicode box-drawing characters. Mobile layout fixed: sticky terminal with scene switching, <code>aspect-ratio: 4/3</code> adapted for small screens.</span><span data-l="zh">终端框用动态 CSS <code>border</code> 替代硬编码 Unicode 绘框字符。手机端布局修复：sticky 终端随段落切换场景，<code>aspect-ratio: 4/3</code> 适配小屏。</span>
 </div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">Schema & build fixes</span><span data-l="zh">Schema 与构建修复</span>
+<span data-l="en"><code>notes</code> field properly nested under <code>parameters.properties</code> (was inside <code>items</code> — <code>add_notes</code> now works). Stray <code>}</code> at line 335 removed — extension loads without ParseError.</span><span data-l="zh"><code>notes</code> 字段正确放在 <code>parameters.properties</code> 级（之前嵌套在 <code>items</code> 内部——现在 <code>add_notes</code> 能用了）。335 行多余 <code>}</code> 已删除——扩展不再 ParseError。</span>
 </div>
 </div>
 

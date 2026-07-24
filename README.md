@@ -8,10 +8,13 @@
 
 ### What's new in 0.9.9
 
-**Pages & box-style fix:**
-- Terminal box now uses dynamic CSS `border` instead of hardcoded Unicode box-drawing characters
-- Mobile layout: sticky terminal with scene switching, `aspect-ratio: 4/3` adapted for small screens
-
+**Final polish before release:**
+- **No keyboard shortcut for toggle** — `alt+t`/`opt+t` removed (Windows SSH misinterprets bare `t` as `alt+t`); use `/todo toggle` instead
+- **Widget default collapsed view** — phase-structured tree with roman numerals, shows only incomplete tasks; `alt+t` → `/todo toggle`
+- **Pages mobile & box-style fix** — terminal box uses dynamic CSS `border` instead of hardcoded Unicode box-drawing characters; mobile layout: sticky terminal with scene switching, `aspect-ratio: 4/3` adapted for small screens
+- **Schema fix** — `notes` field properly nested under `parameters.properties` (was inside `items`), `add_notes` now works
+- **Build fix** — stray `}` at line 335 removed, extension loads cleanly
+- All 12 test suites green
 ### What's new in 0.9.3–0.9.8
 
 **Integration & consistency fixes:**
@@ -238,7 +241,7 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 - **Answer reporting** — per-question answers (multi-select as an array); skipped questions and Esc-cancelled dialogs are reported distinctly
 - **Auto-mode safe** — auto mode denies `ask_user_question` by policy (no unattended hangs)
 
-### Todo (inline task plan)
+- **Inline panel** — above-editor widget with roman-numeral phase tree (`Ⅰ. Scanner · 2/4`), `/todo toggle` expand/collapse, empty list hides widget entirely
 - **`/todo` command** — full oh-my-pi phase model: `init`, `start`, `done`, `drop`, `rm`, `append`, `export`, `import`, `copy`, `edit`, `add_notes`, `update_details`, bare `/todo` prints Markdown
 - **`todo_list` tool** — model-driven task management with same ops
 - **Inline panel** — above-editor widget with roman-numeral phase tree (`Ⅰ. Scanner · 2/4`), `alt+t` collapse/expand, empty list hides widget entirely
@@ -287,13 +290,8 @@ Against the [Kimi Code CLI docs — Agents & Subagents](https://www.kimi.com/cod
 | `/resume` | Resume an interrupted swarm |
 | `/tasks` | Task browser (`ctrl+shift+t`) |
 | `/goal <objective>` | Set a goal |
-| `/goal pause\|resume\|cancel\|replace` | Manage the goal |
-| `/goal budget <n> <unit>` | Set a budget (turns/tokens/ms/s/minutes/hours) |
-| `/goal queue` / `/goal add\|prioritize\|drop\|skip` | Queue operations |
-| `/todo` | Task plan with phase model; shortcuts: `start` `done` `drop` `export` `import` `copy` `edit` |
-| `/plan` / `/plan on|off|clear` | Plan-mode control |
-| `/mode` | Switch permission mode (auto/yolo/manual) |
-| `/tui` | Switch editor style (plain/boxed/compact), `/tui timing` |
+| `/todo` | Task plan with phase model; shortcuts: `start` `done` `drop` `export` `import` `copy` `edit` `toggle` |
+| `/todo toggle` | Expand/collapse the todo panel (replaces former `alt+t`) |
 | `/plugins` | List loaded plugins and their capabilities |
 | `/swarm-status` | Show status |
 | `alt+t` | Expand/collapse the todo panel |

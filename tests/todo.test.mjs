@@ -174,8 +174,8 @@ check("summarize: after done", s2.completed === 1 && s2.in_progress === 1);
 const p14 = makePhases();
 const summary = formatSummary(p14, []);
 check("formatSummary: contains phase name", summary.includes("Scanner"));
-check("formatSummary: contains overall", summary.includes("Overall"));
-check("formatSummary: contains Remaining", summary.includes("Remaining"));
+check("formatSummary: contains todo summary", summary.includes("Todo ·"));
+check("formatSummary: contains remaining", summary.includes("remaining"));
 
 const emptySummary = formatSummary([], []);
 check("formatSummary: empty list", emptySummary === "Todo list cleared.");

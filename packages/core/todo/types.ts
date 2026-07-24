@@ -389,57 +389,154 @@ export function summarizeTodos(todos: readonly TodoItem[]): Record<TodoStatus, n
 export function formatSummary(phases: TodoPhase[], errors: string[], readOnly = false): string {
   const tasks = phases.flatMap((p) => p.tasks);
   if (tasks.length === 0) {
-    if (errors.length > 0) return `Errors: ${errors.join("; ")}`;
+    if (errors.length > 0) return `**Errors:** ${errors.join("; ")}`;
     return readOnly ? "Todo list is empty." : "Todo list cleared.";
   }
 
-  const remainingByPhase = phases
-    .map((p) => ({
-      name: p.name,
-      tasks: p.tasks.filter((t) => t.status === "pending" || t.status === "in_progress"),
-    }))
-    .filter((p) => p.tasks.length > 0);
-
+  const remaining = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
   const closedAll = tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
-  const remainingTasks = remainingByPhase.flatMap((p) => p.tasks.map((t) => ({ ...t, phase: p.name })));
-
-  let currentIdx = phases.findIndex((p) =>
-    p.tasks.some((t) => t.status === "pending" || t.status === "in_progress"),
-  );
-  if (currentIdx === -1) currentIdx = phases.length - 1;
-  const current = phases[currentIdx];
-  const done = current.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+  const multi = phases.length > 1;
 
   const lines: string[] = [];
-  if (errors.length > 0) lines.push(`Errors: ${errors.join("; ")}`);
-  if (remainingTasks.length === 0) {
-    lines.push("Remaining items: none.");
-  } else {
-    lines.push(`Remaining items (${remainingTasks.length}):`);
-    for (const task of remainingTasks) {
-      lines.push(`  - ${task.content} [${task.status}] (${task.phase})`);
-    }
+  if (errors.length > 0) lines.push(`**Errors:** ${errors.join("; ")}`);
+
+  // AI-readable summary line (compact)
+  if (remaining.length > 0) {
+    const remainingByPhase = phases
+      .map((p) => ({
+        name: p.name,
+        tasks: p.tasks.filter((t) => t.status === "pending" || t.status === "in_progress"),
+      }))
+      .filter((p) => p.tasks.length > 0);
+
+    let currentIdx = phases.findIndex((p) =>
+      p.tasks.some((t) => t.status === "pending" || t.status === "in_progress"),
+    );
+    if (currentIdx === -1) currentIdx = phases.length - 1;
+    const current = phases[currentIdx];
+    const done = current.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+
+    lines.push(`> **Todo ·** ${remaining.length} remaining · ${closedAll}/${tasks.length} done · active phase ${currentIdx + 1}/${phases.length} "${current.name}" (${done}/${current.tasks.length})`);
   }
-  lines.push(`Overall: ${closedAll}/${tasks.length} done, ${remainingTasks.length} open.`);
-  lines.push(
-    `Active phase ${currentIdx + 1}/${phases.length} "${current.name}" (${done}/${current.tasks.length}).`,
-  );
-  for (const phase of phases) {
-    lines.push(`  ${phase.name}:`);
-    for (const task of phase.tasks) {
-      const checkbox =
-        task.status === "completed" ? "[X]" :
-        task.status === "abandoned" ? "[-]" :
-        task.status === "in_progress" ? "[/]" :
-        "[ ]";
-      const tag =
-        task.status === "in_progress" ? " (in progress)" :
-        task.status === "abandoned" ? " (dropped)" :
-        "";
-      lines.push(`    - ${checkbox} ${task.content}${tag}`);
+
+  // Phase tree
+  for (let i = 0; i < phases.length; i++) {
+    const p = phases[i];
+    const phaseTasks = p.tasks;
+    const doneInPhase = phaseTasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+    const total = phaseTasks.length;
+    const hasOpen = phaseTasks.some((t) => t.status === "pending" || t.status === "in_progress");
+
+    if (!hasOpen && remaining.length > 0) {
+      // Collapsed phase summary (when there are open tasks elsewhere)
+      const label = multi ? formatPhaseDisplayName(p.name, i + 1) : p.name;
+      lines.push(`  **${label}** ✓ ${doneInPhase}/${total}`);
+      continue;
+    }
+
+    const label = multi ? formatPhaseDisplayName(p.name, i + 1) : p.name;
+    lines.push(`  **${label}**${remaining.length === 0 ? ` ✓ ${doneInPhase}/${total}` : ""}`);
+    for (const task of phaseTasks) {
+      const notesCount = task.notes?.length ?? 0;
+      const line = formatTodoLine(task, null, notesCount);
+      lines.push(`    ${line}`);
     }
   }
   return lines.join("\n");
+}
+
+// ── Shared rendering (tool + widget use the same symbols) ─────
+
+/** Plain-text status symbol for each status (no ANSI, no theme). */
+export const STATUS_SYMBOL: Record<TodoStatus, string> = {
+  pending: "○",
+  in_progress: "●",
+  completed: "✓",
+  abandoned: "✗",
+};
+
+/**
+ * Minimal theme interface for Pi-compatible rendering.
+ * When null/undefined, falls back to plain text — both
+ * formatSummary (AI-facing) and buildWidgetLines (human-facing)
+ * call through here so they always use the same symbols.
+ */
+export type TodoTheme = {
+  fg: (color: string, text: string) => string;
+  bold?: (text: string) => string;
+  strikethrough?: (text: string) => string;
+} | null;
+
+/** Resolve a TodoTheme to always-callable functions (plain-text fallback). */
+function resolveTh(th: TodoTheme): { fg: (c: string, t: string) => string; bold: (t: string) => string; strikethrough: (t: string) => string } {
+  if (!th) return { fg: (_, t) => t, bold: (t) => t, strikethrough: (t) => t };
+  return {
+    fg: (c, t) => th.fg(c, t),
+    bold: (t) => th.bold?.(t) ?? t,
+    strikethrough: (t) => th.strikethrough?.(t) ?? t,
+  };
+}
+
+/** Styled status symbol — colored with theme or plain text fallback. */
+export function todoSymbol(status: TodoStatus, th: TodoTheme): string {
+  if (!th) return STATUS_SYMBOL[status];
+  switch (status) {
+    case "in_progress": return th.fg("accent", "●");
+    case "completed":   return th.fg("success", "✓");
+    case "abandoned":   return th.fg("error", "✗");
+    default:            return th.fg("dim", "○");
+  }
+}
+
+/** Render one task line with consistent symbol + content styling. */
+export function formatTodoLine(
+  task: TodoItem,
+  th: TodoTheme,
+  notesCount = 0,
+  matched = false,
+): string {
+  const r = resolveTh(th);
+  const sym = todoSymbol(task.status, th);
+  const noteTag = notesCount > 0 ? r.fg("dim", ` +${notesCount}`) : "";
+
+  switch (task.status) {
+    case "completed":
+    case "abandoned":
+      return `${sym} ${r.strikethrough(r.fg(task.status === "completed" ? "success" : "error", task.content))}${noteTag}`;
+    case "in_progress":
+      return `${sym} ${r.fg("accent", task.content)}${noteTag}`;
+    default:
+      return `${sym} ${r.fg(matched ? "accent" : "dim", task.content)}${noteTag}`;
+  }
+}
+
+/** Render one phase header line. */
+export function formatPhaseLine(
+  phase: TodoPhase,
+  oneBasedIdx: number,
+  multiPhase: boolean,
+  th: TodoTheme,
+): string {
+  const r = resolveTh(th);
+  const label = multiPhase ? formatPhaseDisplayName(phase.name, oneBasedIdx) : phase.name;
+  const done = phase.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+  const hasActive = phase.tasks.some((t) => t.status === "in_progress");
+  const count = phase.tasks.length > 0 ? `  ${done}/${phase.tasks.length}` : "";
+  const line = `${label}${count}`;
+  return hasActive ? r.fg("accent", r.bold(line)) : line;
+}
+
+/** Render a one-line collapsed summary for an untouched phase. */
+export function formatPhaseSummaryLine(
+  phase: TodoPhase,
+  oneBasedIdx: number,
+  multiPhase: boolean,
+  th: TodoTheme,
+): string {
+  const r = resolveTh(th);
+  const label = multiPhase ? formatPhaseDisplayName(phase.name, oneBasedIdx) : phase.name;
+  const done = phase.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+  return r.fg("dim", `${label}  ${done}/${phase.tasks.length}`);
 }
 
 // ── Markdown round-trip (for /todo command) ────────────────────
@@ -620,6 +717,50 @@ export function selectVisibleTodos(
   const hidden = todos.length - rows.length;
 
   return { rows, hidden, hiddenCounts };
+}
+
+// ── Collapsed-phase viewport (oh-my-pi style) ────────────────
+
+export const COLLAPSED_TASKS_PER_PHASE = 4;
+
+/**
+ * Smart viewport for a single phase's collapsed preview.
+ * Policy (matching oh-my-pi's selectCollapsedTodos):
+ * 1. Only open tasks (pending/in_progress) are shown; a phase with no open
+ *    work gets an empty selection and the caller shows a summary line instead.
+ * 2. Active tasks (in_progress or pending matched to a subagent) go first.
+ * 3. Remaining slots fill with following pending tasks in order.
+ * 4. If active tasks alone exceed cap, only the first `cap` are shown.
+ * 5. Returns summary text for hidden items.
+ */
+export function selectCollapsedPhaseTasks(
+  tasks: readonly TodoItem[],
+  isMatched: (task: TodoItem) => boolean,
+  cap: number = COLLAPSED_TASKS_PER_PHASE,
+): { items: TodoItem[]; summary: string } {
+  const open = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
+  if (open.length === 0) return { items: [], summary: "" };
+  if (open.length <= cap) return { items: open, summary: "" };
+
+  // Active = in_progress or subagent-matched pending
+  const active = open.filter((t) => t.status === "in_progress" || (t.status === "pending" && isMatched(t)));
+
+  // Active alone exceeds cap → only show first cap active
+  if (active.length >= cap) {
+    return { items: active.slice(0, cap), summary: `… ${open.length - cap} more` };
+  }
+
+  // Fill remaining slots with following pending tasks
+  const firstActiveIdx = active.length > 0 ? open.indexOf(active[0]!) : 0;
+  const fill: TodoItem[] = [];
+  for (let i = firstActiveIdx; i < open.length && active.length + fill.length < cap; i++) {
+    const t = open[i]!;
+    if (t.status === "in_progress" || (t.status === "pending" && isMatched(t))) continue;
+    fill.push(t);
+  }
+  const visible = [...active, ...fill];
+  const hidden = open.length - visible.length;
+  return { items: visible, summary: hidden > 0 ? `… ${hidden} more` : "" };
 }
 
 // ── Subagent task matching ───────────────────────────────────

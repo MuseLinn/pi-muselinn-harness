@@ -23,9 +23,17 @@ import {
   phaseRomanNumeral,
   TODO_ENTRY_TYPE,
   type PhaseCounts,
+  todoSymbol,
+  formatTodoLine,
+  formatPhaseLine,
+  formatPhaseSummaryLine,
+  selectCollapsedPhaseTasks,
 
 } from "../packages/core/todo/types";
 import { swarmState } from "../packages/core/swarm/types";
+
+// ── Platform-aware key label ───────────────────────────────────
+const EXPAND_KEY = "/todo toggle";
 
 // ── Runtime state ──────────────────────────────────────────────
 
@@ -56,21 +64,6 @@ export const rt: TodoRuntime = {
 
 // ── Rendering ──────────────────────────────────────────────────
 
-function statusMarker(status: TodoItem["status"], theme: any): string {
-  switch (status) {
-    case "in_progress": return theme.fg("accent", "●");
-    case "completed":   return theme.fg("success", "✓");
-    case "abandoned":   return theme.fg("dim", "✗");
-    default:            return theme.fg("dim", "○");
-  }
-}
-
-function styleContent(content: string, status: TodoItem["status"], theme: any, hasNotes?: number): string {
-  if (status === "completed" || status === "abandoned") return theme.fg("dim", "\x1b[9m" + content + "\x1b[29m");
-  if (status === "in_progress") return theme.fg("accent", content + (hasNotes ? " \x1b[2m+\x1b[22m" + hasNotes : ""));
-  return content;
-}
-
 function buildWidgetLines(theme: any): string[] | undefined {
   const { phases } = rt;
   const activeDescriptions = getActiveTodoDescriptions();
@@ -83,46 +76,73 @@ function buildWidgetLines(theme: any): string[] | undefined {
   const head = theme.fg("dim", `─ todo (${counts.in_progress} active · ${counts.pending} pending · ${counts.completed} done) ─`);
   lines.push(head);
 
+  // All done → minimal summary + "clear" hint
+  const allDone = counts.pending === 0 && counts.in_progress === 0;
+  if (allDone && !rt.expanded) {
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i];
+      lines.push(formatPhaseSummaryLine(phase, i + 1, phases.length > 1, theme));
+    }
+    lines.push(theme.fg("dim", `${EXPAND_KEY} expand · /todo rm to clear`));
+    return lines;
+  }
+
+  const multi = phases.length > 1;
+
   if (rt.expanded) {
+    // Expanded: show all phases with all tasks
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i];
-      const done = phase.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
-      const label = phases.length > 1 ? formatPhaseDisplayName(phase.name, i + 1) : phase.name;
-      const phaseLine = `${label}  ${done}/${phase.tasks.length}`;
-      const highlighted = phase.tasks.some((t) => t.status === "in_progress");
-      lines.push(highlighted ? theme.fg("accent", theme.bold(phaseLine)) : phaseLine);
+      lines.push(formatPhaseLine(phase, i + 1, multi, theme));
       for (const task of phase.tasks) {
         const notesCount = task.notes?.length ?? 0;
-      const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
-      const marker = agentMatch ? theme.fg("success", theme.spinnerFrame?.() ?? "◔") : statusMarker(task, theme);
-      const styled = styleContent(task.content, task.status, theme, notesCount);
-      const line = agentMatch ? `${marker} ${theme.fg("success", styled)}` : `  ${marker} ${styled}`;
-      lines.push(line);
+        const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
+        const line = formatTodoLine(task, theme, notesCount, agentMatch);
+        lines.push(`  ${line}`);
       }
     }
-    lines.push(theme.fg("dim", "alt+t collapse"));
+    lines.push(theme.fg("dim", `${EXPAND_KEY} collapse`));
   } else {
-    // Collapsed: phase headers with only active tasks
+    // Collapsed: only the active phase shows tasks; others → one-line summary
+    let activePhaseIdx = -1;
     for (let i = 0; i < phases.length; i++) {
-      const phase = phases[i];
-      const doneCount = phase.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
-      const total = phase.tasks.length;
-      const label = phases.length > 1 ? formatPhaseDisplayName(phase.name, i + 1) : phase.name;
-      const count = total > 0 ? ` ${doneCount}/${total}` : "";
-      const phaseLine = `${label}${count}`;
-      const highlighted = phase.tasks.some((t) => t.status === "in_progress");
-      lines.push(highlighted ? theme.fg("accent", theme.bold(phaseLine)) : phaseLine);
-      for (const task of phase.tasks) {
-        if (task.status === "completed") continue;
-        const notesCount = task.notes?.length ?? 0;
-      const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
-      const marker = agentMatch ? theme.fg("success", theme.spinnerFrame?.() ?? "◔") : statusMarker(task, theme);
-      const styled = styleContent(task.content, task.status, theme, notesCount);
-      const line = agentMatch ? `${marker} ${theme.fg("success", styled)}` : `  ${marker} ${styled}`;
-      lines.push(line);
+      if (phases[i].tasks.some((t) => t.status === "in_progress")) {
+        activePhaseIdx = i;
+        break;
       }
     }
-    lines.push(theme.fg("dim", "alt+t expand"));
+    if (activePhaseIdx === -1) {
+      // No in_progress → first phase with pending is active
+      for (let i = 0; i < phases.length; i++) {
+        if (phases[i].tasks.some((t) => t.status === "pending")) {
+          activePhaseIdx = i;
+          break;
+        }
+      }
+    }
+
+    for (let i = 0; i < phases.length; i++) {
+      if (i !== activePhaseIdx) {
+        // Collapsed: one-line summary
+        lines.push(formatPhaseSummaryLine(phases[i], i + 1, multi, theme));
+        continue;
+      }
+      // Active phase: show header + smart viewport
+      const phase = phases[i];
+      lines.push(formatPhaseLine(phase, i + 1, multi, theme));
+      const isMatched = (t: TodoItem) => t.status === "pending" && todoMatchesAnyDescription(t.content, activeDescriptions);
+      const { items, summary } = selectCollapsedPhaseTasks(phase.tasks, isMatched);
+      for (const task of items) {
+        const notesCount = task.notes?.length ?? 0;
+        const agentMatch = task.status === "pending" && todoMatchesAnyDescription(task.content, activeDescriptions);
+        const line = formatTodoLine(task, theme, notesCount, agentMatch);
+        lines.push(`  ${line}`);
+      }
+      if (summary) {
+        lines.push(theme.fg("dim", `  ${summary}`));
+      }
+    }
+    lines.push(theme.fg("dim", `${EXPAND_KEY} expand`));
   }
 
   return lines;
@@ -247,11 +267,11 @@ export function registerTodoList(pi: any): void {
           type: "array",
           items: { type: "string" },
           description: "Tasks to append (for append, or flat init fallback)",
+        },
         notes: {
           type: "array",
           items: { type: "string" },
           description: "Notes to attach (for add_notes op)",
-        },
         },
       },
       required: ["op"],
@@ -285,7 +305,7 @@ export function registerTodoList(pi: any): void {
     },
   });
 
-  // alt+t toggles the panel's expanded view (ctrl+t is pi built-in thinking toggle).
+  // ${EXPAND_KEY} toggles the panel's expanded view (ctrl+t is pi built-in thinking toggle).
 
   // Wire default subagent descriptions provider to swarm state
   setActiveTodoDescriptionsProvider(() => {
@@ -299,28 +319,36 @@ export function registerTodoList(pi: any): void {
   pi.on("tool_result", () => { refreshWidget(); });
   pi.on("agent_start", () => { refreshWidget(); });
   pi.on("agent_end", () => { refreshWidget(); });
+}
 
+// ── Toggle command ────────────────────────────────────────────
 
-  pi.registerShortcut("alt+t", {
-    description: "Expand/collapse the todo panel",
-    handler: () => {
-      if (rt.phases.length === 0) return;
-      rt.expanded = !rt.expanded;
-      refreshWidget();
-    },
-  });
+/**
+ * Register the /todo toggle command.
+ * Called from index.ts alongside registerTodoList.
+ */
+export function togglePanel(): void {
+  if (rt.phases.length === 0) return;
+  rt.expanded = !rt.expanded;
+  refreshWidget();
 }
 
 // ── Reminder system ────────────────────────────────────────────
 
+const MID_RUN_NUDGE_THRESHOLD = 8; // mutations without todo touch → nudge
+const EAGER_PROMPT_SEEN_KEY = "muselinn_todo_eager_seen";
+
 /**
  * Register todo reminder hooks on the pi object.
- * Call this after registerTodoList.
  *
- * The reminder flow:
- *   agent_settled → check incomplete → set flag + increment counter (if ≤ MAX_REMINDERS)
- *   context (next turn) → if flag set, inject <system-reminder> into system message, clear flag
- *   tool_result → reset counter, clear flags
+ * Three reminder layers (matching oh-my-pi):
+ *
+ * 1. Eager prompt — when no todo exists, suggest the agent create one.
+ * 2. Mid-run nudge — when todos exist but the agent hasn't called
+ *    todo_list recently, a gentle "don't forget to update" nudge.
+ * 3. Stop reminder — when the agent stopped with incomplete items.
+ *
+ * Plus goal-todo context when a goal is active and todos exist.
  */
 export function registerTodoReminders(pi: any): void {
   // Track tool_result for `todo` tool to reset reminder state
@@ -329,6 +357,7 @@ export function registerTodoReminders(pi: any): void {
       rt.reminderCount = 0;
       rt.awaitingProgress = false;
       rt.reminderPending = false;
+      rt.mutationsSinceLastTodoTouch = 0;
       return;
     }
     // Count mutations for mid-run nudge
@@ -337,26 +366,65 @@ export function registerTodoReminders(pi: any): void {
     }
   });
 
-
-  // context: inject system-reminder if flag is set
+  // context: inject system-reminders for all three layers
   pi.on("context", (event: any) => {
-    if (!rt.reminderPending) return;
-    rt.reminderPending = false;
-    rt.awaitingProgress = true;
-    rt.mutationsSinceLastTodoTouch = 0;
-
-    const text = buildReminderText();
-    if (!text) return;
-
-    // Inject into the system message (same pattern as goalManager)
     if (!event.messages) return;
-    const sysMsg = event.messages.find((m: any) => m.role === "system");
-    if (sysMsg) {
-      sysMsg.content = Array.isArray(sysMsg.content)
-        ? [...sysMsg.content, { type: "text", text }]
-        : [{ type: "text", text: sysMsg.content }, { type: "text", text }];
-    } else {
-      event.messages.unshift({ role: "system", content: [{ type: "text", text }] });
+
+    // Helpers to inject a block into the system message
+    const inject = (text: string) => {
+      const sysMsg = event.messages.find((m: any) => m.role === "system");
+      const block = { type: "text", text };
+      if (sysMsg) {
+        sysMsg.content = Array.isArray(sysMsg.content)
+          ? [...sysMsg.content, block]
+          : [{ type: "text", text: sysMsg.content }, block];
+      } else {
+        event.messages.unshift({ role: "system", content: [block] });
+      }
+    };
+
+    // ── Layer 1: Eager prompt ──
+    if (rt.phases.length === 0) {
+      // Only suggest once per session so we don't spam every turn
+      const seen = (rt as any)[EAGER_PROMPT_SEEN_KEY];
+      if (!seen) {
+        (rt as any)[EAGER_PROMPT_SEEN_KEY] = true;
+        inject([
+          `<system-reminder>`,
+          `Consider calling \`todo_list\` first to lay out a phased plan with a single \`init\` op. A good list covers the whole request — investigation through implementation and verification — not just the next step, with specific task descriptions a future turn could execute without re-planning.`,
+          `A useful list keeps each task to a concise 5-10 word label.`,
+          `If you create the list, continue the request in the same turn and avoid re-calling \`todo_list\` unless task state materially changes.`,
+          `</system-reminder>`,
+        ].join("\n"));
+      }
+    }
+
+    // ── Layer 2: Mid-run nudge ──
+    if (
+      rt.phases.length > 0 &&
+      !rt.reminderPending &&
+      rt.mutationsSinceLastTodoTouch >= MID_RUN_NUDGE_THRESHOLD
+    ) {
+      rt.mutationsSinceLastTodoTouch = 0; // reset after nudge
+      const incomplete = countIncomplete(rt.phases);
+      if (incomplete > 0) {
+        const plural = incomplete === 1 ? "is" : "are";
+        inject([
+          `<system-reminder>`,
+          `Gentle reminder: ${incomplete} todo item${plural === "is" ? "" : "s"} ${plural} still open. If you finished a task since the last \`todo_list\` update, mark it done now so progress stays visible; otherwise just keep working.`,
+          `</system-reminder>`,
+        ].join("\n"));
+      }
+    }
+
+    // ── Layer 3: Stop reminder ──
+    if (rt.reminderPending) {
+      rt.reminderPending = false;
+      rt.awaitingProgress = true;
+      rt.mutationsSinceLastTodoTouch = 0;
+
+      const text = buildReminderText();
+      if (text) inject(text);
     }
   });
 

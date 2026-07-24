@@ -51,7 +51,7 @@ import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { approvalTitleFor } from "./packages/core/ask/types";
 import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
-import { registerTodoList, registerTodoReminders, bindTodoSession, clearTodoSession, restoreTodos, rt, persist, refreshWidget } from "./todo/index";
+import { registerTodoList, registerTodoReminders, bindTodoSession, clearTodoSession, restoreTodos, rt, persist, refreshWidget, togglePanel } from "./todo/index";
 import { registerFetchUrl } from "./webfetch/index";
 import { phasesToMarkdown, markdownToPhases, applyOp, TodoPhase, TodoItem } from "./packages/core/todo/types";
 import { loadPlugins, injectPluginSessionStart, registerPluginCommand, getPluginSkillFiles } from "./plugin/index";
@@ -1533,6 +1533,7 @@ export function registerTodoCommand(pi: any): void {
       "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
       "/todo rm     [<task|phase>]        Remove task/phase/all",
       "/todo edit                         Hint: use export then import",
+      "/todo toggle                       Expand/collapse the todo panel",
     ].join("\n"),
     getArgumentCompletions: (prefix: string) => {
       const subcmds = [
@@ -1545,6 +1546,7 @@ export function registerTodoCommand(pi: any): void {
         { value: "drop",   label: "/todo drop",   description: "Mark task/phase/all abandoned" },
         { value: "rm",     label: "/todo rm",     description: "Remove task/phase/all" },
         { value: "edit",   label: "/todo edit",   description: "Open in editor" },
+        { value: "toggle", label: "/todo toggle", description: "Expand/collapse the todo panel" },
       ];
       if (!prefix) return subcmds;
       const lower = prefix.toLowerCase();
@@ -1739,6 +1741,10 @@ export function registerTodoCommand(pi: any): void {
 
         case "edit": {
           ctx?.showStatus?.("/todo edit requires the TUI editor; use /todo export then /todo import for non-interactive edits.");
+          return;
+        }
+        case "toggle": {
+          togglePanel();
           return;
         }
         default: {
