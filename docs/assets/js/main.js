@@ -394,4 +394,90 @@
     currentScene = "swarm";
     bodyEl.innerHTML = CUE_HTML;
   }
+  // ── Version accordion (collapsible changelog) ──
+
+  function initVersionAccordion() {
+    var heads = document.querySelectorAll('h2');
+    var versionHeads = [];
+    for (var i = 0; i < heads.length; i++) {
+      if (/New in|Previously|Earlier/.test(heads[i].textContent)) {
+        versionHeads.push(heads[i]);
+      }
+    }
+    if (!versionHeads.length) return;
+
+    // Wrap each heading + next roadmap-grid in vgroup/vbody
+    var openCount = Math.min(3, versionHeads.length);
+    for (var j = 0; j < versionHeads.length; j++) {
+      var h2 = versionHeads[j];
+      var grid = h2.nextElementSibling;
+      if (!grid || !grid.classList.contains('roadmap-grid')) continue;
+
+      var vg = document.createElement('div');
+      vg.className = 'vgroup';
+      h2.parentNode.insertBefore(vg, h2);
+      vg.appendChild(h2);
+
+      var body = document.createElement('div');
+      body.className = 'vbody';
+      vg.appendChild(body);
+
+      // Move the roadmap-grid into the body
+      body.appendChild(grid);
+
+      // Make h2 clickable
+      h2.classList.add('vhead');
+      if (j < openCount) h2.classList.add('expanded');
+
+      // Collapse older versions
+      if (j >= openCount) {
+        vg.classList.add('collapsed');
+        body.classList.add('collapsed');
+      }
+    }
+
+    // Show-all button after last vgroup
+    var lastVg = document.querySelector('.vgroup:last-of-type');
+    if (lastVg && versionHeads.length > openCount) {
+      var btn = document.createElement('div');
+      btn.className = 'v-expander';
+      btn.textContent = '\u2630 Show all ' + versionHeads.length + ' versions';
+      btn.addEventListener('click', function() {
+        var all = document.querySelectorAll('.vgroup.collapsed');
+        for (var k = 0; k < all.length; k++) {
+          all[k].classList.remove('collapsed');
+          var h = all[k].querySelector('.vhead');
+          var b = all[k].querySelector('.vbody');
+          if (h) h.classList.add('expanded');
+          if (b) b.classList.remove('collapsed');
+        }
+        btn.textContent = '\u25B4 Collapse';
+        btn.addEventListener('click', function() { location.reload(); });
+      });
+      lastVg.parentNode.insertBefore(btn, lastVg.nextSibling);
+    }
+
+    // Click handlers for individual headings
+    document.addEventListener('click', function(e) {
+      var h = e.target.closest('.vhead');
+      if (!h) return;
+      var vg = h.closest('.vgroup');
+      if (!vg) return;
+      var body = vg.querySelector('.vbody');
+      if (!body) return;
+      var collapsed = vg.classList.toggle('collapsed');
+      body.classList.toggle('collapsed', collapsed);
+      h.classList.toggle('expanded', !collapsed);
+
+      // Update button text
+      var remains = document.querySelectorAll('.vgroup.collapsed').length;
+      var b = document.querySelector('.v-expander');
+      if (b) b.textContent = remains > 0
+        ? '\u2630 Show all ' + document.querySelectorAll('.vgroup').length + ' versions'
+        : '\u25B4 Collapse';
+    });
+  }
+
+  // Wire into DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', initVersionAccordion);
 })();

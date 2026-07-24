@@ -188,7 +188,7 @@ title: pi-muselinn-harness
 
 <style>.beta-badge{display:inline-block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;padding:.12rem .5rem;border-radius:4px;border:1px solid var(--accent2);color:var(--accent2);vertical-align:middle;margin-left:.5rem;line-height:1.4}</style>
 
-<h2><a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md" style="color:inherit;text-decoration:none">MusePi — the fork</a> <span class="beta-badge">BETA</span></h2>
+<h2><a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md" style="color:inherit;text-decoration:none"><span data-l="en">MusePi — the fork</span><span data-l="zh">MusePi — 我们的 fork</span></a> <span class="beta-badge">BETA</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
 ### <span data-l="en">What it is</span><span data-l="zh">是什么</span>
