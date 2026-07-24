@@ -188,11 +188,11 @@ title: pi-muselinn-harness
 
 <style>.beta-badge{display:inline-block;font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;padding:.12rem .5rem;border-radius:4px;border:1px solid var(--accent2);color:var(--accent2);vertical-align:middle;margin-left:.5rem;line-height:1.4}</style>
 
-<h2><a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md" style="color:inherit;text-decoration:none"><span data-l="en">MusePi — the fork</span><span data-l="zh">MusePi — 我们的 fork</span></a> <span class="beta-badge">BETA</span></h2>
+<h2><a href="https://muselinn.github.io/MusePi/" style="color:inherit;text-decoration:none"><span data-l="en">MusePi — the fork</span><span data-l="zh">MusePi — 我们的 fork</span></a> <span class="beta-badge">BETA</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
 ### <span data-l="en">What it is</span><span data-l="zh">是什么</span>
-<span data-l="en"><a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md">MusePi</a> is our pi fork where the main-line development happens — everything in this harness, native: hash-anchored editing (hashline), per-role model routing, lazy LSP with write-through diagnostics, and progressive tool disclosure for Kimi K3.</span><span data-l="zh"><a href="https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md">MusePi</a> 是我们的 pi fork，主线开发所在——本 harness 能力的原生形态：哈希锚定编辑（hashline）、分角色模型路由、LSP 懒加载与写后诊断回灌、K3 动态工具加载。</span>
+<span data-l="en"><a href="https://muselinn.github.io/MusePi/">MusePi</a> is our pi fork where the main-line development happens — everything in this harness, native: hash-anchored editing (hashline), per-role model routing, lazy LSP with write-through diagnostics, and progressive tool disclosure for Kimi K3.</span><span data-l="zh"><a href="https://muselinn.github.io/MusePi/">MusePi</a> 是我们的 pi fork，主线开发所在——本 harness 能力的原生形态：哈希锚定编辑（hashline）、分角色模型路由、LSP 懒加载与写后诊断回灌、K3 动态工具加载。</span>
 </div>
 <div class="card reveal" markdown="1">
 ### <span data-l="en">Why a fork</span><span data-l="zh">为什么 fork</span>

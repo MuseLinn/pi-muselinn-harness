@@ -394,90 +394,120 @@
     currentScene = "swarm";
     bodyEl.innerHTML = CUE_HTML;
   }
-  // ── Version accordion (collapsible changelog) ──
+  // ── Version constellation (star atlas) ──
 
-  function initVersionAccordion() {
+  function initVersionConstellation() {
     var heads = document.querySelectorAll('h2');
-    var versionHeads = [];
+    var entries = [];
     for (var i = 0; i < heads.length; i++) {
       if (/New in|Previously|Earlier/.test(heads[i].textContent)) {
-        versionHeads.push(heads[i]);
-      }
-    }
-    if (!versionHeads.length) return;
-
-    // Wrap each heading + next roadmap-grid in vgroup/vbody
-    var openCount = Math.min(3, versionHeads.length);
-    for (var j = 0; j < versionHeads.length; j++) {
-      var h2 = versionHeads[j];
-      var grid = h2.nextElementSibling;
-      if (!grid || !grid.classList.contains('roadmap-grid')) continue;
-
-      var vg = document.createElement('div');
-      vg.className = 'vgroup';
-      h2.parentNode.insertBefore(vg, h2);
-      vg.appendChild(h2);
-
-      var body = document.createElement('div');
-      body.className = 'vbody';
-      vg.appendChild(body);
-
-      // Move the roadmap-grid into the body
-      body.appendChild(grid);
-
-      // Make h2 clickable
-      h2.classList.add('vhead');
-      if (j < openCount) h2.classList.add('expanded');
-
-      // Collapse older versions
-      if (j >= openCount) {
-        vg.classList.add('collapsed');
-        body.classList.add('collapsed');
-      }
-    }
-
-    // Show-all button after last vgroup
-    var lastVg = document.querySelector('.vgroup:last-of-type');
-    if (lastVg && versionHeads.length > openCount) {
-      var btn = document.createElement('div');
-      btn.className = 'v-expander';
-      btn.textContent = '\u2630 Show all ' + versionHeads.length + ' versions';
-      btn.addEventListener('click', function() {
-        var all = document.querySelectorAll('.vgroup.collapsed');
-        for (var k = 0; k < all.length; k++) {
-          all[k].classList.remove('collapsed');
-          var h = all[k].querySelector('.vhead');
-          var b = all[k].querySelector('.vbody');
-          if (h) h.classList.add('expanded');
-          if (b) b.classList.remove('collapsed');
+        var grid = heads[i].nextElementSibling;
+        if (grid && grid.classList.contains('roadmap-grid')) {
+          entries.push({ h2: heads[i], grid: grid });
         }
-        btn.textContent = '\u25B4 Collapse';
-        btn.addEventListener('click', function() { location.reload(); });
-      });
-      lastVg.parentNode.insertBefore(btn, lastVg.nextSibling);
+      }
+    }
+    if (!entries.length) return;
+
+    // Hide original headings and grids, read version labels
+    var verse = document.createElement('div');
+    verse.className = 'v-verse';
+    var labels = [];
+    for (var j = 0; j < entries.length; j++) {
+      var h2 = entries[j].h2;
+      var en = h2.querySelector('[data-l="en"]');
+      labels.push(en ? en.textContent.replace('New in ', '').replace('Previously — ', '').replace('Earlier — ', '') : h2.textContent);
+      h2.style.display = 'none';
+      entries[j].grid.style.display = 'none';
     }
 
-    // Click handlers for individual headings
-    document.addEventListener('click', function(e) {
-      var h = e.target.closest('.vhead');
-      if (!h) return;
-      var vg = h.closest('.vgroup');
-      if (!vg) return;
-      var body = vg.querySelector('.vbody');
-      if (!body) return;
-      var collapsed = vg.classList.toggle('collapsed');
-      body.classList.toggle('collapsed', collapsed);
-      h.classList.toggle('expanded', !collapsed);
+    // Insert constellation before the first entry's h2 position
+    var refNode = entries[0].h2;
+    refNode.parentNode.insertBefore(verse, refNode);
 
-      // Update button text
-      var remains = document.querySelectorAll('.vgroup.collapsed').length;
-      var b = document.querySelector('.v-expander');
-      if (b) b.textContent = remains > 0
-        ? '\u2630 Show all ' + document.querySelectorAll('.vgroup').length + ' versions'
-        : '\u25B4 Collapse';
-    });
+    // Constellation SVG + star container
+    verse.innerHTML = '<div class="v-web-wrap"><svg class="v-web" viewBox="0 0 600 360"></svg><div class="v-stars"></div></div><div class="v-stage"></div>';
+
+    var svg = verse.querySelector('.v-web');
+    var starContainer = verse.querySelector('.v-stars');
+    var stage = verse.querySelector('.v-stage');
+
+    var W = 600, H = 360;
+    var cx = W / 2, cy = H / 2;
+
+    // Position stars in a spiral / orbital pattern
+    var stars = [];
+    var total = entries.length;
+    for (var k = 0; k < total; k++) {
+      var t = k / total;
+      var angle = t * Math.PI * 2 * 3; // 3 orbits
+      var radius = 40 + t * 140;
+      var x = cx + Math.cos(angle) * radius;
+      var y = cy + Math.sin(angle) * radius * 0.7; // squash vertically
+
+      var star = document.createElement('div');
+      star.className = 'v-star';
+      var size = 38 + (1 - t) * 18; // larger for newer versions
+      var opacity = 0.5 + (1 - t) * 0.5;
+      star.style.cssText = 'left:' + x.toFixed(0) + 'px;top:' + y.toFixed(0) + 'px;width:' + size + 'px;height:' + size + 'px;opacity:' + opacity.toFixed(2) + ';';
+      star.innerHTML = '<span class="v-label">' + labels[k] + '</span>';
+      star.dataset.idx = k;
+      starContainer.appendChild(star);
+      stars.push({ el: star, x: x, y: y, idx: k });
+
+      // Click to show this version
+      star.addEventListener('click', function(idx) {
+        return function() { showVersion(idx, entries, stage, stars, labels); };
+      }(k));
+    }
+
+    // Draw constellation lines (connect each star to 2 nearest)
+    for (var m = 0; m < stars.length; m++) {
+      var dists = [];
+      for (var n = 0; n < stars.length; n++) {
+        if (n === m) continue;
+        var dx = stars[n].x - stars[m].x;
+        var dy = stars[n].y - stars[m].y;
+        dists.push({ idx: n, d: dx * dx + dy * dy });
+      }
+      dists.sort(function(a, b) { return a.d - b.d; });
+      for (var c = 0; c < Math.min(2, dists.length); c++) {
+        var s2 = stars[dists[c].idx];
+        // Only draw each edge once (from lower idx to higher)
+        if (m < s2.idx) {
+          var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', stars[m].x);
+          line.setAttribute('y1', stars[m].y);
+          line.setAttribute('x2', s2.x);
+          line.setAttribute('y2', s2.y);
+          svg.appendChild(line);
+        }
+      }
+    }
+
+    // Show first version by default
+    showVersion(0, entries, stage, stars, labels);
+  }
+
+  var _activeStar = null;
+  function showVersion(idx, entries, stage, stars, labels) {
+    if (_activeStar) _activeStar.classList.remove('active');
+    _activeStar = stars[idx].el;
+    _activeStar.classList.add('active');
+
+    // Cloned card content from the roadmap-grid
+    stage.innerHTML = '';
+    var clone = entries[idx].grid.cloneNode(true);
+    clone.style.display = '';
+    clone.classList.add('v-reveal');
+    stage.appendChild(clone);
+
+    // Scroll into view smoothly
+    setTimeout(function() {
+      stage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
   }
 
   // Wire into DOMContentLoaded
-  document.addEventListener('DOMContentLoaded', initVersionAccordion);
+  document.addEventListener('DOMContentLoaded', initVersionConstellation);
 })();
