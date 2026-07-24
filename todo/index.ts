@@ -121,7 +121,7 @@ function buildWidgetLines(theme: any): string[] | undefined {
   return lines;
 }
 
-function refreshWidget(): void {
+export function refreshWidget(): void {
   const ctx = rt.ctx;
   if (!ctx || !ctx.widget) return;
   if (rt.phases.length === 0) {
@@ -134,7 +134,7 @@ function refreshWidget(): void {
 
 // ── Persistence ────────────────────────────────────────────────
 
-function persist(): void {
+export function persist(): void {
   if (!rt.appendEntry) return;
   try { rt.appendEntry(TODO_ENTRY_TYPE, { phases: rt.phases }); } catch { /* stale ctx */ }
 }

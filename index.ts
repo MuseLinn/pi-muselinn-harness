@@ -51,10 +51,10 @@ import { registerHooks, hookEngine } from "./packages/core/hooks/index";
 import { registerAskUserQuestion, showQuestionDialog } from "./ask/index";
 import { approvalTitleFor } from "./packages/core/ask/types";
 import { shouldTruncate, truncationPathFor, buildTruncatedPreview } from "./packages/core/truncation/index";
-import { registerTodoList, registerTodoReminders, bindTodoSession, clearTodoSession, restoreTodos, rt } from "./todo/index";
+import { registerTodoList, registerTodoReminders, bindTodoSession, clearTodoSession, restoreTodos, rt, persist, refreshWidget } from "./todo/index";
 import { registerFetchUrl } from "./webfetch/index";
+import { phasesToMarkdown, markdownToPhases, applyOp, TodoPhase, TodoItem } from "./packages/core/todo/types";
 import { loadPlugins, injectPluginSessionStart, registerPluginCommand, getPluginSkillFiles } from "./plugin/index";
-import { listDiscoverableSkillFiles } from "./packages/core/skills/index";
 import { registerTui, setTuiBadgeProvider } from "./tui/index";
 import shared from "./state";
 
@@ -1525,6 +1525,20 @@ export function registerTodoCommand(pi: any): void {
       "/todo rm     [<task|phase>]        Remove task/phase/all",
       "/todo view                         Show current todo list",
     ].join("\n"),
+    getArgumentCompletions: (prefix: string): { value: string; label: string; description?: string }[] | null => {
+      const subcmds = [
+        { value: "import", label: "/todo import", description: "Replace todos from file" },
+        { value: "append", label: "/todo append", description: "Append a task" },
+        { value: "start", label: "/todo start", description: "Mark task in_progress" },
+        { value: "done", label: "/todo done", description: "Mark task/phase/all completed" },
+        { value: "drop", label: "/todo drop", description: "Mark task/phase/all abandoned" },
+        { value: "rm", label: "/todo rm", description: "Remove task/phase/all" },
+        { value: "view", label: "/todo view", description: "Show current todo list" },
+      ];
+      if (!prefix) return subcmds;
+      const lower = prefix.toLowerCase();
+      return subcmds.filter(s => s.value.startsWith(lower));
+    },
     handler: async (args: string, ctx: any) => {
       rt.ctx = ctx;
       const trimmed = (args || "").trim();
