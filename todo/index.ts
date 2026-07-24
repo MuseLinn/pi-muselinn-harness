@@ -176,22 +176,23 @@ export function clearTodoSession(): void {
   rt.awaitingProgress = false;
   rt.mutationsSinceLastTodoTouch = 0;
   refreshWidget();
+
 }
 
 // ── Tool registration ──────────────────────────────────────────
 
 export function registerTodoList(pi: any): void {
   pi.registerTool({
-    name: "todo",
+    name: "todo_list",
     label: "Todo List",
-    promptSnippet: "todo: manage a phased task plan (init / start / done / drop / rm / append / view)",
+    promptSnippet: "todo_list: manage a phased task plan (init / start / done / drop / rm / append / view)",
     promptGuidelines: [
       "Use op=init with list=[{phase, items}] to initialize a full phased plan covering the whole request",
       "Use op=start task=... to mark a task in_progress (only one in_progress at a time)",
       "Use op=done task=... to mark a task completed; omit task to mark all open tasks done",
       "Use op=append phase=... items=[...] to add tasks to an existing phase",
       "Keep tasks to concise 5-10 word labels",
-      "Call todo after completing tasks to keep progress visible — reminders fire if you stop with open items",
+      "Call todo_list after completing tasks to keep progress visible — reminders fire if you stop with open items",
     ],
     parameters: {
       type: "object",
@@ -282,7 +283,7 @@ export function registerTodoList(pi: any): void {
 export function registerTodoReminders(pi: any): void {
   // Track tool_result for `todo` tool to reset reminder state
   pi.on("tool_result", (event: any) => {
-    if (event?.toolName === "todo") {
+    if (event?.toolName === "todo_list") {
       rt.reminderCount = 0;
       rt.awaitingProgress = false;
       rt.reminderPending = false;
