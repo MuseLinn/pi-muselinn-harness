@@ -125,7 +125,7 @@ export function refreshWidget(): void {
   const ctx = rt.ctx;
   if (!ctx?.ui?.setWidget) return;
   if (rt.phases.length === 0) {
-    ctx.ui.setWidget("todo", ["─ todo (empty) ─"]);
+    ctx.ui.setWidget("todo", undefined);
     return;
   }
   const theme = ctx.ui?.theme || {};

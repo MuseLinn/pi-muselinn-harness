@@ -1528,7 +1528,6 @@ export function registerTodoCommand(pi: any): void {
       "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
       "/todo rm     [<task|phase>]        Remove task/phase/all",
       "/todo edit                         Hint: use export then import",
-      "/todo help / ?                     Show this usage",
     ].join("\n"),
     getArgumentCompletions: (prefix: string) => {
       const subcmds = [
@@ -1541,8 +1540,6 @@ export function registerTodoCommand(pi: any): void {
         { value: "drop",   label: "/todo drop",   description: "Mark task/phase/all abandoned" },
         { value: "rm",     label: "/todo rm",     description: "Remove task/phase/all" },
         { value: "edit",   label: "/todo edit",   description: "Open in editor" },
-        { value: "help",   label: "/todo help",   description: "Show usage" },
-        { value: "?",      label: "/todo ?",      description: "Show usage" },
       ];
       if (!prefix) return subcmds;
       const lower = prefix.toLowerCase();
@@ -1739,25 +1736,6 @@ export function registerTodoCommand(pi: any): void {
           ctx?.showStatus?.("/todo edit requires the TUI editor; use /todo export then /todo import for non-interactive edits.");
           return;
         }
-
-        case "help":
-        case "?": {
-          ctx?.showStatus?.(`Usage:\n${[
-            "/todo                              Show todos as Markdown",
-            "/todo import [<path>]              Replace todos from file (default: TODO.md)",
-            "/todo export [<path>]              Export todos to file (default: TODO.md)",
-            "/todo copy                         Print todos as Markdown to conversation",
-            "/todo append [<phase>] <task...>   Append a task; phase fuzzy-matched or auto-created",
-            "/todo start  <task>                Mark task in_progress (fuzzy match)",
-            "/todo done   [<task|phase>]        Mark task/phase/all completed",
-            "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
-            "/todo rm     [<task|phase>]        Remove task/phase/all",
-            "/todo edit                         Hint: use export then import",
-            "/todo help / ?                     Show this usage",
-          ].join("\n")}`);
-          return;
-        }
-
         default: {
           if (rt.phases.length === 0) { ctx?.showStatus?.("No todos. Use /todo append <task> to start one."); return; }
           const md = phasesToMarkdown(rt.phases);
