@@ -6,6 +6,34 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
 
+### What's new in 0.8.3
+
+**Plan Mode — Kimi Code permission model alignment.**
+
+Plan mode no longer maintains its own bash command whitelist. Instead, bash
+follows the normal permission mode (auto/yolo/manual) — the same design as
+Kimi Code. Only the following are blocked during planning:
+- **Write/Edit** to files outside the active plan file
+- **TaskStop** (would abort background work during planning)
+- **CronCreate / CronDelete** (would mutate scheduled work)
+
+The plan file path is matched by exact path, `local://` scheme basename, and
+resolved absolute path under the session's `plans/` directory — all three paths
+accepted.
+
+This eliminates the root cause of "stuck in plan mode" where common commands
+like `cd` were blocked by the bash whitelist, and plan file writes using the
+`local://` scheme were rejected.
+
+**Plan mode bash permission model:**
+
+| Before (0.8.2) | After (0.8.3) |
+|---|---|
+| Static regex whitelist (~35 commands) | No bash restriction — follows permission mode |
+| `cd` not in whitelist → blocked | `cd`, `git push`, `npm install` all allowed (permission mode decides) |
+| `local://` plan writes rejected (path mismatch) | `local://` basename matched against active plan file |
+| Deny-by-default for unmatched commands | Allow-by-default, permission chain controls |
+
 ### What's new in 0.8.2
 
 **Custom Agent Files** — Define agent profiles as Markdown files with YAML frontmatter:
@@ -83,7 +111,7 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 pi install npm:pi-muselinn-harness
 ```
 
-Already installed? Re-run the same command to upgrade to the latest release (0.7.8).
+Already installed? Re-run the same command to upgrade to the latest release (0.8.3).
 
 Or from git / local source:
 
@@ -119,11 +147,11 @@ pi install local:~/.pi/agent/extensions/pi-muselinn-harness
 
 ### Plan
 - **Plan mode** — the LLM explores, writes a plan, and only executes after approval
-- **Tool restrictions** — read-only tool whitelist + plan-file write access; bash gated by command whitelist (env assignments and a leading `rtk` wrapper peeled before vetting; Windows `dir` accepted)
+- **Kimi Code permission model** — bash is NOT blocked in plan mode; it follows the normal permission mode (auto/yolo/manual). Only Write/Edit (outside plan file), TaskStop, CronCreate, CronDelete are blocked
+- **Plan file path matching** — exact path, `local://` scheme basename, and resolved absolute path under `sessionDir/plans/` — all three accepted
 - **ExitPlanMode reads the plan file** — presentation matches what was actually written to disk
 - **Revise keeps your plan** — a revised or cancelled review re-enters plan mode with the same plan object (id/path/content), never a trap, never lost work; review timeout 600 s
 - **Restore validation** — a stale persisted active-plan entry with no content and no file on disk deactivates plan mode instead of trapping the session
-- **Path guard** — `path.resolve` + `startsWith(planDir)` against escape
 - **Context injection** — the plan is injected into the system prompt
 
 ### Permission
@@ -291,7 +319,7 @@ pi-muselinn-harness/
 
 ## Tests
 
-Pure node-level unit tests, no model quota needed (19 suites, 580 assertions):
+Pure node-level unit tests, no model quota needed (19 suites, 590+ assertions):
 
 ```bash
 npm test                                        # all suites (node tests/run-all.mjs)
@@ -302,7 +330,7 @@ or individually:
 ```bash
 node tests/permission.test.mjs                    # Permission policy chain + subagent gate — 22
 node tests/goal.test.mjs                          # Goal state machine + monotonic restore — 32
-node tests/plan.test.mjs                          # Plan mode round-trip + restore validation — 38
+node tests/plan.test.mjs                          # Plan mode round-trip + restore validation — 42
 node tests/task.test.mjs                          # Task restore/list/output/block + loader runtime — 16
 node tests/cron.test.mjs                          # Cron subsystem — 16
 node tests/hooks.test.mjs                         # Hooks engine — 43
@@ -330,7 +358,7 @@ full matrix — ubuntu + windows × node 20/22 — on every push and PR.
 Tag-driven npm publish via GitHub Actions:
 
 ```bash
-git tag v0.7.8 && git push origin v0.7.8   # test matrix gates the publish
+git tag v0.8.3 && git push origin v0.8.3   # test matrix gates the publish
 ```
 
 One-time setup: create an npm granular/automation token with publish rights

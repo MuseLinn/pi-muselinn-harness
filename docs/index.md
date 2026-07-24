@@ -33,8 +33,8 @@ title: pi-muselinn-harness
     </section>
     <section class="split-section" data-scene="plan">
       <h3><span data-l="en">✎ <em>Plan</em> — read-only first</span><span data-l="zh">✎ <em>Plan</em> — 先谋后动</span></h3>
-      <p data-l="en">The LLM explores and writes a plan; execution waits for your approval. Read-only tool whitelist, plan-file path guard, and a <code>plan</code> badge on the editor border while active.</p>
-      <p data-l="zh">LLM 先探索代码库、写计划,审批后才执行。只读工具白名单、plan 文件路径守卫,激活时编辑器上边框显示 <code>plan</code> 徽标。</p>
+      <p data-l="en">The LLM explores and writes a plan; execution waits for your approval. Kimi Code permission model — bash follows normal permission mode (auto/yolo/manual), only Write/Edit (outside plan file), TaskStop, Cron are blocked. Plan file accepts exact path, <code>local://</code> basename, and resolved absolute path. <code>plan</code> badge on the editor border while active.</p>
+      <p data-l="zh">LLM 先探索代码库、写计划,审批后才执行。Kimi Code 权限模型——bash 走正常 permission mode（auto/yolo/manual），只拦截 Write/Edit（非 plan 文件）、TaskStop、Cron。Plan 文件支持精确路径、<code>local://</code> 文件名、解析绝对路径三种匹配。激活时编辑器上边框显示 <code>plan</code> 徽标。</p>
     </section>
     <section class="split-section" data-scene="permission">
       <h3><span data-l="en">⛨ <em>Permission</em> — safety before speed</span><span data-l="zh">⛨ <em>Permission</em> — 安全先于效率</span></h3>
@@ -52,6 +52,18 @@ title: pi-muselinn-harness
       <p data-l="zh">Kimi 式闭合框(<code>╭─╮ │ ╰─╯</code>),上边框嵌入 spinner 与工作状态,三种样式,<code>/tui</code> 热切换,内置渲染耗时探针。</p>
     </section>
   </div>
+</div>
+
+<h2><span data-l="en">New in 0.8.3</span><span data-l="zh">0.8.3 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Plan Mode — Kimi Code Permission Model</span><span data-l="zh">Plan Mode — 对齐 Kimi Code 权限模型</span>
+<span data-l="en">Plan mode no longer maintains its own bash command whitelist. Bash follows the normal permission mode (auto/yolo/manual) — the same design as Kimi Code. Only Write/Edit (outside plan file), TaskStop, and CronCreate/CronDelete are blocked. The plan file path is matched by exact path, <code>local://</code> basename, and resolved absolute path under <code>sessionDir/plans/</code>.</span><span data-l="zh">Plan mode 不再维护自己的 bash 命令白名单。bash 遵循正常的 permission mode（auto/yolo/manual）——与 Kimi Code 设计一致。只拦截 Write/Edit（非 plan 文件）、TaskStop 和 CronCreate/CronDelete。Plan 文件路径支持精确路径、<code>local://</code> 文件名匹配和 <code>sessionDir/plans/</code> 下的解析绝对路径三种方式。</span>
+</div>
+<div class="card reveal" markdown="1">
+### <span data-l="en">No more "stuck in plan mode"</span><span data-l="zh">不再「卡在 plan mode」</span>
+<span data-l="en"><code>cd</code> and other common commands were blocked by the bash whitelist. <code>local://</code> plan writes were rejected by the path guard. Both are fixed: bash passes through to the permission chain, and plan writes accept <code>local://</code> via basename matching.</span><span data-l="zh">以前 <code>cd</code> 等常见命令被 bash 白名单拦截，<code>local://</code> 写 plan 被路径守卫拒绝。现在两者都已修复：bash 放行到 permission chain，plan 写支持 <code>local://</code> 文件名匹配。</span>
+</div>
 </div>
 
 <h2><span data-l="en">New in 0.8.2</span><span data-l="zh">0.8.2 新功能</span></h2>

@@ -102,19 +102,24 @@ planManager.exitPlanMode();
 // ── Bug 1: plan-mode bash gate understands rtk-rewritten commands ──
 // pi-rtk-optimizer rewrites `ls "D:/x"` → `rtk ls "D:/x"` (optionally with
 // leading env assignments) before this gate vets the command string.
-planManager.enterPlanMode("rtk gate tests");
-check("rtk-wrapped ls is read-only", planManager.shouldBlockTool("bash", "", "rtk ls /tmp") === false);
-check("env + rtk + pipe is read-only", planManager.shouldBlockTool("bash", "", "FOO=bar RTK_X=1 rtk cat file.txt | head -5") === false);
-check("rtk global flags stripped", planManager.shouldBlockTool("bash", "", "rtk -q --no-color git status") === false);
-check("windows dir is read-only", planManager.shouldBlockTool("bash", "", "dir") === false);
-check("rtk rm -rf still blocked", planManager.shouldBlockTool("bash", "", "rtk rm -rf x") === true);
-check("unwrapped write still blocked", planManager.shouldBlockTool("bash", "", "rm -rf x") === true);
-check("unwrapped read-only still allowed", planManager.shouldBlockTool("bash", "", "ls /tmp | head -5") === false);
+planManager.enterPlanMode("kimi code permission model");
+// Kimi Code-style: bash is NOT blocked in plan mode — follows permission mode
+check("bash ls is allowed", planManager.shouldBlockTool("bash", "", "ls /tmp") === false);
+check("bash rm is allowed (goes to permission mode)", planManager.shouldBlockTool("bash", "", "rm -rf x") === false);
+check("bash git status is allowed", planManager.shouldBlockTool("bash", "", "git status") === false);
 check("plan mode blocks task_stop", planManager.shouldBlockTool("task_stop") === true);
 check("plan mode blocks cron_create", planManager.shouldBlockTool("cron_create") === true);
 check("plan mode blocks cron_delete", planManager.shouldBlockTool("cron_delete") === true);
 check("plan mode allows cron_list", planManager.shouldBlockTool("cron_list") === false);
 check("plan mode allows agent_file_list", planManager.shouldBlockTool("agent_file_list") === false);
+check("plan mode blocks write to non-plan file", planManager.shouldBlockTool("write", "/tmp/foo.txt") === true);
+// Write to the active plan file is allowed (exact path match)
+const currentPlan = planManager.getCurrentPlan();
+if (currentPlan?.path) {
+  check("plan mode allows write to plan file (exact path)", planManager.shouldBlockTool("write", currentPlan.path) === false);
+  const basename = currentPlan.path.split(/[\\/]/).pop();
+  check("plan mode allows write via local:// scheme", planManager.shouldBlockTool("write", "local://" + basename) === false);
+}
 planManager.exitPlanMode();
 
 // ── Bug 2: reenterForRevision preserves the current plan ──

@@ -6,6 +6,29 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x 和 0.82.x。
 
+### 0.8.3 新功能
+
+**Plan Mode — 对齐 Kimi Code 权限模型。**
+
+Plan mode 不再维护自己的 bash 命令白名单。bash 遵循正常的 permission mode
+（auto/yolo/manual）——与 Kimi Code 设计一致。Plan mode 只拦截以下操作：
+- **Write/Edit** 到非当前 plan 文件的路径
+- **TaskStop**（会在规划期间中断后台工作）
+- **CronCreate / CronDelete**（会修改定时任务）
+
+Plan 文件路径支持三种匹配方式：精确路径、`local://` scheme 文件名匹配、
+以及解析后的绝对路径在会话 `plans/` 目录下。
+
+这消除了「卡在 plan mode」的根本原因——以前 `cd` 等常见命令被 bash 白名单拦截，
+`local://` 写 plan 也被拒绝。
+
+| 对比 | 0.8.2（之前） | 0.8.3（之后） |
+|------|------|------|
+| bash 拦截 | 静态正则白名单 ~35 命令 | 不拦截——走 permission mode |
+| `cd` 命令 | ❌ 不在白名单 | ✅ 放行（permission mode 控制） |
+| `local://` 写 plan | ❌ 路径不匹配 | ✅ basename 匹配当前 plan |
+| 兜底策略 | deny-by-default | allow → permission chain |
+
 ### 0.7.8 新功能
 
 - **Task 模块可靠性修复** — pi ≥ 0.81 上后台任务失效的两个根因：
@@ -64,11 +87,11 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 ### Plan 模块
 - **Plan Mode** — LLM 先探索代码库、写计划、审批后再执行
-- **工具限制** — 只读工具白名单 + plan 文件写权限，bash 按命令白名单放行（先剥离 env 赋值与前导 `rtk` 包装再审；接受 Windows `dir`）
+- **Kimi Code 权限模型** — plan mode 不拦截 bash，bash 走正常的 permission mode（auto/yolo/manual）。只拦截 Write/Edit（非 plan 文件）、TaskStop、CronCreate、CronDelete
+- **Plan 文件路径匹配** — 精确路径、`local://` scheme 文件名、解析后绝对路径在 `sessionDir/plans/` 下，三种方式均支持
 - **ExitPlanMode 读盘** — 呈现时读取 plan 文件真实内容，与 LLM 写盘保持一致
 - **Revise 保留 plan** — 评审选 Revise 或取消会以同一个 plan 对象(id/路径/内容)重新进入 plan 模式，不困住用户、不丢工作；评审超时 600s
 - **恢复校验** — 无内容且磁盘无文件的过期 active-plan entry 会停用 plan 模式，而不是静默困住会话
-- **路径守卫** — `path.resolve` + `startsWith(planDir)` 防绕过
 - **Context 注入** — 注入 plan 到 system prompt
 
 ### Permission 模块
@@ -158,7 +181,7 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 pi install npm:pi-muselinn-harness
 ```
 
-已安装过？再跑一次同样的命令即可升级到最新版（0.7.8）。
+已安装过？再跑一次同样的命令即可升级到最新版（0.8.3）。
 
 也可以从 git 或本地源码安装：
 
@@ -251,7 +274,7 @@ pi-muselinn-harness/
 
 ## 测试
 
-无需模型额度的 node 级单元测试（19 个套件，580 项断言）：
+无需模型额度的 node 级单元测试（19 个套件，590+ 项断言）：
 
 ```bash
 npm test                                        # 全部套件(node tests/run-all.mjs)
@@ -262,7 +285,7 @@ npm test                                        # 全部套件(node tests/run-al
 ```bash
 node tests/permission.test.mjs                    # Permission 策略链 + 子代理门控 22 项
 node tests/goal.test.mjs                          # Goal 状态机 + 单调恢复 32 项
-node tests/plan.test.mjs                          # Plan 模式往返 + 恢复校验 38 项
+node tests/plan.test.mjs                          # Plan 模式往返 + 恢复校验 42 项
 node tests/task.test.mjs                          # Task 恢复/列表/输出/阻塞 + loader runtime 16 项
 node tests/cron.test.mjs                          # Cron 子系统 16 项
 node tests/hooks.test.mjs                         # Hooks 引擎 43 项
@@ -290,7 +313,7 @@ ESM loader；22.6+ 原生擦除类型）。CI 在每次 push 和 PR 上跑完整
 打 tag 触发 npm 自动发布（GitHub Actions）：
 
 ```bash
-git tag v0.7.8 && git push origin v0.7.8   # 测试矩阵作为发布门禁
+git tag v0.8.3 && git push origin v0.8.3   # 测试矩阵作为发布门禁
 ```
 
 一次性配置：在 npm 创建对 `pi-muselinn-harness` 有发布权限的

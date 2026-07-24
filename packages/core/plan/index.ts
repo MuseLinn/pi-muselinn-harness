@@ -17,164 +17,16 @@ function generatePlanId(): string {
 }
 
 // ============================================================
-// Read-only Bash command whitelist (Plan Mode safety gate)
+// Plan Mode — Kimi Code-style permission model
 // ------------------------------------------------------------
-// Plan Mode must allow exploration but must NOT allow writes,
-// deletions, network mutations, or commits. This is a small,
-// CONSERVATIVE regex whitelist of common read-only commands.
-// Anything not matched here is denied (Plan Mode is restrictive
-// by design). The list is intentionally easy to extend — add a
-// new RegExp to READ_ONLY_BASH_PATTERNS to grow the allow-list.
+// Plan mode does NOT block bash. Bash follows the normal permission
+// mode (auto/yolo/manual) — the same as Kimi Code.
+// Only the following are blocked during plan mode:
+//   - Write/Edit to files OUTSIDE the plan file (plan file is allowed)
+//   - TaskStop (would abort running background work during planning)
+//   - CronCreate/CronDelete (would mutate scheduled work)
+// Everything else passes through to the permission policy chain.
 // ============================================================
-
-const READ_ONLY_BASH_PATTERNS: RegExp[] = [
-  // ── Pure read-only coreutils ──
-  /^\s*ls(\s|$)/,
-  /^\s*dir(\s|$)/,  // Windows read-only directory listing
-  /^\s*pwd(\s|$)/,
-  /^\s*echo(\s|$)/,
-  /^\s*cat(\s|$)/,
-  /^\s*head(\s|$)/,
-  /^\s*tail(\s|$)/,
-  /^\s*less(\s|$)/,
-  /^\s*more(\s|$)/,
-  /^\s*wc(\s|$)/,
-  /^\s*which(\s|$)/,
-  /^\s*whereis(\s|$)/,
-  /^\s*file(\s|$)/,
-  /^\s*stat(\s|$)/,
-  /^\s*du(\s|$)/,
-  /^\s*df(\s|$)/,
-  /^\s*env(\s|$)/,
-  /^\s*printenv(\s|$)/,
-  /^\s*whoami(\s|$)/,
-  /^\s*hostname(\s|$)/,
-  /^\s*uname(\s|$)/,
-  /^\s*date(\s|$)/,
-  /^\s*diff(\s|$)/,
-  /^\s*cut(\s|$)/,
-  /^\s*tr(\s|$)/,
-  /^\s*uniq(\s|$)/,
-  /^\s*sort(\s|$)/,
-  // ── Search / inspect ──
-  /^\s*grep(\s|$)/,
-  /^\s*egrep(\s|$)/,
-  /^\s*fgrep(\s|$)/,
-  /^\s*rg(\s|$)/,
-  /^\s*find(\s|$)/,
-  // ── Git read-only ──
-  /^\s*git\s+status(\s|$)/,
-  /^\s*git\s+diff(\s|$)/,
-  /^\s*git\s+log(\s|$)/,
-  /^\s*git\s+show(\s|$)/,
-  /^\s*git\s+blame(\s|$)/,
-  /^\s*git\s+remote(\s|$)/,
-  /^\s*git\s+branch(\s|$)/,  // bare `git branch` lists; write forms (-d/-m) blocked by deny-by-default of unknown flags? keep simple
-  /^\s*git\s+ls-files(\s|$)/,
-  /^\s*git\s+rev-parse(\s|$)/,
-  // ── Node / package-manager dry, version, info only ──
-  /^\s*node\s+--check(\s|$)/,
-  /^\s*node\s+--version(\s|$)/,
-  /^\s*node\s+-v(\s|$)/,
-  /^\s*npm\s+(view|info|outdated|ls|list|--version|-v)(\s|$)/,
-  /^\s*npm\s+test(\s+--dry-run)?(\s|$)/,
-  /^\s*npm\s+run(\s|$)/,  // scripts may write; kept conservative but common. See note below.
-  /^\s*npx\s+--version(\s|$)/,
-  /^\s*tsc\s+--noEmit(\s|$)/,
-  /^\s*pnpm\s+(list|ls|outdated|--version|-v)(\s|$)/,
-];
-
-/**
- * Global flags accepted after a leading `rtk` wrapper token. Keep small and
- * easy to extend — add new rtk global flags here as they appear.
- */
-const RTK_GLOBAL_FLAGS = new Set(["-q", "--quiet", "--no-color"]);
-
-/**
- * Normalize one command segment before whitelist matching.
- *
- * Third-party command wrappers (e.g. pi-rtk-optimizer, which loads before
- * this extension) mutate `event.input.command` in place, rewriting
- * `ls "D:/x"` → `rtk ls "D:/x"` (optionally with leading env assignments
- * like `RTK_FOO=1 rtk ls ...`). This gate vets the REWRITTEN string, so we
- * first peel off leading `KEY=VALUE` env assignments and a leading `rtk`
- * wrapper token (plus its global flags); the remaining segment is what gets
- * matched against READ_ONLY_BASH_PATTERNS. Anything we do not recognize is
- * left untouched and will be denied by the whitelist (deny-by-default).
- */
-function normalizeBashSegment(seg: string): string {
-  let s = seg;
-  // Strip leading KEY=VALUE env assignments (quoted or bare values), repeatedly.
-  const envAssign = /^\s*[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+/;
-  while (envAssign.test(s)) s = s.replace(envAssign, "");
-  // Strip a leading `rtk` wrapper token plus its known global flags.
-  if (/^\s*rtk(\s|$)/.test(s)) {
-    s = s.replace(/^\s*rtk\s*/, "");
-    let stripped = true;
-    while (stripped) {
-      stripped = false;
-      const m = s.match(/^(\S+)(?:\s+|$)/);
-      if (m && RTK_GLOBAL_FLAGS.has(m[1])) {
-        s = s.slice(m[0].length);
-        stripped = true;
-      }
-    }
-  }
-  return s;
-}
-
-/**
- * Determine whether a bash command string is read-only / safe in Plan Mode.
- *
- * Strategy:
- * 1. Reject if the command contains shell injection / write primitives we
- *    cannot statically vet: command substitution (`backticks` / `$(...)`),
- *    output redirection (`>` / `>>` / `2>`), or the `find ... -exec` /
- *    `-delete` side-effecting forms.
- * 2. Split the remaining command on pipe / sequence separators (`|`, `||`,
- *    `&&`, `;`), normalize each segment (strip env assignments and a leading
- *    `rtk` wrapper — see normalizeBashSegment), and require EVERY segment to
- *    match the read-only whitelist.
- * 3. Any segment that does not match a whitelist entry → deny.
- *
- * Deny-by-default: an unmatched command is blocked, not silently allowed.
- * To allow more commands, extend READ_ONLY_BASH_PATTERNS above.
- */
-function isReadOnlyBashCommand(cmd: string): boolean {
-  if (!cmd) return false;
-  const trimmed = cmd.trim();
-  if (!trimmed) return false;
-
-  // Block command substitution and output redirection outright.
-  if (/`/.test(trimmed)) return false;
-  if (/\$\(/.test(trimmed)) return false;
-  if (/>>?/.test(trimmed)) return false;       // `>` or `>>`
-  if (/\b2>>?\b/.test(trimmed)) return false;  // stderr redirect
-  if (/<</.test(trimmed)) return false;        // heredoc (write-ish / injection)
-  // Block find side-effecting forms.
-  if (/\bfind\b.*\s-exec\b/.test(trimmed)) return false;
-  if (/\bfind\b.*\s-delete\b/.test(trimmed)) return false;
-  // Block common mutating git sub-commands even if pattern above matched a
-  // benign-looking prefix (defence in depth).
-  if (/\bgit\s+(push|commit|reset|merge|rebase|checkout|switch|pull|fetch|clone|stash\s+(drop|pop)|cherry-pick|tag\s+-d)\b/.test(trimmed)) {
-    return false;
-  }
-  // Block package install / publish that mutate node_modules or registries.
-  if (/\b(npm|pnpm|yarn)\s+(install|i|add|remove|uninstall|publish|ci|run\s+build)\b/.test(trimmed)) {
-    return false;
-  }
-
-  // Split on sequence / pipe operators and vet each segment.
-  const segments = trimmed.split(/\s*(?:\|\||&&|;|\|)\s*/);
-  for (const seg of segments) {
-    if (!seg) continue;
-    const normalized = normalizeBashSegment(seg);
-    if (!normalized) return false;
-    const matched = READ_ONLY_BASH_PATTERNS.some((re) => re.test(normalized));
-    if (!matched) return false;
-  }
-  return true;
-}
 
 // ============================================================
 // PlanManager — lifecycle + persistence + injection
@@ -474,62 +326,60 @@ export class PlanManager {
   // ── Tool Restrictions ──────────────────────────────────────────────────
 
   /**
-   * Check if a tool is allowed in plan mode (Kimi Code-style).
-   * Returns true if tool should be blocked.
+   * Check if a tool should be blocked in plan mode (Kimi Code-style).
    *
-   * Optional `command` is the bash command string (only relevant when
-   * toolName === 'bash'); it is vetted by the read-only whitelist
-   * (isReadOnlyBashCommand). When omitted, bash is denied (deny-by-default).
+   * Kimi Code's approach:
+   * - Bash is NOT blocked — it follows the normal permission mode (auto/yolo/manual).
+   * - Write/Edit: blocked unless targeting the active plan file.
+   * - TaskStop: blocked (would abort background work during planning).
+   * - CronCreate/CronDelete: blocked (would mutate scheduled work).
+   * - Everything else: allowed (passes through to the permission policy chain).
+   *
+   * The plan file path is matched by:
+   *   - Exact match on the filePath parameter (absolute path from the plan session)
+   *   - `local://<basename>` scheme (pi core artifact URL, matched by basename)
+   *   - Resolved absolute path inside the session's `plans/` directory
    */
-  shouldBlockTool(toolName: string, filePath?: string, command?: string): boolean {
+  shouldBlockTool(toolName: string, filePath?: string, _command?: string): boolean {
     if (!planModeState.isActive) return false;
-
-    // Pi built-in tools: bash, edit, find, grep, ls, read, write
-    // Read-only tools are always allowed (Pi built-in + our extensions)
-    const readOnlyTools = ['read', 'grep', 'find', 'ls', 'glob', 'get_goal', 'web_search', 'fetch_content',
-      'agent_file_list', 'agent_file_info', 'todo_list',
-      'task_list', 'task_output', 'cron_list',
-      'enter_plan_mode', 'exit_plan_mode',
-      'select_tools', 'skill'];
-    if (readOnlyTools.includes(toolName)) return false;
 
     // Kimi Code-style: block task/cron mutations during plan mode
     if (toolName === 'task_stop' || toolName === 'cron_create' || toolName === 'cron_delete') {
       return true;
     }
 
-    // Bash: apply a conservative read-only whitelist. Commands that do not
-    // match are blocked — Plan Mode is restrictive by design. Extend
-    // READ_ONLY_BASH_PATTERNS above to allow more read-only commands.
-    if (toolName === 'bash') {
-      if (typeof command !== "string" || !isReadOnlyBashCommand(command)) {
-        return true; // deny
-      }
-      return false;
-    }
+    // Write/Edit: only the plan file is writable
+    if (toolName === 'write' || toolName === 'edit') {
+      if (!filePath) return true; // no path → block
 
-    // Write/Edit to plan file is allowed — but only when the resolved path
-    // is inside the resolved plan directory. The previous check used loose
-    // substring heuristics (`includes('/plans/')` / `endsWith('.plan.md')`)
-    // which could be bypassed via crafted paths (e.g. `../plans/evil.md`
-    // outside the session, or any `*.plan.md` anywhere).
-    if ((toolName === 'write' || toolName === 'edit') && filePath) {
+      const plan = planModeState.currentPlan;
+      if (plan?.path) {
+        // Exact match against the active plan file
+        if (filePath === plan.path) return false;
+        // local://<name>.md — match basename against the plan filename
+        if (filePath.startsWith('local://')) {
+          const localBasename = filePath.slice('local://'.length);
+          const planBasename = path.basename(plan.path);
+          if (localBasename === planBasename) return false;
+        }
+      }
+
+      // Resolved absolute path inside sessionDir/plans/
       const resolvedFile = path.resolve(filePath);
       const planDir = path.resolve(
         this.sessionDir ? path.join(this.sessionDir, "plans") : path.join("plans")
       );
-      // Must be strictly *inside* planDir (planDir + path.sep prefix).
-      // Matches the file itself if it lives directly under planDir.
       if (resolvedFile === planDir || resolvedFile.startsWith(planDir + path.sep)) {
         return false;
       }
+
+      return true; // block write/edit outside plan file
     }
 
-    // All other write/edit operations are blocked
-    if (toolName === 'write' || toolName === 'edit') {
-      return true;
-    }
-
+    // Bash is NOT blocked — follows normal permission mode (auto/yolo/manual),
+    // matching Kimi Code's "Bash follows the normal permission mode and rules".
+    // Everything else (ask_user_question, read, grep, find, glob,
+    // web_search, fetch_content, agent_file_*, todo_list, etc.) is allowed.
     return false;
   }
 
