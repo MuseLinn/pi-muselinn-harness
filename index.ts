@@ -1516,24 +1516,33 @@ function registerAgentFileTools(pi: ExtensionAPI): void {
  */
 export function registerTodoCommand(pi: any): void {
   pi.registerCommand("todo", {
-    description: "Manage todo list manually (append / start / done / drop / rm / import / export)",
+    description: "Manage todo list (append / start / done / drop / rm / import / export / copy / edit)",
     usage: [
+      "/todo                              Show todos as Markdown",
       "/todo import [<path>]              Replace todos from file (default: TODO.md)",
+      "/todo export [<path>]              Export todos to file (default: TODO.md)",
+      "/todo copy                         Print todos as Markdown to conversation",
       "/todo append [<phase>] <task...>   Append a task; phase fuzzy-matched or auto-created",
-      "/todo start  <task>                Mark task in_progress (fuzzy content match)",
+      "/todo start  <task>                Mark task in_progress (fuzzy match)",
       "/todo done   [<task|phase>]        Mark task/phase/all completed",
       "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
-      "/todo export [<path>]               Export todos to file (default: TODO.md)",
-      "/todo help                          Show this usage",
+      "/todo rm     [<task|phase>]        Remove task/phase/all",
+      "/todo edit                         Hint: use export then import",
+      "/todo help / ?                     Show this usage",
     ].join("\n"),
-    getArgumentCompletions: (prefix: string): { value: string; label: string; description?: string }[] | null => {
+    getArgumentCompletions: (prefix: string) => {
       const subcmds = [
         { value: "import", label: "/todo import", description: "Replace todos from file" },
-        { value: "append", label: "/todo append", description: "Append a task" },
-        { value: "start", label: "/todo start", description: "Mark task in_progress" },
-        { value: "done", label: "/todo done", description: "Mark task/phase/all completed" },
         { value: "export", label: "/todo export", description: "Export todos to file" },
-        { value: "help", label: "/todo help", description: "Show usage" },
+        { value: "copy",   label: "/todo copy",   description: "Print todos as Markdown" },
+        { value: "append", label: "/todo append", description: "Append a task" },
+        { value: "start",  label: "/todo start",  description: "Mark task in_progress" },
+        { value: "done",   label: "/todo done",   description: "Mark task/phase/all completed" },
+        { value: "drop",   label: "/todo drop",   description: "Mark task/phase/all abandoned" },
+        { value: "rm",     label: "/todo rm",     description: "Remove task/phase/all" },
+        { value: "edit",   label: "/todo edit",   description: "Open in editor" },
+        { value: "help",   label: "/todo help",   description: "Show usage" },
+        { value: "?",      label: "/todo ?",      description: "Show usage" },
       ];
       if (!prefix) return subcmds;
       const lower = prefix.toLowerCase();
@@ -1719,16 +1728,40 @@ export function registerTodoCommand(pi: any): void {
           return;
         }
 
-        case "help": {
+        case "copy": {
+          if (rt.phases.length === 0) { ctx?.showStatus?.("No todos."); return; }
+          const md = phasesToMarkdown(rt.phases);
+          ctx?.showStatus?.(md);
+          return;
+        }
+
+        case "edit": {
+          ctx?.showStatus?.("/todo edit requires the TUI editor; use /todo export then /todo import for non-interactive edits.");
+          return;
+        }
+
+        case "help":
+        case "?": {
           ctx?.showStatus?.(`Usage:\n${[
+            "/todo                              Show todos as Markdown",
             "/todo import [<path>]              Replace todos from file (default: TODO.md)",
+            "/todo export [<path>]              Export todos to file (default: TODO.md)",
+            "/todo copy                         Print todos as Markdown to conversation",
             "/todo append [<phase>] <task...>   Append a task; phase fuzzy-matched or auto-created",
-            "/todo start  <task>                Mark task in_progress (fuzzy content match)",
+            "/todo start  <task>                Mark task in_progress (fuzzy match)",
             "/todo done   [<task|phase>]        Mark task/phase/all completed",
             "/todo drop   [<task|phase>]        Mark task/phase/all abandoned",
             "/todo rm     [<task|phase>]        Remove task/phase/all",
-            "/todo export [<path>]               Export todos to file (default: TODO.md)",
+            "/todo edit                         Hint: use export then import",
+            "/todo help / ?                     Show this usage",
           ].join("\n")}`);
+          return;
+        }
+
+        default: {
+          if (rt.phases.length === 0) { ctx?.showStatus?.("No todos. Use /todo append <task> to start one."); return; }
+          const md = phasesToMarkdown(rt.phases);
+          ctx?.showStatus?.(md, { wrap: true });
           return;
         }
       }
