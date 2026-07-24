@@ -4,7 +4,7 @@
 
 **Kimi Code-style agent orchestration harness for the [Pi coding agent](https://pi.dev)** — Swarm · Goal · Plan · Permission · Ask · Task · Cron · Todo · Hooks · Skills · TUI, an eleven-module architecture that builds the features Pi deliberately skips (sub-agents, plan mode, todo, …) and aligns them with Kimi Code's subsystem behavior.
 
-> **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x–0.82.x, Node 22/24 on ubuntu + windows.
+> **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Compatible with pi 0.81.x–0.82.x on macOS, ubuntu, and windows; Node 22/24, CI-tested on ubuntu + windows.
 
 ### What's new in 0.9.9
 
