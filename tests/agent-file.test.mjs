@@ -134,14 +134,25 @@ describe("agent-file roots", () => {
   it("collectRoots includes user and project scopes", async () => {
     const { collectRoots } = await import("../packages/core/agent-file/roots.ts");
     const dir = tmpDir();
+    // Project scope: .pi/agents under the project root
     fs.mkdirSync(path.join(dir, ".pi", "agents"), { recursive: true });
-    const roots = collectRoots(dir);
-    assert.ok(roots.length > 0);
-    const hasProject = roots.some((r) => r.source === "project");
-    assert.ok(hasProject, "should have project roots");
-    const hasUser = roots.some((r) => r.source === "user");
-    assert.ok(hasUser, "should have user roots");
-    fs.rmSync(dir, { recursive: true, force: true });
+    // User scope: point KIMI_AGENT_DIR to a directory under temp
+    const userAgentDir = path.join(dir, "user", "agent");
+    fs.mkdirSync(path.join(userAgentDir, "agents"), { recursive: true });
+    const prev = process.env.KIMI_AGENT_DIR;
+    process.env.KIMI_AGENT_DIR = userAgentDir;
+    try {
+      const roots = collectRoots(dir);
+      assert.ok(roots.length > 0);
+      const hasProject = roots.some((r) => r.source === "project");
+      assert.ok(hasProject, "should have project roots");
+      const hasUser = roots.some((r) => r.source === "user");
+      assert.ok(hasUser, "should have user roots");
+    } finally {
+      if (prev === undefined) delete process.env.KIMI_AGENT_DIR;
+      else process.env.KIMI_AGENT_DIR = prev;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("findProjectRoot finds .git", async () => {
