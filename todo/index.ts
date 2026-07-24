@@ -42,7 +42,7 @@ interface TodoRuntime {
 
 const MAX_REMINDERS = 3;
 
-const rt: TodoRuntime = {
+export const rt: TodoRuntime = {
   phases: [],
   expanded: false,
   appendEntry: null,
