@@ -54,6 +54,14 @@ title: pi-muselinn-harness
   </div>
 </div>
 
+<h2><span data-l="en">New in 0.9.1</span><span data-l="zh">0.9.1 新功能</span></h2>
+<div class="roadmap-grid">
+<div class="card reveal" markdown="1">
+### <span data-l="en">Bug fixes</span><span data-l="zh">Bug 修复</span>
+<span data-l="en">Fixed <code>add_notes</code> fallthrough, stray <code>completed: number</code> line, and substring matching. 94/94 TODO tests green.</span><span data-l="zh">修复 <code>add_notes</code> fallthrough、残留 <code>completed: number</code> 行、子串匹配逻辑。94/94 TODO 测试通过。</span>
+</div>
+</div>
+
 <h2><span data-l="en">New in 0.9.0</span><span data-l="zh">0.9.0 新功能</span></h2>
 <div class="roadmap-grid">
 <div class="card reveal" markdown="1">
@@ -130,7 +138,7 @@ title: pi-muselinn-harness
 </div>
 <div class="card reveal" markdown="1">
 ### <span data-l="en">CI/CD on GitHub Actions</span><span data-l="zh">GitHub Actions CI/CD</span>
-<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 20/22, 19 suites, 580 assertions). Tag <code>v*</code> and the same matrix gates an automatic npm publish.</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 20/22，19 个套件，580 项断言）。打 <code>v*</code> tag 即由同一矩阵门禁触发 npm 自动发布。</span>
+<span data-l="en">Every push and PR runs the full test matrix (ubuntu + windows × node 22/24, 19 suites, 580 assertions).</span><span data-l="zh">每次 push 与 PR 运行完整测试矩阵（ubuntu + windows × node 22/24，19 个套件，580 项断言）。</span>
 </div>
 </div>
 

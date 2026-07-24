@@ -6,6 +6,14 @@ Kimi Code 风格的 Pi Agent 扩展 — Swarm + Goal + Plan + Permission + Task 
 
 > **开发重心**：主线开发在 **MusePi**（Pi fork）进行 — 见 [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md)。本扩展持续维护：bug 修复、Pi 兼容更新，以及适合扩展形态的新功能也会继续加入。已验证兼容 pi 0.81.x 和 0.82.x。
 
+### 0.9.1 新功能
+
+**Bug 修复：**
+- 修复 `applyEntry` 中 `add_notes` 分支的 fallthrough 问题（所有 add_notes 调用被误判为 "Missing details value"）
+- 修复函数体中残留的 `completed: number` 行导致模块无法导出
+- `todoMatchesAnyDescription` 现在正确比较短字符串是否包含在长字符串中
+- 全部 94 项 TODO 测试通过，完整套件 12/12
+
 ### 0.9.0 新功能
 
 **TODO Phase Model — 带阶段管理和提醒机制的 todo 重写。**
@@ -57,7 +65,7 @@ Plan 文件路径支持三种匹配方式：精确路径、`local://` scheme 文
 - **Plan 模式修复** — bash 只读门禁现在能识别 `rtk` 包装命令（pi-rtk-optimizer 会原地重写命令）并接受 Windows `dir`；**Revise** 保留同一个 plan 对象，不再困住用户或丢失工作；评审超时 60s → 600s；磁盘上无文件的过期持久化 plan 会干净地退出 plan 模式而不是卡死会话；`plan` 徽标现在同样跟随工具驱动的 plan 模式
 - **Goal 修复** — 底部徽标计数（轮次/token/墙钟）按单调合并恢复，不再倒退闪烁；已完成目标留下墓碑 entry，不会被过期计数复活；`update_goal` 文档明确写出 `verified=true` 规则（声明了完成判据时必须在同一次调用中传入）
 - **Ask 对话框健壮性** — 长选项列表滚动窗口、答案去重、后台任务提问支持，叠加在标签页多题对话框（多选 + Other 自由文本）之上
-- **CI/CD** — GitHub Actions 测试矩阵（ubuntu + windows × node 20/22）随 push/PR 运行；打 `v*` tag 先跑矩阵再自动发布 npm
+- **CI/CD** — GitHub Actions 测试矩阵（ubuntu + windows × node 22/24）随 push/PR 运行
 
 ### 0.7.4 新功能
 
@@ -196,7 +204,7 @@ Plan 文件路径支持三种匹配方式：精确路径、`local://` scheme 文
 pi install npm:pi-muselinn-harness
 ```
 
-已安装过？再跑一次同样的命令即可升级到最新版（0.9.0）。
+已安装过？再跑一次同样的命令即可升级到最新版（0.9.1）。
 
 也可以从 git 或本地源码安装：
 

@@ -6,6 +6,14 @@
 
 > **Development focus:** main-line development happens in **MusePi** (the Pi fork) — see [MusePi-PLAN.md](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/MusePi-PLAN.md). This extension stays maintained: bug fixes, Pi compatibility updates, and new features that fit the extension form. Verified compatible with pi 0.81.x and 0.82.x.
 
+### What's new in 0.9.1
+
+**Bug fixes:**
+- Fixed `add_notes` case in `applyEntry` — no longer falls through into `update_details` (all add_notes calls rejected with "Missing details value")
+- Fixed stray `completed: number` in function body that blocked module parsing
+- `todoMatchesAnyDescription` now correctly checks shorter string against longer one for substring matching
+- All 94 TODO tests green, full suite 12/12
+
 ### What's new in 0.9.0
 
 **TODO Phase Model — phased task planning with reminders built in.**
@@ -103,7 +111,7 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 - **Plan mode fixes** — the bash read-only gate now understands `rtk`-wrapped commands (pi-rtk-optimizer rewrites commands in place) and Windows `dir`; **Revise** keeps the same plan object instead of trapping you or losing work; review timeout raised 60 s → 600 s; a stale persisted plan with no file on disk deactivates cleanly instead of trapping the session; the `plan` badge now also follows tool-driven plan mode
 - **Goal fixes** — footer badge counters (`turns` / tokens / wall-clock) restore monotonically, so they never flicker backwards; completed goals leave a tombstone entry and can't be resurrected with stale counters; `update_goal` docs now state the `verified=true` rule explicitly (required to complete a goal with a declared criterion)
 - **Ask dialog robustness** — scrolling window for long option lists, answer deduplication, and background-question support, on top of the tabbed multi-question dialog (multi-select + free-text Other)
-- **CI/CD** — GitHub Actions test matrix (ubuntu + windows × node 20/22) on every push/PR; tagging `v*` runs the matrix and publishes to npm automatically
+- **CI/CD** — GitHub Actions test matrix (ubuntu + windows × node 22/24) on every push/PR
 
 ### What's new in 0.7.4
 
@@ -127,7 +135,7 @@ per subagent. Active agent count shown in the status bar (`[3 agents running]`).
 pi install npm:pi-muselinn-harness
 ```
 
-Already installed? Re-run the same command to upgrade to the latest release (0.9.0).
+Already installed? Re-run the same command to upgrade to the latest release (0.9.1).
 
 Or from git / local source:
 
@@ -370,15 +378,12 @@ TypeScript-transpile ESM loader; 22.6+ strips types natively). CI runs the
 full matrix — ubuntu + windows × node 20/22 — on every push and PR.
 
 ## Releasing (maintainers)
-
 Tag to mark the release (CI publish removed — publish locally with OTP):
 
 ```bash
-npm run version && git tag v0.9.0 && git push origin v0.9.0
+npm run version-patch && git tag v0.9.1 && git push origin v0.9.1
 ```
-
 ## Experimental branches
-
 - [`feature/math-renderer`](https://github.com/MuseLinn/pi-muselinn-harness/tree/feature/math-renderer) — renders `$$...$$` display math in assistant messages via [txm](https://github.com/thatmagicalcat/txm) (cell-based 2D typesetting, works in Windows Terminal; no image protocol). Context-safe: the original Markdown is restored before every LLM call. Enable with `/tui math on` after `cargo install txm`.
 
 ## Roadmap
