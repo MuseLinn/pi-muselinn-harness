@@ -469,8 +469,17 @@
     if (_activeGalaxy) _activeGalaxy.classList.remove('active');
     _activeGalaxy = stars[idx].el;
     _activeGalaxy.classList.add('active');
-    // Copy card content into stage (innerHTML to avoid cloneNode quirks)
-    stage.innerHTML = '<div class="roadmap-grid v-reveal">' + entries[idx].grid.innerHTML + '</div>';
+
+    // Move the selected grid into the stage (reliable, no innerHTML quirks)
+    stage.innerHTML = '';
+    var grid = entries[idx].grid;
+    grid.style.display = '';
+    grid.classList.remove('v-reveal');
+    // Force reflow so the animation replays on re-select
+    void grid.offsetWidth;
+    grid.classList.add('v-reveal');
+    stage.appendChild(grid);
+
     setTimeout(function() {
       stage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 100);
