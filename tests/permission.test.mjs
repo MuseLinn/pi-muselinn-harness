@@ -234,5 +234,33 @@ permissionManager.setMode("manual");
 permissionManager.resetHistory();
 fs.rmSync(cleanCwd, { recursive: true, force: true });
 
+// ---- loadDefaultMode (config.ts) ----
+const { loadDefaultMode } = loadTs(`${EXT}/packages/core/permission/config.ts`);
+
+// A: no config anywhere → manual
+check("defaultMode falls back to manual with no config", loadDefaultMode() === "manual");
+
+// B: global permissions.json defaultMode:auto → auto
+const globalDir = path.join(process.env.HOME, ".pi", "agent");
+fs.mkdirSync(globalDir, { recursive: true });
+fs.writeFileSync(path.join(globalDir, "permissions.json"), JSON.stringify({ defaultMode: "auto" }));
+check("defaultMode reads global permissions.json", loadDefaultMode() === "auto");
+
+// C: invalid value → manual
+fs.writeFileSync(path.join(globalDir, "permissions.json"), JSON.stringify({ defaultMode: "nonsense" }));
+check("defaultMode rejects invalid values", loadDefaultMode() === "manual");
+
+// D: global wins over project (first hit)
+fs.writeFileSync(path.join(globalDir, "permissions.json"), JSON.stringify({ defaultMode: "yolo" }));
+const projDir = fs.mkdtempSync(path.join(os.tmpdir(), "perm-test-proj-"));
+fs.mkdirSync(path.join(projDir, ".pi"), { recursive: true });
+fs.writeFileSync(path.join(projDir, ".pi", "permissions.json"), JSON.stringify({ defaultMode: "manual" }));
+const prevCwd = process.cwd();
+process.chdir(projDir);
+check("defaultMode global wins over project", loadDefaultMode() === "yolo");
+process.chdir(prevCwd);
+fs.rmSync(projDir, { recursive: true, force: true });
+fs.rmSync(globalDir, { recursive: true, force: true });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

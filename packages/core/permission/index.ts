@@ -5,7 +5,7 @@
 import type { PermissionMode, PolicyContext, PolicyResult } from './types.ts';
 import { setMode, sessionApprovals } from './types.ts';
 import { policyChain, isDestructive, inputFingerprint } from './policies.ts';
-import { loadAgentsMd } from './config.ts';
+import { loadAgentsMd, loadDefaultMode } from './config.ts';
 import { hookEngine } from '../hooks/index.ts';
 import { toolPolicyService } from '../tool-policy/index.ts';
 
@@ -24,7 +24,7 @@ export type ApprovalDialogFn = (
 ) => Promise<ApprovalDialogResult>;
 
 export class PermissionManager {
-  private mode: PermissionMode = 'manual';
+  private mode: PermissionMode = loadDefaultMode();
   private lastMode: PermissionMode | undefined;
   private persistFn: ((mode: PermissionMode) => void) | null = null;
   private approvalDialog: ApprovalDialogFn | null = null;

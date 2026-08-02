@@ -163,6 +163,24 @@ export function parseAgentsMd(content: string): Record<string, string> {
   return directives;
 }
 
+/** Default permission mode — reads optional "defaultMode" from global or
+ *  project permissions.json (first hit wins). Falls back to 'manual'. */
+export function loadDefaultMode(): PermissionMode {
+  const candidates = [
+    path.join(process.env.HOME || process.env.USERPROFILE || '.', '.pi', 'agent', 'permissions.json'),
+    path.join(process.cwd(), '.pi', 'permissions.json'),
+  ];
+  for (const configPath of candidates) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (parsed && ['auto', 'yolo', 'manual'].includes(parsed.defaultMode)) {
+        return parsed.defaultMode as PermissionMode;
+      }
+    } catch { /* missing or invalid */ }
+  }
+  return 'manual';
+}
+
 /**
  * Load AGENTS.md contents across the Kimi Code instruction-file hierarchy
  * (project -> $KIMI_CODE_HOME -> ~/.agents), aggregated so a directive
