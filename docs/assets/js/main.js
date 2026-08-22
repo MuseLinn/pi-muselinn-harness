@@ -1,15 +1,6 @@
-/* pi-style-web: theme toggle + lang toggle + scroll reveal + demo scenes */
+/* pi-style-web: lang toggle + scroll reveal + demo scenes + copy button */
 (function () {
   var root = document.documentElement;
-
-  // ── Theme toggle ──
-  function currentTheme() {
-    return root.getAttribute("data-theme") === "light" ? "light" : "dark";
-  }
-  function applyToggle(btn) {
-    btn.textContent = currentTheme() === "light" ? "☾" : "☀";
-    btn.setAttribute("aria-label", "toggle color theme");
-  }
 
   // ── Language toggle (EN/中) ──
   function currentLang() {
@@ -17,30 +8,63 @@
   }
   function setLang(lang) {
     root.setAttribute("data-lang", lang);
+    // Keep the document language in sync for assistive tech.
+    root.setAttribute("lang", lang === "zh" ? "zh-CN" : "en");
     try { localStorage.setItem("lang", lang); } catch (e) { /* ok */ }
     var btn = document.getElementById("lang-toggle");
-    if (btn) btn.textContent = lang === "zh" ? "EN" : "中";
+    if (btn) {
+      btn.textContent = lang === "zh" ? "EN" : "中";
+      btn.setAttribute("aria-label", lang === "zh" ? "Switch to English" : "切换到中文");
+    }
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    // theme
-    var btn = document.getElementById("theme-toggle");
-    if (btn) {
-      applyToggle(btn);
-      btn.addEventListener("click", function () {
-        var next = currentTheme() === "light" ? "dark" : "light";
-        root.setAttribute("data-theme", next);
-        try { localStorage.setItem("theme", next); } catch (e) { /* ok */ }
-        applyToggle(btn);
-      });
-    }
-
     // lang
     var langBtn = document.getElementById("lang-toggle");
     if (langBtn) {
       langBtn.textContent = currentLang() === "zh" ? "EN" : "中";
+      langBtn.setAttribute("aria-label", currentLang() === "zh" ? "Switch to English" : "切换到中文");
       langBtn.addEventListener("click", function () {
         setLang(currentLang() === "zh" ? "en" : "zh");
+      });
+    }
+
+    // install command copy button
+    var copyBtn = document.getElementById("install-copy");
+    if (copyBtn) {
+      var CMD = "pi install npm:pi-muselinn-harness";
+      var LABELS = {
+        copy: '<span data-l="en">Copy</span><span data-l="zh">复制</span>',
+        done: '<span data-l="en">Copied ✓</span><span data-l="zh">已复制 ✓</span>',
+      };
+      var resetTimer = null;
+      function flashCopied() {
+        copyBtn.classList.add("copied");
+        copyBtn.innerHTML = LABELS.done;
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = setTimeout(function () {
+          copyBtn.classList.remove("copied");
+          copyBtn.innerHTML = LABELS.copy;
+        }, 1800);
+      }
+      function legacyCopy() {
+        var ta = document.createElement("textarea");
+        ta.value = CMD;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); } catch (e) { /* no-op */ }
+        document.body.removeChild(ta);
+        flashCopied();
+      }
+      copyBtn.addEventListener("click", function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(CMD).then(flashCopied, legacyCopy);
+        } else {
+          legacyCopy();
+        }
       });
     }
 
@@ -84,7 +108,8 @@
   var wide = window.matchMedia("(min-width: 761px)");
 
   var CUE_HTML =
-    '<span class="scroll-cue"><span class="prompt">$</span>scroll to continue' +
+    '<span class="scroll-cue"><span class="prompt">$</span>' +
+    '<span data-l="en">scroll to continue</span><span data-l="zh">滚动继续</span>' +
     '<span class="cue-caret">▍</span></span>';
 
   function clamp01(v) { return Math.min(1, Math.max(0, v)); }
@@ -260,7 +285,7 @@
   var TYPE_SCENES = {
     goal: {
       title: "goal · lifecycle",
-      badges: { goal: "active" },
+      tag: "goal",
       lines: [
         ["cmd", "$ /goal Ship v0.8 with all 269 tests green"],
         ["dim", "  context injected: <untrusted_objective>"],
@@ -319,6 +344,7 @@
     },
     pause: {
       title: "pause · freeze & steer",
+      tag: "swarm",
       lines: [
         ["cmd", "$ /pause"],
         ["dim", "  ⏸ PAUSED — agents hold at their next safe boundary"],
@@ -332,25 +358,20 @@
   };
 
   var TYPE_COLORS = {
-    dark: {
-      cmd: "#7aa2f7", ok: "#4ec87e", dim: "#7d8aa3",
-      warn: "#e8a838", err: "#e85454", box: "#5bc0be",
-    },
-    light: {
-      cmd: "#3b6fd4", ok: "#1e9e57", dim: "#6b7688",
-      warn: "#b57d1f", err: "#d33f3f", box: "#1f8a87",
-    },
+    cmd: "#4d6bfe", ok: "#157347", dim: "#8c8c8c",
+    warn: "#9a6700", err: "#cf222e", box: "#73a3d2",
+    text: "#000000",
   };
 
   function typeColor(kind) {
-    var set = root.getAttribute("data-theme") === "light" ? TYPE_COLORS.light : TYPE_COLORS.dark;
-    return set[kind] || "#c4cede";
+    return TYPE_COLORS[kind] || "#000000";
   }
 
   // ── Full Pi TUI frame for typewriter scenes ──
   // header (quiet startup) + chat lines + boxed/compact editor + footer
   // with harness badges. Mirrors what a real session shows.
-  function tuiFrame(scene, chatHtml, editorStyle, colors) {
+  function tuiFrame(scene, chatHtml, editorStyle, colors, goalComplete) {
+    var vis = function (s) { return s.replace(/<[^>]*>/g, "").length; };
     var dim = function (s) { return '<span style="color:' + colors.dim + '">' + s + '</span>'; };
     var accent = function (s) { return '<span style="color:' + colors.box + '">' + s + '</span>'; };
     var textDim = function (s) { return '<span style="color:' + colors.dim + '">' + s + '</span>'; };
@@ -366,8 +387,11 @@
     var left = accent(spinner + " ") + dim("Idle");
     var right = dim("(opencode-go) deepseek-v4-flash");
     var W = window.PiDemoTermW || 84;
+    // Visible widths of the border slots (HTML stripped) — required for
+    // the dash fills below; without them the frame corners misalign.
+    var lw = vis(left), rw = vis(right);
     var paint = function (s) { return '<span style="color:' + colors.dim + '">' + s + '</span>'; };
-    var dash = function (n) { return paint("\u2500".repeat(Math.max(0, n))); };
+    var dash = function (n) { return paint("\u2500".repeat(Math.max(0, Math.floor(n)))); };
 
     var editorHtml;
     if (editorStyle === "compact") {
@@ -384,21 +408,21 @@
       editorHtml = top + "\n" + blank + "\n" + bottom + "\n";
     }
 
-    // Footer + badges
+    // Footer + badges: permission mode always; one scene-specific badge.
     var badges = [
       '<span style="color:' + colors.warn + '">manual</span>',
-      '<span style="color:' + colors.box + '">swarm</span>',
     ];
-    if (scene.badges && scene.badges.goal === "complete") {
-      badges.push('<span style="color:' + colors.ok + '">[goal ● complete]</span>');
-    } else {
-      badges.push('<span style="color:' + colors.ok + '">[goal ● active]</span>');
-    }
-    if (scene.planBadge) {
+    if (scene.tag === "goal") {
+      badges.push(goalComplete
+        ? '<span style="color:' + colors.ok + '">[goal ● complete]</span>'
+        : '<span style="color:' + colors.box + '">[goal ● active]</span>');
+    } else if (scene.planBadge) {
       badges.push('<span style="color:' + colors.warn + '">plan</span>');
+    } else if (scene.tag === "swarm") {
+      badges.push('<span style="color:' + colors.box + '">swarm</span>');
     }
     var footerLeft = textDim("0.0%/1.0M (auto)");
-    var footerMid = '<span style="color:#c4cede">(opencode-go) deepseek-v4-flash</span>';
+    var footerMid = '<span style="color:' + colors.text + '">(opencode-go) deepseek-v4-flash</span>';
     var badgeStr = badges.join(" ");
     var used = footerLeft.replace(/<[^>]*>/g, "").length + footerMid.replace(/<[^>]*>/g, "").length + badgeStr.replace(/<[^>]*>/g, "").length;
     var pad = Math.max(1, W - used);
@@ -415,11 +439,12 @@
     var pre = document.createElement("pre");
     pre.className = "demo-pre";
     bodyEl.appendChild(pre);
-    var colors = root.getAttribute("data-theme") === "light" ? TYPE_COLORS.light : TYPE_COLORS.dark;
+    var colors = TYPE_COLORS;
 
     var chatLines = []; // [{kind, text}] accumulated so far
     var li = 0, ci = 0, cur = null;
     var compact = false;
+    var goalDone = false; // per-playthrough state — never mutated on TYPE_SCENES
 
     function render() {
       var chatHtml = chatLines.map(function (l) {
@@ -428,13 +453,13 @@
       if (cur) {
         chatHtml += '<span style="color:' + typeColor(chatLines.length ? cur.kind : "cmd") + '">' + cur.text + "</span>";
       }
-      pre.innerHTML = tuiFrame(scene, chatHtml, compact ? "compact" : "boxed", colors);
+      pre.innerHTML = tuiFrame(scene, chatHtml, compact ? "compact" : "boxed", colors, goalDone);
     }
 
     function step() {
       if (li >= scene.lines.length) {
-        // Goal scene flips the badge to complete at the end.
-        if (name === "goal") scene.badges = { goal: "complete" };
+        // Goal badge flips to complete only for the rest of this playthrough.
+        goalDone = true;
         render();
         typeTimer = setTimeout(function () {
           if (runningScene === name) startTypeScene(name);
@@ -514,7 +539,7 @@
     var refNode = entries[0].h2;
     refNode.parentNode.insertBefore(verse, refNode);
 
-    verse.innerHTML = '<h2 class="v-title"><span data-l="en">Explore Releases</span><span data-l="zh">探索版本</span></h2><div class="v-web-wrap"><div class="v-nebula"></div><div class="v-stars"></div></div><svg class="v-tl-beam" viewBox="0 0 600 80" preserveAspectRatio="xMidYMin meet"><path class="v-tl-beam-path"/></svg><div class="v-timeline"><div class="v-tl-dots"></div></div><div class="v-stage"></div>';
+    verse.innerHTML = '<h2 class="v-title"><span data-l="en">Explore Releases</span><span data-l="zh">探索版本</span></h2><div class="v-web-wrap"><div class="v-stars"></div></div><svg class="v-tl-beam" viewBox="0 0 600 80" preserveAspectRatio="xMidYMin meet"><path class="v-tl-beam-path"/></svg><div class="v-timeline"><div class="v-tl-dots"></div></div><div class="v-stage" aria-live="polite"></div>';
 
     var starContainer = verse.querySelector('.v-stars');
     var beamPath = verse.querySelector('.v-tl-beam-path');
@@ -541,16 +566,18 @@
       var wrapper = document.createElement('div');
       wrapper.className = 'v-star-wrapper';
       var size = 34 + (1 - t) * 24;
-      var glow = 0.45 + (1 - t) * 0.55;
-      var twinkleDelay = ((k * 0.7) % 4).toFixed(1);
-      var orbitDur = (8 + (k * 2.7) % 10).toFixed(1);
-      wrapper.style.cssText = 'left:' + x.toFixed(0) + 'px;top:' + y.toFixed(0) + 'px;--delay:' + twinkleDelay + 's;--orbit-dur:' + orbitDur + 's;';
+      // Percentage positions scale with the container — no clipping on
+      // narrow screens (x/y live in the fixed 600×320 design space).
+      wrapper.style.cssText = 'left:' + (x / W * 100).toFixed(2) + '%;top:' + (y / H * 100).toFixed(2) + '%;';
 
-      var star = document.createElement('div');
+      var star = document.createElement('button');
+      star.type = 'button';
       star.className = 'v-star';
-      star.style.cssText = 'width:' + size + 'px;height:' + size + 'px;opacity:' + glow.toFixed(2) + ';';
+      star.style.cssText = 'width:' + size + 'px;height:' + size + 'px;';
       star.innerHTML = '<span class="v-label">' + labels[k] + '</span>';
       star.dataset.idx = k;
+      star.setAttribute('aria-label', (currentLang() === 'zh' ? '查看版本 ' : 'Show version ') + labels[k]);
+      star.setAttribute('aria-pressed', 'false');
       wrapper.appendChild(star);
       starContainer.appendChild(wrapper);
       stars.push({ el: star, wrapper: wrapper, x: x, y: y, idx: k });
@@ -560,9 +587,12 @@
       })(k));
 
       var dot = document.createElement('button');
+      dot.type = 'button';
       dot.className = 'v-tl-dot';
       dot.dataset.idx = k;
-      dot.innerHTML = '<svg class="v-tl-rib" viewBox="0 0 2 40"><line x1="1" y1="40" x2="1" y2="40"/></svg><span class="v-tl-ring"></span><span class="v-tl-label">' + labels[k] + '</span>';
+      dot.setAttribute('aria-label', (currentLang() === 'zh' ? '查看版本 ' : 'Show version ') + labels[k]);
+      dot.setAttribute('aria-pressed', 'false');
+      dot.innerHTML = '<svg class="v-tl-rib" viewBox="0 0 2 40" aria-hidden="true"><line x1="1" y1="40" x2="1" y2="40"/></svg><span class="v-tl-ring"></span><span class="v-tl-label">' + labels[k] + '</span>';
       dot.addEventListener('click', (function(idx) {
         return function() { showGalaxyVersion(idx, entries, stage, stars, beamPath, timelineDots); };
       })(k));
@@ -576,13 +606,21 @@
   var _activeGalaxy = null;
   var _activeTlIdx = -1;
   function showGalaxyVersion(idx, entries, stage, stars, beamPath, timelineDots) {
-    if (_activeGalaxy) _activeGalaxy.classList.remove('active');
+    if (_activeGalaxy) {
+      _activeGalaxy.classList.remove('active');
+      _activeGalaxy.setAttribute('aria-pressed', 'false');
+    }
     _activeGalaxy = stars[idx].el;
     _activeGalaxy.classList.add('active');
+    _activeGalaxy.setAttribute('aria-pressed', 'true');
 
-    if (_activeTlIdx >= 0) timelineDots[_activeTlIdx].classList.remove('active');
+    if (_activeTlIdx >= 0) {
+      timelineDots[_activeTlIdx].classList.remove('active');
+      timelineDots[_activeTlIdx].setAttribute('aria-pressed', 'false');
+    }
     _activeTlIdx = idx;
     timelineDots[idx].classList.add('active');
+    timelineDots[idx].setAttribute('aria-pressed', 'true');
 
     // Rib line grows upward
     var allRibs = document.querySelectorAll('.v-tl-rib line');

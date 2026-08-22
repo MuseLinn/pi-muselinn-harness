@@ -19,41 +19,25 @@ const FRAME_MS = 80;
 const COMPLETE_FILL_MS = 360;
 const TERM_W = 84;                       // demo terminal width in characters
 
-// ── Color palette (matches the site theme; aligns with pi's muted UI) ──
+// ── Color palette (site theme tokens + sober status hues for the
+//    simulated TUI transcript, mirroring the real harness's output) ──
 const COLORS = {
-  primary:   '#4FA8FF',
-  accent:    '#5BC0BE',
-  text:      '#E0E0E0',
-  textStrong:'#F5F5F5',
-  textDim:   '#888888',
-  textMuted: '#6B6B6B',
-  border:    '#5A5A5A',
-  success:   '#4EC87E',
-  warning:   '#E8A838',
-  error:     '#E85454',
-  roleUser:  '#FFCB6B',
-  shellMode: '#BD93F9',
-};
-
-const LIGHT_COLORS = {
-  primary:   '#3b6fd4',
-  accent:    '#1f8a87',
-  text:      '#394352',
-  textStrong:'#17202e',
-  textDim:   '#6b7688',
-  textMuted: '#8a94a6',
-  border:    '#d4dbe6',
-  success:   '#1e9e57',
-  warning:   '#b57d1f',
-  error:     '#d33f3f',
-  roleUser:  '#b57d1f',
-  shellMode: '#7c4dbd',
+  primary:   '#4d6bfe',
+  accent:    '#73a3d2',
+  text:      '#000000',
+  textStrong:'#000000',
+  textDim:   '#8c8c8c',
+  textMuted: '#8c8c8c',
+  border:    '#8c8c8c',
+  success:   '#157347',
+  warning:   '#9a6700',
+  error:     '#cf222e',
+  roleUser:  '#4d6bfe',
+  shellMode: '#73a3d2',
 };
 
 function themedColors() {
-  const root = typeof document !== 'undefined' ? document.documentElement : null;
-  const light = root && root.getAttribute('data-theme') === 'light';
-  return light ? LIGHT_COLORS : COLORS;
+  return COLORS;
 }
 
 function darkenHexColor(hex, rf, gf, bf) {

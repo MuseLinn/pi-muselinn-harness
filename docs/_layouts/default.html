@@ -1,43 +1,47 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if page.title %}{{ page.title }} · {% endif %}pi-muselinn-harness</title>
   <meta name="description" content="Kimi Code-style agent orchestration harness for the Pi coding agent — swarm, goal, plan, permission, task, hooks, skills, boxed-editor TUI.">
   <script>
-    // Theme + lang init before first paint (no FOUC).
+    // Language init before first paint (no FOUC). Light-only theme.
     (function () {
-      var t = null, l = null;
-      try { t = localStorage.getItem("theme"); l = localStorage.getItem("lang"); } catch (e) { /* private mode */ }
-      if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      var l = null;
+      try { l = localStorage.getItem("lang"); } catch (e) { /* private mode */ }
       if (!l) l = (navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "zh" : "en";
-      document.documentElement.setAttribute("data-theme", t);
       document.documentElement.setAttribute("data-lang", l);
+      document.documentElement.setAttribute("lang", l === "zh" ? "zh-CN" : "en");
     })();
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fragment+Mono&display=swap">
   <link rel="icon" type="image/svg+xml" href="{{ '/assets/img/favicon.svg' | relative_url }}">
   <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
 </head>
 <body>
+  <a class="skip-link" href="#main"><span data-l="en">Skip to content</span><span data-l="zh">跳到正文</span></a>
   <nav class="topnav">
-    <span class="brand"><img class="brand-logo" src="{{ '/assets/img/brand.svg' | relative_url }}" alt=""> π <b>muselinn-harness</b></span>
+    <a class="brand" href="{{ '/' | relative_url }}">
+      <img class="brand-logo" src="{{ '/assets/img/brand.svg' | relative_url }}" alt=""> π <b>muselinn-harness</b>
+    </a>
     <span class="navlinks">
-      <a href="https://muselinn.github.io/pi-muselinn-harness/">Home</a>
-      <a href="https://muselinn.github.io/pi-muselinn-harness/self-hosting">Guide</a>
-      <a href="https://github.com/MuseLinn/pi-muselinn-harness">GitHub</a>
-      <a href="https://www.npmjs.com/package/pi-muselinn-harness">npm</a>
-      <a href="https://pi.dev/packages/pi-muselinn-harness">pi.dev</a>
-      <button id="lang-toggle" class="lang-toggle" type="button">中</button>
-      <button id="theme-toggle" class="theme-toggle" type="button">☀</button>
+      <a href="{{ '/' | relative_url }}" {% if page.url == '/' %}aria-current="page"{% endif %}><span data-l="en">Home</span><span data-l="zh">首页</span></a>
+      <a href="{{ '/self-hosting.html' | relative_url }}" {% if page.url == '/self-hosting.html' %}aria-current="page"{% endif %}><span data-l="en">Guide</span><span data-l="zh">指南</span></a>
+      <a class="nav-ext" href="https://github.com/MuseLinn/pi-muselinn-harness">GitHub</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/pi-muselinn-harness">npm</a>
+      <a class="nav-ext" href="https://pi.dev/packages/pi-muselinn-harness">pi.dev</a>
+      <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Switch language / 切换语言">中</button>
     </span>
   </nav>
-  <main>
+  <main id="main">
     {{ content }}
   </main>
   <footer>
     <span>pi-muselinn-harness · MIT License</span>
-    <span>built for <a href="https://pi.dev">pi</a> · <a href="https://pi.dev/packages/pi-muselinn-harness">catalog</a></span>
+    <span><span data-l="en">built for</span><span data-l="zh">为</span> <a href="https://pi.dev">pi</a> · <a href="https://pi.dev/packages/pi-muselinn-harness"><span data-l="en">catalog</span><span data-l="zh">插件目录</span></a></span>
   </footer>
   <script src="{{ '/assets/js/swarm-demo.js' | relative_url }}"></script>
   <script src="{{ '/assets/js/main.js' | relative_url }}"></script>

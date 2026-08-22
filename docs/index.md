@@ -9,7 +9,7 @@ title: pi-muselinn-harness
   <p class="sub"><span data-l="en">Kimi Code-style agent orchestration for the <a href="https://pi.dev">Pi coding agent</a> —<br>swarm, goal, plan, permission, ask, task, cron, todo, hooks, skills, and a boxed-editor TUI, in one coherent package.</span><span data-l="zh">为 <a href="https://pi.dev">Pi coding agent</a> 打造的 Kimi Code 风格编排套件 —<br>Swarm、Goal、Plan、Permission、Ask、Task、Cron、Todo、Hooks、Skills 与闭合框编辑器,一个包全部集成。</span></p>
   <div class="installbar">
     <span><span class="prompt">$</span>pi install npm:pi-muselinn-harness</span>
-    <span class="hint">npm</span>
+    <button id="install-copy" class="copy-btn" type="button" aria-label="Copy install command"><span data-l="en">Copy</span><span data-l="zh">复制</span></button>
   </div>
 </div>
 
@@ -17,7 +17,7 @@ title: pi-muselinn-harness
   <div class="split-term">
     <div class="demo-term" id="demo-term">
       <div class="termtitle" id="demo-title">swarm · live</div>
-      <div id="demo-body"><span class="scroll-cue"><span class="prompt">$</span>scroll to continue<span class="cue-caret">▍</span></span></div>
+      <div id="demo-body"><span class="scroll-cue"><span class="prompt">$</span><span data-l="en">scroll to continue</span><span data-l="zh">滚动继续</span><span class="cue-caret">▍</span></span></div>
     </div>
   </div>
   <div class="split-sections">
