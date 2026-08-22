@@ -85,6 +85,13 @@
       els.forEach(function (el) { io.observe(el); });
     }
 
+
+    // Restart the typewriter scene whenever the system color scheme flips,
+    // so the demo colors stay in sync without a reload.
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (runningScene) startTypeScene(runningScene);
+      if (swarm) { swarm.stop(); swarm.start(); }
+    });
     initScenes();
     initScrollProgress();
   });
@@ -358,13 +365,25 @@
   };
 
   var TYPE_COLORS = {
-    cmd: "#4d6bfe", ok: "#157347", dim: "#8c8c8c",
-    warn: "#9a6700", err: "#cf222e", box: "#73a3d2",
-    text: "#000000",
+    light: {
+      cmd: "#4d6bfe", ok: "#157347", dim: "#8c8c8c",
+      warn: "#9a6700", err: "#cf222e", box: "#73a3d2",
+      text: "#000000",
+    },
+    dark: {
+      cmd: "#6d86ff", ok: "#2ea043", dim: "#8b93a5",
+      warn: "#d29922", err: "#f85149", box: "#73a3d2",
+      text: "#e6e9ef",
+    },
   };
+  function currentTypeColors() {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? TYPE_COLORS.dark
+      : TYPE_COLORS.light;
+  }
 
   function typeColor(kind) {
-    return TYPE_COLORS[kind] || "#000000";
+    return currentTypeColors()[kind] || "#e6e9ef";
   }
 
   // ── Full Pi TUI frame for typewriter scenes ──
@@ -439,7 +458,7 @@
     var pre = document.createElement("pre");
     pre.className = "demo-pre";
     bodyEl.appendChild(pre);
-    var colors = TYPE_COLORS;
+    var colors = currentTypeColors();
 
     var chatLines = []; // [{kind, text}] accumulated so far
     var li = 0, ci = 0, cur = null;

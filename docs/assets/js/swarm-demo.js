@@ -36,8 +36,23 @@ const COLORS = {
   shellMode: '#73a3d2',
 };
 
+const DARK_COLORS = {
+  primary:   '#6d86ff',
+  accent:    '#73a3d2',
+  text:      '#e6e9ef',
+  textStrong:'#e6e9ef',
+  textDim:   '#8b93a5',
+  textMuted: '#8b93a5',
+  border:    '#2a3140',
+  success:   '#2ea043',
+  warning:   '#d29922',
+  error:     '#f85149',
+  roleUser:  '#6d86ff',
+  shellMode: '#73a3d2',
+};
+
 function themedColors() {
-  return COLORS;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? DARK_COLORS : COLORS;
 }
 
 function darkenHexColor(hex, rf, gf, bf) {
