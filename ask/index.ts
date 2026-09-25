@@ -185,6 +185,12 @@ export function registerAskUserQuestion(pi: any): void {
   pi.registerTool({
     name: "ask_user_question",
     label: "Ask User Question",
+    // The dialog takes over the editor container and keyboard focus via
+    // ctx.ui.custom, so concurrent calls in one assistant turn would orphan
+    // every dialog but the last (invisible promise that can never resolve →
+    // the tool batch hangs on "running tools"). Declaring sequential makes
+    // pi-agent-core run any batch containing this tool one call at a time.
+    executionMode: "sequential",
     promptSnippet: "ask_user_question: ask the user 1-4 structured questions (single/multi select, tabbed dialog)",
     promptGuidelines: [
       "Use ask_user_question when you need the user to pick between concrete options (approaches, targets, yes/no variants)",
