@@ -367,5 +367,63 @@ check("legacy no-kind output unchanged", (() => {
   return t.includes("A: (no answer — skipped by user)") && !t.includes("chat");
 })());
 
+// 22. Regression (issue #5): the tool must declare executionMode
+// "sequential" — the dialog takes over the editor container + keyboard
+// focus via ctx.ui.custom, so two ask_user_question calls in one assistant
+// turn run concurrently (pi-agent-core default is parallel) and orphan every
+// dialog but the last: the invisible one's promise can never resolve and the
+// batch hangs forever on "running tools". Sequential mode makes pi run any
+// batch containing this tool one call at a time instead.
+//
+// ask/index.ts chains extensionless relative imports (./dialog,
+// ../task/index), so native type stripping can't load it directly — use the
+// same jiti-transform mini loader as tests/plan.test.mjs / task.test.mjs.
+{
+  const { createRequire } = await import("node:module");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { jitiUrl } = await import("./jiti-path.mjs");
+  const { createJiti } = await import(jitiUrl());
+  const jiti = createJiti(import.meta.url ?? __filename, { moduleCache: false });
+  const nativeRequire = createRequire(import.meta.url);
+  const moduleCache = new Map();
+
+  function resolveSpec(spec, parentFile) {
+    if (!spec.startsWith(".")) return { native: spec };
+    const clean = spec.endsWith(".js") ? spec.slice(0, -3) : spec; // TS ESM convention: ./x.js → ./x.ts
+    const base = path.resolve(path.dirname(parentFile), clean);
+    for (const c of [base + ".ts", base + ".js", base]) {
+      if (fs.existsSync(c) && fs.statSync(c).isFile()) return { file: c };
+    }
+    throw new Error(`Cannot resolve ${spec} from ${parentFile}`);
+  }
+
+  function loadTs(file) {
+    const key = path.resolve(file);
+    if (moduleCache.has(key)) return moduleCache.get(key).exports;
+    const code = jiti.transform({ source: fs.readFileSync(key, "utf8"), filename: key, ts: true });
+    const module = { exports: {} };
+    moduleCache.set(key, module); // pre-register for circular imports
+    const localRequire = (spec) => {
+      if (spec === "@earendil-works/pi-coding-agent") return {}; // unused by the registration path
+      const r = resolveSpec(spec, key);
+      return r.native ? nativeRequire(spec) : loadTs(r.file);
+    };
+    new Function("exports", "require", "module", "__filename", "__dirname", code)(
+      module.exports, localRequire, module, key, path.dirname(key));
+    return module.exports;
+  }
+
+  const EXT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
+  const { registerAskUserQuestion } = loadTs(`${EXT}/ask/index.ts`);
+
+  const tools = new Map();
+  registerAskUserQuestion({ registerTool: (def) => tools.set(def.name, def) });
+  const def = tools.get("ask_user_question");
+  check("ask_user_question registers", def !== undefined);
+  check("executionMode is sequential (issue #5)", def?.executionMode === "sequential",
+    `executionMode=${JSON.stringify(def?.executionMode)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
