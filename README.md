@@ -1,52 +1,71 @@
-# pi-muselinn-harness
+# pi-muselinn-harness: parallel agents and execution controls for pi
+
+Add concurrent subagents, goal budgets, plan review, and tool permissions to the [Pi coding agent](https://pi.dev) in one install.
+
+Running a coding agent on a larger task means juggling parallel investigations, keeping their output from filling the main context, and checking tools before they change files. This harness dispatches work into separate subagent sessions and brings results back, tracks goals with budgets and a queue, and puts plan review and permission checks around execution.
 
 [![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
 
-**Kimi Code-style agent orchestration for the [Pi coding agent](https://pi.dev)** — Swarm · Goal · Plan · Permission · Ask · Task · Cron · Todo · Hooks · Skills · TUI, one package that builds the features Pi deliberately skips (sub-agents, plan mode, todo, …) and aligns them with Kimi Code's subsystem behavior.
+[简体中文](README.zh-CN.md)
 
-Compatible with pi 0.81.x–0.83.x on macOS, Ubuntu, and Windows · Node 24/26 · CI-tested on macOS + Ubuntu + Windows.
+## What you can see in 30 seconds
 
-![Closed-box editor with streaming state in the top border](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
+**(demo GIF pending)** — planned file: `docs/demo/swarm.gif`; [recording guide](docs/demo/README.md).
+<!-- Once recorded and reviewed, replace the placeholder with an image at docs/demo/swarm.gif. -->
 
-## What is this?
+*Demo caption: Two explore subagents inspect entry points and tests in parallel while the swarm panel tracks their progress, then return a combined summary.*
 
-Pi is a focused coding agent: no sub-agents, no plan mode, no todo. This
-harness adds them — in the same style as [Kimi Code](https://www.kimi.com/code) —
-as a single install:
+1. **Install** into an existing pi setup:
 
-| You want | You get |
+   ```bash
+   pi install npm:pi-muselinn-harness
+   ```
+
+2. **Start a fresh interactive session** in a project directory (`pi`). Enter these slash commands one at a time; the editor changes immediately, without a model call:
+
+   ```text
+   /tui style compact
+   /tui style boxed
+   /swarm on
+   ```
+
+3. **Try parallel work.** With a model configured in pi, send this as a normal prompt:
+
+   ```text
+   Use agent_swarm with two explore subagents and max_concurrency=2: one summarizes this project’s entry points, the other summarizes its tests. Do not edit files. Return a short combined summary.
+   ```
+
+You should see the editor switch styles and a `swarm` status label; when the model calls `agent_swarm`, the live panel shows two tasks progressing toward a combined summary. Model latency and approvals can take longer than 30 seconds; switching styles needs neither.
+
+## Capabilities at a glance
+
+| Capability | What it does |
 |---|---|
-| Parallel sub-agents | `agent_swarm` / `agent` — real `max_concurrency`, live braille-grid TUI, `run_in_background`, `/resume` |
-| Plan before execution | `enter_plan_mode` — read-only exploration, approval gate, Kimi Code permission model |
-| Stay on task | `/goal` — lifecycle, budgets, queue, completion-criterion gate |
-| Freeze & steer | `/pause` full-screen freeze · subagent transcripts · `/steer` runtime injection |
-| Safety rails | 18-level permission chain (`auto` / `yolo` / `manual`), destructive-command + `.env` guards |
-| Work that outlives the turn | `run_background` + `cron_create` — persistent tasks and scheduled prompts |
-| The agent asks properly | `ask_user_question` — tabbed multi-question dialog with previews |
-| Task tracking | `/todo` + `todo_list` — phased plan with inline panel and reminders |
-| A nicer editor | `╭─╮ │ ╰─╯` closed-box TUI with spinner + model in the border |
-| Lifecycle automation | `[[hooks]]` engine — 16 events, blockable PreToolUse/Stop/UserPromptSubmit |
+| Swarm | Runs isolated subagents concurrently with a concurrency cap and live progress. |
+| Goals | Tracks an objective, budgets, completion criteria, and a priority queue. |
+| Plan mode | Reviews a plan before execution; restricts write/edit to the plan file while bash follows permission rules. |
+| Permissions | Checks tool calls through an 18-level policy chain, including destructive-command and sensitive-file guards. |
+| Pause & steer | Pauses main/swarm agents at tool boundaries and sends instructions to running subagents. |
+| Background & cron | Runs background agents and schedules prompts with persistent task records. |
+| Ask & todo | Collects structured answers and displays phased task plans with reminders. |
+| Hooks | Runs lifecycle commands on 16 events, with blocking at supported gates. |
+| Skills & plugins | Discovers skills across project/user scopes and loads declarative resource bundles. |
+| TUI | Adds a Kimi Code-style boxed editor, live task browser, and switchable styles. |
+| Context & web | Spills oversized tool output to disk and fetches readable URL content. |
 
-## Quick start
+## Installation details
+
+Compatible with pi 0.81.x–0.83.x on macOS, Ubuntu, and Windows · Node 24/26 · CI matrix: macOS + Ubuntu + Windows.
+
+Alternatively, install from Git:
 
 ```bash
-pi install npm:pi-muselinn-harness     # or: pi install git:github.com/MuseLinn/pi-muselinn-harness
-pi                                      # restart, then:
+pi install git:github.com/MuseLinn/pi-muselinn-harness
 ```
 
-Try it out:
+Everything works out of the box — **no companion extensions required**. Tools are model-callable; slash commands support Tab completion. See [Commands](#commands) for controls and [Features](#features) for configuration details.
 
-```
-/swarm on                                # enable swarm mode
-/goal Refactor the auth module           # set a goal with budget tracking
-/todo init "Phase 1: scanner"            # start a phased task plan
-/plan                                    # enter plan mode (read-only exploration)
-/pause                                   # freeze everything; esc/enter/space/ctrl+c resumes
-/tui style plain|boxed|compact           # switch editor chrome anytime
-```
-
-Everything works out of the box — **no companion extensions required**. All
-tools are model-callable, all commands are slash commands with Tab completion.
+![Closed-box editor with streaming state in the top border](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
 
 > **Upgrading from ≤ 0.7.4?** Remove the old companion extensions — they
 > conflict with the built-in tools (pi refuses to start on duplicate tool
@@ -197,13 +216,16 @@ tools are model-callable, all commands are slash commands with Tab completion.
 | `/pause` | Freeze all agents at the next safe boundary (esc/enter/space/ctrl+c resumes) |
 | `/steer <taskId> <message>` | Send a message to a running subagent |
 | `/cancel` | Cancel current work (two-step confirm) |
-| `/resume` | Resume an interrupted swarm |
+| `/swarm-resume` | Resume an interrupted swarm |
 | `/tasks` | Task browser (`ctrl+shift+t`) |
 | `/goal <objective>` | Set a goal |
 | `/todo` | Task plan with phase model; shortcuts: `start` `done` `drop` `export` `import` `copy` `edit` `toggle` |
 | `/todo toggle` | Expand/collapse the todo panel (replaces former `alt+t`) |
 | `/plugins` | List loaded plugins and their capabilities |
-| `/swarm-status` | Show status |
+| `/swarm-status` | Show goal status and budget guidance; use `/swarm status` for the swarm toggle/recovery status |
+| `/plan` | Toggle plan mode (`on`, `off`, `clear` also supported) |
+| `/mode auto\|yolo\|manual` | Switch permission mode |
+| `/tui style plain\|boxed\|compact` | Switch editor style |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` all support Tab completion.
 
@@ -290,7 +312,7 @@ pi-muselinn-harness/
 
 ## Tests
 
-Pure node-level unit tests, no model quota needed (28 suites, 830+ assertions):
+Pure node-level unit tests, no model quota needed (29 suites, 830+ assertions):
 
 ```bash
 npm test                                        # all suites (node tests/run-all.mjs)
@@ -314,6 +336,7 @@ node tests/tui-adapter.test.mjs                   # TUI adapter working-state re
 node tests/agent-file.test.mjs                   # agent file discovery/parse — 11
 node tests/agent-lifecycle.test.mjs               # agent lifecycle events — 6
 node tests/ask.test.mjs                           # ask spec/dialog/answers/approval titles — 123
+node tests/ask-concurrency.test.mjs              # Concurrent question-dialog handling
 node tests/tool-policy.test.mjs                  # tool policy gate — 13
 node tests/pause-gate.test.mjs                    # pause gate + full-screen render — 55
 node tests/transcript.test.mjs                     # transcript wire.jsonl recording — 26
@@ -392,7 +415,7 @@ Design and implementation inspired by these open-source projects:
 
 ---
 
-**Note**: this extension is mostly an independent implementation. Exception: `tui/box.ts`'s `wrapWithSideBorders` is ported from Kimi Code (MIT), with attribution kept in comments and used under the MIT license.
+**Note**: this extension is mostly an independent implementation. Exception: `packages/core/tui/box.ts`'s `wrapWithSideBorders` is ported from Kimi Code (MIT), with attribution kept in comments and used under the MIT license.
 
 
 ## Changelog

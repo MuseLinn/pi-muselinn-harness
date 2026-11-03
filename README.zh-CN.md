@@ -1,51 +1,71 @@
-# pi-muselinn-harness
+# pi-muselinn-harness：为 pi 加上并行代理与执行管控
+
+一次安装，为 [Pi coding agent](https://pi.dev) 加上并发子代理、目标预算、计划审批和工具权限。
+
+让编码代理处理大任务时，你既要安排并行排查，又要避免各路输出塞满主会话，还得盯着工具会不会直接改文件。这个编排层把工作分到独立的子代理会话，再汇总结果；用预算和队列跟踪目标，并在执行过程中加入计划审批与权限检查。
 
 [![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
 
-**为 [Pi coding agent](https://pi.dev) 打造的 Kimi Code 风格编排套件** — Swarm · Goal · Plan · Permission · Ask · Task · Cron · Todo · Hooks · Skills · TUI，一个包补齐 Pi 刻意不做的能力（子代理、计划模式、任务管理……），全面对齐 Kimi Code 的子系统行为。
+[English](README.md)
 
-已验证兼容 pi 0.81.x–0.83.x（macOS / Ubuntu / Windows）· Node 24/26 · CI 在 macOS + Ubuntu + Windows 上全绿。
+## 30 秒能看到什么
 
-![闭合框编辑器（上边框嵌入流式状态）](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
+**（演示 GIF 待录制 / demo GIF pending）** — 预定路径：`docs/demo/swarm.gif`；[录制指南](docs/demo/README.md)。
+<!-- 录制并检查后，将占位替换为 docs/demo/swarm.gif 图片。 -->
 
-## 这是什么？
+*演示图注：两个 explore 子代理并行梳理入口与测试，Swarm 面板实时显示进度，最后汇总为一份简短结论。*
 
-Pi 是专注的编码代理：没有子代理、没有计划模式、没有任务管理。这个
-harness 以 [Kimi Code](https://www.kimi.com/code) 的风格把它们一次性补上：
+1. **安装**（需已有 pi 环境）：
 
-| 你想要 | 你得到 |
+   ```bash
+   pi install npm:pi-muselinn-harness
+   ```
+
+2. **在项目目录启动新的交互会话**（运行 `pi`），逐条输入以下斜杠命令；编辑器会立即切换样式，不需要调用模型：
+
+   ```text
+   /tui style compact
+   /tui style boxed
+   /swarm on
+   ```
+
+3. **试试并行工作。** 在 pi 中配置好模型后，将下面这段话作为普通提示发送：
+
+   ```text
+   使用 agent_swarm，启动两个 explore 子代理，max_concurrency=2：一个梳理当前项目的入口，另一个梳理测试。不要修改文件。最后汇总成一份简短结论。
+   ```
+
+你应该看到编辑器样式切换、状态栏出现 `swarm`；模型调用 `agent_swarm` 后，实时面板会显示两个任务的进度，随后返回汇总结论。模型响应和权限审批可能超过 30 秒；切换样式无需等待这些步骤。
+
+## 能力一览
+
+| 能力 | 能做什么 |
 |---|---|
-| 并行子代理 | `agent_swarm` / `agent` — 真实 `max_concurrency`、实时盲文网格 TUI、`run_in_background`、`/resume` |
-| 先谋后动 | `enter_plan_mode` — 只读探索、审批门禁、Kimi Code 权限模型 |
-| 有始有终 | `/goal` — 生命周期、预算、队列、完成判据门禁 |
-| 冻结与转向 | `/pause` 全屏冻结 · 子代理 transcript 落盘 · `/steer` 运行中注入 |
-| 安全护栏 | 18 级权限链（`auto` / `yolo` / `manual`）、破坏性命令 + `.env` 守卫 |
-| 跨轮次的工作 | `run_background` + `cron_create` — 持久后台任务与定时提示 |
-| 好好提问 | `ask_user_question` — 标签页多题对话框，支持预览 |
-| 任务追踪 | `/todo` + `todo_list` — 分阶段计划、内联面板、自动提醒 |
-| 更漂亮的编辑器 | `╭─╮ │ ╰─╯` 闭合框 TUI，spinner + 模型名嵌入上边框 |
-| 生命周期自动化 | `[[hooks]]` 引擎 — 16 个事件，可阻断 PreToolUse/Stop/UserPromptSubmit |
+| Swarm | 在独立会话中并发运行子代理，限制并发数并实时显示进度。 |
+| 目标 | 跟踪目标、预算、完成判据和优先级队列。 |
+| 计划模式 | 执行前审批计划；write/edit 仅能修改计划文件，bash 仍走权限规则。 |
+| 权限 | 通过 18 级策略链检查工具调用，拦截破坏性命令与敏感文件访问。 |
+| 暂停与转向 | 在工具边界暂停主代理和 swarm 子代理，向运行中的子代理追加指令。 |
+| 后台与定时任务 | 后台运行代理、定时发送提示，并持久化任务记录。 |
+| 提问与待办 | 收集结构化回答，用内联面板展示分阶段计划与提醒。 |
+| Hooks | 在 16 个生命周期事件运行命令，在支持的门禁处阻断执行。 |
+| Skills 与插件 | 扫描项目及用户目录的技能，加载声明式资源包。 |
+| TUI | 提供 Kimi Code 风格的闭合框编辑器、实时任务浏览器与样式切换。 |
+| 上下文与联网 | 将超大工具输出转存文件，抓取 URL 的可读内容。 |
 
-## 快速开始
+## 安装细节
+
+已验证兼容 pi 0.81.x–0.83.x（macOS / Ubuntu / Windows）· Node 24/26 · CI 矩阵覆盖 macOS + Ubuntu + Windows。
+
+也可以从 Git 安装：
 
 ```bash
-pi install npm:pi-muselinn-harness     # 或: pi install git:github.com/MuseLinn/pi-muselinn-harness
-pi                                      # 重启 pi，然后试试：
+pi install git:github.com/MuseLinn/pi-muselinn-harness
 ```
 
-体验一下：
+开箱即用，**无需伴随扩展**。工具可由模型调用，斜杠命令支持 Tab 补全。操作方式见[命令](#命令)，配置细节见[功能](#功能)。
 
-```
-/swarm on                                # 开启 swarm 模式
-/goal Refactor the auth module           # 设置目标，跟踪预算
-/todo init "Phase 1: scanner"            # 开始分阶段任务计划
-/plan                                    # 进入计划模式（只读探索）
-/pause                                   # 全屏冻结一切；esc/enter/space/ctrl+c 恢复
-/tui style plain|boxed|compact           # 随时切换编辑器样式
-```
-
-开箱即用 — **无需任何伴随扩展**。所有工具模型可直接调用，所有命令均为
-支持 Tab 补全的 slash 命令。
+![闭合框编辑器（上边框嵌入流式状态）](https://muselinn.github.io/pi-muselinn-harness/assets/img/pi-boxed-editor.png)
 
 > **从 ≤ 0.7.4 升级？** 请移除旧的伴随扩展——它们与内置工具重名冲突
 > （pi 会拒绝启动）：
@@ -177,13 +197,16 @@ pi                                      # 重启 pi，然后试试：
 | `/pause` | 冻结所有代理到下一个安全边界（esc/enter/space/ctrl+c 恢复） |
 | `/steer <taskId> <message>` | 向运行中的子代理发送消息 |
 | `/cancel` | 取消当前任务（两步确认） |
-| `/resume` | 恢复中断的 swarm |
+| `/swarm-resume` | 恢复中断的 swarm |
 | `/tasks` | 打开任务浏览器（快捷键 `ctrl+shift+t`） |
 | `/goal <objective>` | 设置目标 |
 | `/todo` | 任务计划（阶段模型）；子命令：`start` `done` `drop` `export` `import` `copy` `edit` `toggle` |
 | `/todo toggle` | 展开/折叠 todo 面板（替代原 `alt+t`） |
 | `/plugins` | 查看已加载插件及能力 |
-| `/swarm-status` | 查看状态 |
+| `/swarm-status` | 查看目标状态与预算提示；Swarm 开关及恢复状态用 `/swarm status` |
+| `/plan` | 开关计划模式（也支持 `on`、`off`、`clear`） |
+| `/mode auto\|yolo\|manual` | 切换权限模式 |
+| `/tui style plain\|boxed\|compact` | 切换编辑器样式 |
 
 > `/goal` `/swarm` `/plan` `/mode` `/tui` 均支持 Tab 子命令/参数补全。
 
@@ -270,7 +293,7 @@ pi-muselinn-harness/
 
 ## 测试
 
-无需模型额度的 node 级单元测试（28 个套件，830+ 项断言）：
+无需模型额度的 node 级单元测试（29 个套件，830+ 项断言）：
 
 ```bash
 npm test                                        # 全部套件（node tests/run-all.mjs）
@@ -294,6 +317,7 @@ node tests/tui-adapter.test.mjs                   # TUI 适配器 working-state 
 node tests/agent-file.test.mjs                   # agent 文件发现/解析 — 11
 node tests/agent-lifecycle.test.mjs               # agent 生命周期事件 — 6
 node tests/ask.test.mjs                           # ask 规格/对话框/答案/审批标题 123 项
+node tests/ask-concurrency.test.mjs              # 并发提问对话框处理
 node tests/tool-policy.test.mjs                  # 工具策略门控 — 13
 node tests/pause-gate.test.mjs                    # 暂停门禁 + 全屏渲染 — 55
 node tests/transcript.test.mjs                     # transcript wire.jsonl 落盘 — 26
@@ -364,7 +388,7 @@ node tests/stream-rules.test.mjs                  # 流式 entry 规则 14 项
 
 ---
 
-**注意**：本扩展大部分为独立实现。例外：`tui/box.ts` 的 `wrapWithSideBorders` 移植自 Kimi Code（MIT），已保留出处注释并按 MIT 条款使用。
+**注意**：本扩展大部分为独立实现。例外：`packages/core/tui/box.ts` 的 `wrapWithSideBorders` 移植自 Kimi Code（MIT），已保留出处注释并按 MIT 条款使用。
 
 ## Changelog
 
