@@ -348,6 +348,14 @@ node 24/26 — on every push and PR.
 - `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui` (peers)
 - `typebox`
 
+For full protection against overlapping background and foreground question
+dialogs, this extension requires **pi >= 1.4.0**. On pi versions below 1.4.0,
+`ask_user_question` declares `executionMode: "sequential"` to prevent foreground
+calls in the same tool batch from overwriting each other's dialogs. This
+scheduling guarantee does not cover `background: true`: those calls return
+before their dialogs settle, so background dialogs can still overlap other
+questions on older pi versions.
+
 ## Experimental branches
 
 - [`feature/math-renderer`](https://github.com/MuseLinn/pi-muselinn-harness/tree/feature/math-renderer) — renders `$$...$$` display math in assistant messages via [txm](https://github.com/thatmagicalcat/txm) (cell-based 2D typesetting, works in Windows Terminal; no image protocol). Context-safe: the original Markdown is restored before every LLM call. Enable with `/tui math on` after `cargo install txm`.
