@@ -2,6 +2,14 @@
 
 All notable changes to pi-muselinn-harness, in reverse chronological order.
 
+## 0.9.23
+
+**Question dialog concurrency and dependency compatibility:**
+
+- Declared `ask_user_question` with `executionMode: "sequential"` to prevent foreground dialogs in the same tool-call batch from overwriting each other and leaving calls hanging. Added behavioral regression coverage for this scenario.
+- Fully preventing overlap between foreground and background dialogs requires pi >= 1.4.0. On older pi versions, `background: true` remains outside the guarantee.
+- Moved `typebox` from dependencies to peer dependencies (`"*"`) so the host supplies the shared dependency.
+
 ## 0.9.22
 
 **Type-layer hardening — full-package `tsc` typecheck (first time):**
