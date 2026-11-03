@@ -1,0 +1,59 @@
+# To enable Trusted Publishing, register MuseLinn/pi-muselinn-harness and
+# workflow filename npm-publish.yml in the package settings on npmjs.com.
+# Alternatively, add the repository secret NPM_TOKEN for token authentication.
+name: Publish to npm
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  npm-publish:
+    runs-on: ubuntu-latest
+    env:
+      # Secrets cannot be referenced directly in step if conditions.
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: node tests/run-all.mjs
+
+      - name: Check whether the version is already published
+        id: version
+        shell: bash
+        run: |
+          name=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).name")
+          version=$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")
+          if npm view "$name@$version" version > "$RUNNER_TEMP/npm-version" 2> "$RUNNER_TEMP/npm-view-error"; then
+            echo "$name@$version already exists on npm; skipping publication."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -q 'E404' "$RUNNER_TEMP/npm-view-error"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$RUNNER_TEMP/npm-view-error" >&2
+            exit 1
+          fi
+
+      - name: Publish with NPM_TOKEN
+        if: ${{ steps.version.outputs.exists == 'false' && env.HAS_NPM_TOKEN == 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Publish with Trusted Publishing (OIDC)
+        if: ${{ steps.version.outputs.exists == 'false' && env.HAS_NPM_TOKEN != 'true' }}
+        # setup-node can export a placeholder token; OIDC requires it absent.
+        run: |
+          unset NODE_AUTH_TOKEN
+          npm publish --provenance --access public
