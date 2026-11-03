@@ -184,6 +184,7 @@ function startBackgroundQuestion(ctx: any, questions: QuestionSpec[]) {
 export function registerAskUserQuestion(pi: any): void {
   pi.registerTool({
     name: "ask_user_question",
+    executionMode: "sequential",
     label: "Ask User Question",
     promptSnippet: "ask_user_question: ask the user 1-4 structured questions (single/multi select, tabbed dialog)",
     promptGuidelines: [
