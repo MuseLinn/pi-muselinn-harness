@@ -5,6 +5,10 @@ Add concurrent subagents, goal budgets, plan review, and tool permissions to the
 Running a coding agent on a larger task means juggling parallel investigations, keeping their output from filling the main context, and checking tools before they change files. This harness dispatches work into separate subagent sessions and brings results back, tracks goals with budgets and a queue, and puts plan review and permission checks around execution.
 
 [![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
+[![npm](https://img.shields.io/npm/v/pi-muselinn-harness.svg)](https://www.npmjs.com/package/pi-muselinn-harness)
+[![downloads](https://img.shields.io/npm/dt/pi-muselinn-harness.svg)](https://www.npmjs.com/package/pi-muselinn-harness)
+[![stars](https://img.shields.io/github/stars/MuseLinn/pi-muselinn-harness.svg)](https://github.com/MuseLinn/pi-muselinn-harness/stargazers)
+[![license](https://img.shields.io/npm/l/pi-muselinn-harness.svg)](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE)
 
 [简体中文](README.zh-CN.md)
 

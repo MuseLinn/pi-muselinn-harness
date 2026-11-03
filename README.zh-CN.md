@@ -5,6 +5,10 @@
 让编码代理处理大任务时，你既要安排并行排查，又要避免各路输出塞满主会话，还得盯着工具会不会直接改文件。这个编排层把工作分到独立的子代理会话，再汇总结果；用预算和队列跟踪目标，并在执行过程中加入计划审批与权限检查。
 
 [![test](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml/badge.svg)](https://github.com/MuseLinn/pi-muselinn-harness/actions/workflows/test.yml)
+[![npm](https://img.shields.io/npm/v/pi-muselinn-harness.svg)](https://www.npmjs.com/package/pi-muselinn-harness)
+[![downloads](https://img.shields.io/npm/dt/pi-muselinn-harness.svg)](https://www.npmjs.com/package/pi-muselinn-harness)
+[![stars](https://img.shields.io/github/stars/MuseLinn/pi-muselinn-harness.svg)](https://github.com/MuseLinn/pi-muselinn-harness/stargazers)
+[![license](https://img.shields.io/npm/l/pi-muselinn-harness.svg)](https://github.com/MuseLinn/pi-muselinn-harness/blob/main/LICENSE)
 
 [English](README.md)
 
